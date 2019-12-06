@@ -1,8 +1,7 @@
 #!/usr/bin/python
 
 import sys
-import utils
-import constants
+import utils, constants, dataset_utils
 from NeuralNetworkClass import NeuralNetwork
 
 
@@ -23,6 +22,7 @@ def main():
     for name, info in setting["models"].items():
         networks[name] = NeuralNetwork(info, setting)
 
+    train_df = pd.DataFrame(columns=['patient_id', 'label', 'pixels', 'ground_truth', "label_code"])
     for key, net in networks.items():
         for testPatient in setting["PATIENT_TO_TEST"]:
             p_id = utils.getStringPatientIndex(testPatient)
@@ -30,17 +30,21 @@ def main():
 
             # Check if the model was already trained and saved
             if net.isModelSaved(p_id):
-                model = net.loadSAvedModel(p_id)
+                model = net.loadSavedModel(p_id)
             else:
-                # get dataset
-                print("not yet")
-                # Run training
+                ## GET THE DATASET
+                # if we are using a data augmentation dataset we need to get the dataset differently each time
+                if net.da: train_df = utils.getDataset(train_df, net, p_id)
+                else: # Otherwise get dataset only the first time
+                    if len(train_df.index) == 0: train_df = utils.getDataset(train_df, net)
 
-            # Perfom testing
+                ## RUN TRAINING
+
+
+            ## PERFOM TESTING
             if net.supervised:
-                print("not yet 2...")
-                net.evaluateModelWithCategorics() # ...
-
+                net.evaluateModelWithCategorics()
+            # predict and save the images
             net.predictAndSaveImages(p_id)
 
 

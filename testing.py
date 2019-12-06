@@ -9,6 +9,8 @@ import glob
 import numpy as np
 
 
+################################################################################
+# Generate the images for the patient and save the images
 def predictAndSaveImages(that, p_id):
     relativePatientFolder = constants.PREFIX_IMAGES+p_id+"/"
     patientFolder = that.patientsFolder+relativePatientFolder
@@ -97,3 +99,26 @@ def predictAndSaveImages(that, p_id):
             utils.printSeparation("-", 10)
     if constants.getVerbose():
         utils.printSeparation("-", 10)
+
+################################################################################
+# Test the model with the selected patient
+def evaluateModelWithCategorics(model, Y, loss_val, test_labels, training_score, p_id, idFunc):
+    testing = model.evaluate(Y, test_labels, verbose=VERBOSE)
+
+    loss_testing_score = round(testing[0], 6)
+    testing_score = round(testing[1], 6)
+    print("-----------------------------------------------------")
+    if training_score!=None: print("TRAIN %s: %.2f%%" % (model.metrics_names[1], training_score*100))
+    print("TEST %s: %.2f%%" % (model.metrics_names[1], testing_score*100))
+    print("-----------------------------------------------------")
+
+    with open(SAVED_TEXT_PATH+str(p_id)+"_"+idFunc+".txt", "a+") as text_file:
+        text_file.write("\n -----------------------------------------------------")
+        if training_score!=None: text_file.write("\n TRAIN %s: %.2f%%" % (model.metrics_names[1], training_score*100))
+        text_file.write("\n TEST %s: %.2f%%" % (model.metrics_names[1], testing_score*100))
+        text_file.write("\n -----------------------------------------------------")
+        text_file.write("\n TEST LOSS %s: %.2f%%" % (model.metrics_names[1], loss_testing_score))
+        text_file.write("\n -----------------------------------------------------")
+        text_file.write("\n LOSS: " + str(loss_val))
+
+    return testing_score

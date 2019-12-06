@@ -1,4 +1,4 @@
-import sys, argparse, os, json
+import sys, argparse, os, json, time
 import tensorflow as tf
 import constants
 
@@ -79,8 +79,60 @@ def setupEnvironmentForGPUs(args, setting):
         print("Use {0} GPU(s): {1}".format(N_GPU, GPU))
         printSeparation("-",50)
 
+################################################################################
+#
+def getDataset(train_df, net, p_id=None):
+    start = time.time()
+
+    if constants.getVerbose():
+        printSeparation("-",50)
+        print("Loading Dataset...")
+        printSeparation("-",50)
+
+    if constants.DEBUG: train_df = dataset_utils.initTestingDataFrame()
+    else:
+        # no debugging and no data augmentation
+        if net.da:
+            print("Data augmented training/testing... load the dataset differently for each patient")
+            train_df = loadTrainingDataframe(net, p_id)
+        else: train_df = loadTrainingDataframe(net)
+
+    end = time.time()
+    print("Total time to load the Dataset: {0}s".format(round(end-start, 3)))
+    generateDatasetSummary(train_df)
+    return train_df
+
+################################################################################
+# return the selected window for an image
 def getSlicingWindow(img, startX, startY, M, N):
     return img[startX:startX+M,startY:startY+N]
+
+################################################################################
+# Generate a summary of the dataset
+def generateDatasetSummary(train_df):
+    N_BACKGROUND = len([x for x in train_df.label if x=="background"])
+    N_BRAIN = len([x for x in train_df.label if x=="brain"])
+    N_PENUMBRA = len([x for x in train_df.label if x=="penumbra"])
+    N_CORE = len([x for x in train_df.label if x=="core"])
+    N_TOT = train_df.shape[0]
+
+    printSeparation('+', 90)
+    print("DATASET SUMMARY: \n")
+    print("\t N. Background: {0}".format(N_BACKGROUND))
+    print("\t N. Brain: {0}".format(N_BRAIN))
+    print("\t N. Penumbra: {0}".format(N_PENUMBRA))
+    print("\t N. Core: {0}".format(N_CORE))
+    print("\t Tot: {0}".format(N_TOT))
+    printSeparation('+', 90)
+
+################################################################################
+################################################################################
+################################################################################
+########################### GENERAL UTILS ######################################
+################################################################################
+################################################################################
+################################################################################
+################################################################################
 
 ################################################################################
 # get the string of the patient id given the integer

@@ -1,0 +1,38 @@
+{
+  "root_path": "/home/stud/lucat/PhD_Project/Stroke_segmentation/",
+  "PATIENT_TO_TEST": [12,13,14,15,16],
+  "init": {
+    "TF_CPP_MIN_LOG_LEVEL": "2",
+    "per_process_gpu_memory_fraction": 1,
+    "allow_growth": 1
+  },
+  "relative_paths": {
+    "dataset": "DATASET/",
+    "labeled_images": "Manual_annotations/",
+    "patients": "PATIENTS/",
+    "save": {
+      "model": "SAVED_MODELS/",
+      "plot": "SAVED_PLOTS/",
+      "images": "SAVED_IMAGES/",
+      "text": "SAVED_TEXT/"
+    }
+  },
+  "models": {
+    "mJ-Net": {
+      "name": "mJ-Net",
+      "epochs": 50,
+      "data_augmentation": 1,
+      "cross_validation": 0,
+      "train_again": 0,
+      "supervised": 0,
+      "optimizer": {
+        "name": "Adam",
+        "lr": 0.001,
+        "beta_1": 0.9,
+        "beta_2":0.999,
+        "epsilon":"None",
+        "decay":0.0
+      }
+    }
+  }
+}

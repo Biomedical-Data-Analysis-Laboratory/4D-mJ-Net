@@ -1,6 +1,9 @@
+import constants
+
 import sys, argparse, os, json, time
 import tensorflow as tf
-import constants
+import tensorflow.keras.backend as K
+
 
 ################################################################################
 ######################## UTILS FUNCTIONS #######################################
@@ -81,7 +84,7 @@ def setupEnvironmentForGPUs(args, setting):
     return N_GPU
 
 ################################################################################
-#
+# Return the dataset based
 def getDataset(train_df, net, p_id=None):
     start = time.time()
 

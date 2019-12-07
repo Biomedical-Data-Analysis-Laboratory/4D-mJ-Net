@@ -21,10 +21,7 @@
     "mJ-Net": {
       "name": "mJ-Net",
       "epochs": 50,
-      "data_augmentation": 1,
-      "cross_validation": 0,
-      "train_again": 0,
-      "supervised": 0,
+      "validation_perc": 10,
       "optimizer": {
         "name": "Adam",
         "lr": 0.001,
@@ -32,7 +29,11 @@
         "beta_2":0.999,
         "epsilon":"None",
         "decay":0.0
-      }
+    },
+    "data_augmentation": 1,
+    "cross_validation": 0,
+    "train_again": 0,
+    "supervised": 0,
     }
   }
 }

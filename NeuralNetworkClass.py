@@ -1,4 +1,4 @@
-import utils, testing
+import utils, testing, dataset_utils
 from constants import M,N,SAMPLES,SLICING_PIXELS,PREFIX_IMAGES,getVerbose,getRootPath
 
 import os
@@ -15,7 +15,16 @@ class NeuralNetwork(object):
 
         self.name = info["name"]
         self.epochs = info["epochs"]
+        self.validation_perc = info["validation_perc"]
+
+        self.dataset = {
+            "train": {},
+            "val": {},
+            "test": {}
+        }
+
         self.optimizer = info["optimizer"]
+
         self.da = True if info["data_augmentation"]==1 else False
         self.train_again = True if info["train_again"]==1 else False
         self.cross_validation = True if info["cross_validation"]==1 else False
@@ -54,6 +63,18 @@ class NeuralNetwork(object):
 
         return self.model
 
+################################################################################
+# Function to divide the dataframe in train and test based on the patient id;
+# plus it reshape the pixel array and initialize the model.
+    def prepareDataset(self, train_df, p_id):
+        # set the dataset inside the class
+        self.train_df = train_df
+        if constants.getVerbose():
+            utils.printSeparation("+", 50)
+            print("Preparing Dataset for patient {}".format(p_id))
+            utils.printSeparation("+", 50)
+
+        self.dataset = dataset_utils.prepareDataset(self.dataset, self.train_df, self.validation_perc, self.supervised, p_id)
 
 ################################################################################
 # Save the trained model and its relative weights
@@ -74,7 +95,7 @@ class NeuralNetwork(object):
             print("Saved model and weights to disk!")
 
 ################################################################################
-# call the function located in testing for predicting and saved the images
+# Call the function located in testing for predicting and saved the images
     def predictAndSaveImages(self, p_id):
         if constants.getVerbose():
             utils.printSeparation("+", 50)
@@ -89,7 +110,10 @@ class NeuralNetwork(object):
             utils.printSeparation("+", 50)
             print("Evaluating the model for patient {}".format(p_id))
             utils.printSeparation("+", 50)
+
         test_labels.evaluateModelWithCategorics(...)
+
+
 ################################################################################
 # return the saved model or weight (based on the suffix)
     def getSavedInformation(self, p_id, suffix):

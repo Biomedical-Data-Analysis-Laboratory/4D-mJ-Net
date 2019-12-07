@@ -53,3 +53,30 @@ def loadTrainingDataframe(net, testing_id=None):
     #     train_df = pd.read_hdf(filename_train, "X_"+DTYPE+"_"+str(SAMPLES)+"_"+str(M)+"x"+str(N))
 
     return train_df
+
+################################################################################
+# Function to divide the dataframe in train and test based on the patient id;
+# plus it reshape the pixel array and initialize the model.
+def prepareDataset(dataset, train_df, validation_perc, supervised, p_id):
+    val_mod = 100/validation_perc
+
+    # train indices are ALL except the one = p_id
+    dataset["train"]["indices"] = np.nonzero((train_df.patient_id.values != p_id))[0]
+    dataset["train"]["indices"] = np.nonzero((dataset["train"]["indices"]%val_mod != 0))
+    dataset["val"]["indices"] = np.nonzero((dataset["train"]["indices"]%val_mod == 0))[0]
+    dataset["train"]["data"] = getDataFromIndex(train_df, dataset["train"]["indices"])
+    dataset["val"]["data"] = getDataFromIndex(train_df, dataset["val"]["indices"])
+
+    if supervised:
+        # test indices are = p_id
+        dataset["test"]["indices"] = np.nonzero((train_df.patient_id.values == p_id))[0]
+        dataset["test"]["data"] = getDataFromIndex(train_df, dataset["test"]["indices"])
+
+    return dataset
+
+################################################################################
+# get the data from a list of indices
+def getDataFromIndex(train_df, indices):
+    data = np.array([np.array(a).reshape(constants.M,constants.N,constants.NUMBER_OF_IMAGE_PER_SECTION) for a in train_df.pixels.values[indices]])
+    data = data.reshape((data.shape[0], data.shape[1], data.shape[2], data.shape[3], 1))
+    return data

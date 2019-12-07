@@ -19,7 +19,7 @@
   },
   "models": {
     "mJ-Net": {
-      "name": "mJ-Net",
+      "name": "mJNet",
       "epochs": 50,
       "validation_perc": 10,
       "optimizer": {

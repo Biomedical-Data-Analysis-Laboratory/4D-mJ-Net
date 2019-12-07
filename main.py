@@ -16,7 +16,7 @@ def main():
     setting = utils.getSettingFile(args.sname)
 
     # set up the environment for GPUs
-    utils.setupEnvironment(args, setting)
+    n_gpu = utils.setupEnvironment(args, setting)
 
     # initialize model(s)
     for name, info in setting["models"].items():
@@ -38,7 +38,10 @@ def main():
                 else: # Otherwise get dataset only the first time
                     if len(train_df.index) == 0: train_df = utils.getDataset(train_df, net)
 
+                ## PREPARE DATASET
+                net.prepareDataset(train_df, p_id)
                 ## RUN TRAINING
+                net.runTraining(p_id, n_gpu)
 
 
             ## PERFOM TESTING

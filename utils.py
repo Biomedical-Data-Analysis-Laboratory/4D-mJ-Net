@@ -73,11 +73,12 @@ def setupEnvironmentForGPUs(args, setting):
     config.gpu_options.per_process_gpu_memory_fraction = setting["init"]["per_process_gpu_memory_fraction"] * N_GPU
     session = tf.compat.v1.Session(config=config) #tf.Session(config=config)
 
-
     if constants.getVerbose():
         printSeparation("-",50)
         print("Use {0} GPU(s): {1}".format(N_GPU, GPU))
         printSeparation("-",50)
+
+    return N_GPU
 
 ################################################################################
 #
@@ -110,11 +111,7 @@ def getSlicingWindow(img, startX, startY, M, N):
 ################################################################################
 # Generate a summary of the dataset
 def generateDatasetSummary(train_df):
-    N_BACKGROUND = len([x for x in train_df.label if x=="background"])
-    N_BRAIN = len([x for x in train_df.label if x=="brain"])
-    N_PENUMBRA = len([x for x in train_df.label if x=="penumbra"])
-    N_CORE = len([x for x in train_df.label if x=="core"])
-    N_TOT = train_df.shape[0]
+    N_BACKGROUND, N_BRAIN, N_BRAIN, N_CORE, N_TOT = getNumberOfElements(train_df)
 
     printSeparation('+', 90)
     print("DATASET SUMMARY: \n")
@@ -124,6 +121,33 @@ def generateDatasetSummary(train_df):
     print("\t N. Core: {0}".format(N_CORE))
     print("\t Tot: {0}".format(N_TOT))
     printSeparation('+', 90)
+
+################################################################################
+# Return the number of element per class of the dataset
+def getNumberOfElements(train_df):
+    N_BACKGROUND = len([x for x in train_df.label if x=="background"])
+    N_BRAIN = len([x for x in train_df.label if x=="brain"])
+    N_PENUMBRA = len([x for x in train_df.label if x=="penumbra"])
+    N_CORE = len([x for x in train_df.label if x=="core"])
+    N_TOT = train_df.shape[0]
+
+    return (N_BACKGROUND, N_BRAIN, N_BRAIN, N_CORE, N_TOT)
+
+################################################################################
+# Funtion that calculates the DICE coefficient. Important when calculates the different of two images
+def dice_coef(y_true, y_pred):
+    """
+    Dice = (2*|X & Y|)/ (|X|+ |Y|)
+         =  2*sum(|A*B|)/(sum(A^2)+sum(B^2))
+    ref: https://arxiv.org/pdf/1606.04797v1.pdf
+    """
+    intersection = K.sum(K.abs(y_true * y_pred), axis=-1)
+    return (2. * intersection + 1) / (K.sum(K.square(y_true),-1) + K.sum(K.square(y_pred),-1) + 1)
+
+################################################################################
+# Function that calculates the DICE coefficient loss. Util for the LOSS function during the training of the model (for image in input and output)!
+def dice_coef_loss(y_true, y_pred):
+    return 1-dice_coef(y_true, y_pred)
 
 ################################################################################
 ################################################################################

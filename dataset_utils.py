@@ -80,3 +80,10 @@ def getDataFromIndex(train_df, indices):
     data = np.array([np.array(a).reshape(constants.M,constants.N,constants.NUMBER_OF_IMAGE_PER_SECTION) for a in train_df.pixels.values[indices]])
     data = data.reshape((data.shape[0], data.shape[1], data.shape[2], data.shape[3], 1))
     return data
+
+def getLabelsFromIndex(train_df, indices):
+    labels = np.array([np.array(a).reshape(constants.M,constants.N) for a in train_df.ground_truth.values[indices]])
+    # if SIGMOID_ACT: ??
+    # convert the label in [0, 1] values
+    labels = labels.astype("float32")
+    retun labels /= 255

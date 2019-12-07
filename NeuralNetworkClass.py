@@ -1,8 +1,8 @@
-import utils, testing, dataset_utils
-from constants import M,N,SAMPLES,SLICING_PIXELS,PREFIX_IMAGES,getVerbose,getRootPath
+import utils, dataset_utils, models, training, testing, constants
 
 import os
 from tensorflow.keras.models import model_from_json
+from tensorflow.keras.utils import to_categorical, multi_gpu_model
 
 ################################################################################
 # Class that defines a NeuralNetwork
@@ -23,7 +23,7 @@ class NeuralNetwork(object):
             "test": {}
         }
 
-        self.optimizer = info["optimizer"]
+        self.optimizer = training.getOptimizer(info["optimizer"])
 
         self.da = True if info["data_augmentation"]==1 else False
         self.train_again = True if info["train_again"]==1 else False
@@ -69,12 +69,48 @@ class NeuralNetwork(object):
     def prepareDataset(self, train_df, p_id):
         # set the dataset inside the class
         self.train_df = train_df
-        if constants.getVerbose():
+        if getVerbose():
             utils.printSeparation("+", 50)
             print("Preparing Dataset for patient {}".format(p_id))
             utils.printSeparation("+", 50)
 
+        # get the dataset
         self.dataset = dataset_utils.prepareDataset(self.dataset, self.train_df, self.validation_perc, self.supervised, p_id)
+        # get the number of element per class in the dataset
+        self.N_BACKGROUND, self.N_BRAIN, self.N_BRAIN, self.N_CORE, self.N_TOT = getNumberOfElements(self.train_df)
+
+################################################################################
+# Run the training over the dataset based on the model
+def runTraining(self, p_id, n_gpu):
+    self.dataset["train"]["labels"] = getLabelsFromIndex(train_df, self.dataset["train"]["indices"])
+    self.dataset["val"]["labels"] = getLabelsFromIndex(train_df, self.dataset["val"]["indices"])
+    if self.supervised: self.dataset["test"]["labels"] = getLabelsFromIndex(train_df, self.dataset["test"]["indices"])
+
+    if getVerbose():
+        utils.printSeparation("-", 50)
+        print(print("[INFO] Getting model {}...".format()))
+        utils.printSeparation("-", 50)
+
+    # based on the number of GPUs availables
+    # call the function called self.name in models.py
+    if n_gpu==1:
+        self.model = getattr(models, self.name)(self.dataset["train"]["data"])
+    else:
+        with tf.device('/cpu:0'):
+            self.model = getattr(models, self.name)(self.dataset["train"]["data"])
+            self.model = multi_gpu_model(self.model, gpus=n_gpu)
+
+    if getVerbose():
+        print(self.model.summary())
+
+    self.model.compile(optimizer=self.optimizer, loss=utils.dice_coef_loss, metrics=[utils.dice_coef])
+    class_weights = None
+    sample_weights = self.train_df.label.map({
+                constants.LABELS[0]:self.N_TOT-self.N_BACKGROUND, 
+                constants.LABELS[1]:self.N_TOT-self.N_BRAIN, 
+                constants.LABELS[2]:self.N_TOT-self.N_PENUMBRA, 
+                constants.LABELS[3]:self.N_TOT-self.N_CORE})
+    sample_weights = sample_weights.values[self.dataset["train"]["indices"]]
 
 ################################################################################
 # Save the trained model and its relative weights
@@ -90,14 +126,15 @@ class NeuralNetwork(object):
         # serialize weights to HDF5
         self.model.save_weights(saved_weightname)
 
-        if constants.getVerbose():
+        if getVerbose():
             utils.printSeparation("-", 50)
             print("Saved model and weights to disk!")
+            utils.printSeparation("-", 50)
 
 ################################################################################
 # Call the function located in testing for predicting and saved the images
     def predictAndSaveImages(self, p_id):
-        if constants.getVerbose():
+        if getVerbose():
             utils.printSeparation("+", 50)
             print("Predicting and saving the images for patient {}".format(p_id))
             utils.printSeparation("+", 50)
@@ -106,7 +143,7 @@ class NeuralNetwork(object):
 ################################################################################
 # Test the model with the selected patient
     def evaluateModelWithCategorics(self, Y, loss_val, test_labels, training_score, p_id, idFunc):
-        if constants.getVerbose():
+        if getVerbose():
             utils.printSeparation("+", 50)
             print("Evaluating the model for patient {}".format(p_id))
             utils.printSeparation("+", 50)
@@ -117,7 +154,7 @@ class NeuralNetwork(object):
 ################################################################################
 # return the saved model or weight (based on the suffix)
     def getSavedInformation(self, p_id, suffix):
-        path = utils.getFullDirectoryPath(self.savedModelfolder)+self.getNNID(p_id)+"_"+str(SLICING_PIXELS)+"_"+str(M)+"x"+str(N)
+        path = utils.getFullDirectoryPath(self.savedModelfolder)+self.getNNID(p_id)+"_"+str(constants.SLICING_PIXELS)+"_"+str(M)+"x"+str(N)
         return path+suffix
 
 ################################################################################
@@ -140,6 +177,11 @@ class NeuralNetwork(object):
             id += ("_" + p_id)
 
         return id
+
+################################################################################
+# return the verbose flag
+    def getVerbose(self):
+        return constants.getVerbose()
 
 ################################################################################
 # return optimizer name

@@ -1,7 +1,6 @@
 # Run the testing function, save the images ..
 
-import utils
-import constants
+import utils, constants
 
 import os, time
 import cv2

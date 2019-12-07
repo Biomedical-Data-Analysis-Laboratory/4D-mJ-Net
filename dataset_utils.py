@@ -26,7 +26,7 @@ def initTestingDataFrame():
     return train_df
 
 ################################################################################
-# Function to lead the saved dataframe
+# Function to load the saved dataframe
 def loadTrainingDataframe(net, testing_id=None):
     train_df = pd.DataFrame(columns=['patient_id', 'label', 'pixels', 'ground_truth', "label_code"])
 

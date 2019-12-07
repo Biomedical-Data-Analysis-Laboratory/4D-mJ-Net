@@ -23,7 +23,7 @@ class NeuralNetwork(object):
             "test": {}
         }
 
-        self.optimizer = training.getOptimizer(info["optimizer"])
+        self.optimizer = training.getOptimizer(optInfo=info["optimizer"])
 
         self.da = True if info["data_augmentation"]==1 else False
         self.train_again = True if info["train_again"]==1 else False
@@ -82,9 +82,9 @@ class NeuralNetwork(object):
 ################################################################################
 # Run the training over the dataset based on the model
 def runTraining(self, p_id, n_gpu):
-    self.dataset["train"]["labels"] = getLabelsFromIndex(train_df, self.dataset["train"]["indices"])
-    self.dataset["val"]["labels"] = getLabelsFromIndex(train_df, self.dataset["val"]["indices"])
-    if self.supervised: self.dataset["test"]["labels"] = getLabelsFromIndex(train_df, self.dataset["test"]["indices"])
+    self.dataset["train"]["labels"] = dataset_utils.getLabelsFromIndex(train_df=train_df, indices=self.dataset["train"]["indices"])
+    self.dataset["val"]["labels"] = dataset_utils.getLabelsFromIndex(train_df=train_df, indices=self.dataset["val"]["indices"])
+    if self.supervised: self.dataset["test"]["labels"] = dataset_utils.getLabelsFromIndex(train_df=train_df, indices=self.dataset["test"]["indices"])
 
     if getVerbose():
         utils.printSeparation("-", 50)
@@ -106,11 +106,14 @@ def runTraining(self, p_id, n_gpu):
     self.model.compile(optimizer=self.optimizer, loss=utils.dice_coef_loss, metrics=[utils.dice_coef])
     class_weights = None
     sample_weights = self.train_df.label.map({
-                constants.LABELS[0]:self.N_TOT-self.N_BACKGROUND, 
-                constants.LABELS[1]:self.N_TOT-self.N_BRAIN, 
-                constants.LABELS[2]:self.N_TOT-self.N_PENUMBRA, 
+                constants.LABELS[0]:self.N_TOT-self.N_BACKGROUND,
+                constants.LABELS[1]:self.N_TOT-self.N_BRAIN,
+                constants.LABELS[2]:self.N_TOT-self.N_PENUMBRA,
                 constants.LABELS[3]:self.N_TOT-self.N_CORE})
     sample_weights = sample_weights.values[self.dataset["train"]["indices"]]
+
+    # fit and train the model
+    self.train = training.fitModel(dataset=self.dataset, epochs=self.epochs, class_weights=class_weights, sample_weights=sample_weights)
 
 ################################################################################
 # Save the trained model and its relative weights

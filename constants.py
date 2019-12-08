@@ -2,7 +2,7 @@ verbose = False
 root_path = ""
 
 # just for testing and debugging
-DEBUG = False
+DEBUG = True
 
 default_setting_filename = "defaults_settings.json"
 
@@ -13,6 +13,9 @@ NUMBER_OF_IMAGE_PER_SECTION = 30 # number of image (divided by time) for each se
 SAMPLES = 50
 LABELS = ["background", "brain", "penumbra", "core"] # background:255, brain:0, penumbra:~76, core:~150
 PREFIX_IMAGES = "PA"
+
+dataFrameColumnsTest = ['patient_id', 'label', 'pixels', 'ground_truth'] # without the "label_code"
+dataFrameColumns = ['patient_id', 'label', 'pixels', 'ground_truth', "label_code"]
 
 
 def getVerbose():

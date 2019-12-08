@@ -24,9 +24,14 @@ def getOptimizer(optInfo):
 
 ################################################################################
 # Fit the model
-def fitModel(dataset, epochs, class_weights, sample_weights):
+def fitModel(model, dataset, epochs, class_weights, sample_weights):
     batch_stats = CollectBatchStats()
     callback=[batch_stats]
+
+
+    print(dataset["val"]["data"], dataset["val"]["labels"])
+    print(class_weights)
+    print(sample_weights)
 
     training = model.fit(dataset["train"]["data"],
                 dataset["train"]["labels"],

@@ -2,6 +2,7 @@ from Utils import general_utils, dataset_utils
 import models, training, testing, constants
 
 import os
+import tensorflow as tf
 from tensorflow.keras.models import model_from_json
 from tensorflow.keras.utils import to_categorical, multi_gpu_model
 
@@ -79,18 +80,18 @@ class NeuralNetwork(object):
         # get the dataset
         self.dataset = dataset_utils.prepareDataset(self.dataset, self.train_df, self.validation_perc, self.supervised, p_id)
         # get the number of element per class in the dataset
-        self.N_BACKGROUND, self.N_BRAIN, self.N_PENUMBRA, self.N_CORE, self.N_TOT = getNumberOfElements(self.train_df)
+        self.N_BACKGROUND, self.N_BRAIN, self.N_PENUMBRA, self.N_CORE, self.N_TOT = general_utils.getNumberOfElements(self.train_df)
 
 ################################################################################
 # Run the training over the dataset based on the model
     def runTraining(self, p_id, n_gpu):
-        self.dataset["train"]["labels"] = dataset_utils.getLabelsFromIndex(train_df=train_df, indices=self.dataset["train"]["indices"])
-        self.dataset["val"]["labels"] = dataset_utils.getLabelsFromIndex(train_df=train_df, indices=self.dataset["val"]["indices"])
-        if self.supervised: self.dataset["test"]["labels"] = dataset_utils.getLabelsFromIndex(train_df=train_df, indices=self.dataset["test"]["indices"])
+        self.dataset["train"]["labels"] = dataset_utils.getLabelsFromIndex(train_df=self.train_df, indices=self.dataset["train"]["indices"])
+        self.dataset["val"]["labels"] = dataset_utils.getLabelsFromIndex(train_df=self.train_df, indices=self.dataset["val"]["indices"])
+        if self.supervised: self.dataset["test"]["labels"] = dataset_utils.getLabelsFromIndex(train_df=self.train_df, indices=self.dataset["test"]["indices"])
 
         if self.getVerbose():
             general_utils.printSeparation("-", 50)
-            print(print("[INFO] Getting model {}...".format()))
+            print("[INFO] Getting model {0} with {1} optimizer...".format(self.name, self.optimizerName))
             general_utils.printSeparation("-", 50)
 
         # based on the number of GPUs availables
@@ -107,6 +108,7 @@ class NeuralNetwork(object):
 
         self.model.compile(optimizer=self.optimizer, loss=general_utils.dice_coef_loss, metrics=[general_utils.dice_coef])
         class_weights = None
+# # TODO: change this! I don't want the sample_weights but the class_weights
         sample_weights = self.train_df.label.map({
                     constants.LABELS[0]:self.N_TOT-self.N_BACKGROUND,
                     constants.LABELS[1]:self.N_TOT-self.N_BRAIN,
@@ -115,7 +117,7 @@ class NeuralNetwork(object):
         sample_weights = sample_weights.values[self.dataset["train"]["indices"]]
 
         # fit and train the model
-        self.train = training.fitModel(dataset=self.dataset, epochs=self.epochs, class_weights=class_weights, sample_weights=sample_weights)
+        self.train = training.fitModel(model=self.model, dataset=self.dataset, epochs=self.epochs, class_weights=class_weights, sample_weights=sample_weights)
 
 ################################################################################
 # Save the trained model and its relative weights

@@ -12,16 +12,19 @@ def initTestingDataFrame():
     testingList = []
     for sample in range(0, constants.SAMPLES*2):
         if sample<constants.SAMPLES:
-            rand_pixels = np.random.randint(0, 50, (constants.NUMBER_OF_IMAGE_PER_SECTION, constants.M, constants.N))
+            rand_pixels = np.random.randint(low=0, high=50, size=(constants.NUMBER_OF_IMAGE_PER_SECTION, constants.M, constants.N))
             label = constants.LABELS[0]
+            ground_truth = np.zeros(shape=(constants.M, constants.N))
         else:
-            rand_pixels = np.random.randint(180, 255, (constants.NUMBER_OF_IMAGE_PER_SECTION, constants.M, constants.N))
+            rand_pixels = np.random.randint(low=180, high=255, size=(constants.NUMBER_OF_IMAGE_PER_SECTION, constants.M, constants.N))
             label = constants.LABELS[1]
+            ground_truth = np.ones(shape=(constants.M, constants.N))*255
 
-        testingList.append((sample, random.choice(patientList), label, rand_pixels, 100))
+        testingList.append((random.choice(patientList), label, rand_pixels, ground_truth))
 
     np.random.shuffle(testingList)
-    train_df = pd.DataFrame(testingList, columns=['ID', 'patient_id', 'label', 'pixels', 'percentage'])
+    # columns : ['patient_id', 'label', 'pixels', 'ground_truth']
+    train_df = pd.DataFrame(testingList, columns=constants.dataFrameColumnsTest)
     train_df['label_code'] = train_df.label.map({constants.LABELS[0]:0, constants.LABELS[1]:1})
 
     return train_df
@@ -29,7 +32,8 @@ def initTestingDataFrame():
 ################################################################################
 # Function to load the saved dataframe
 def loadTrainingDataframe(net, testing_id=None):
-    train_df = pd.DataFrame(columns=['patient_id', 'label', 'pixels', 'ground_truth', "label_code"])
+    # columns : ['patient_id', 'label', 'pixels', 'ground_truth', "label_code"]
+    train_df = pd.DataFrame(columns=constants.dataFrameColumns)
 
     frames = [train_df]
     for filename_train in glob.glob(net.datasetFolder+"*/"):
@@ -63,9 +67,9 @@ def prepareDataset(dataset, train_df, validation_perc, supervised, p_id):
     val_mod = int(100/validation_perc)
 
     # train indices are ALL except the one = p_id
-    dataset["train"]["indices"] = np.nonzero((train_df.patient_id.values != p_id))[0]
-    dataset["train"]["indices"] = np.nonzero((dataset["train"]["indices"]%val_mod != 0))[0]
-    dataset["val"]["indices"] = np.nonzero((dataset["train"]["indices"]%val_mod == 0))[0]
+    train_val_dataset = np.nonzero((train_df.patient_id.values != p_id))[0]
+    dataset["train"]["indices"] = np.nonzero((train_val_dataset%val_mod != 0))[0]
+    dataset["val"]["indices"] = np.nonzero((train_val_dataset%val_mod == 0))[0]
     dataset["train"]["data"] = getDataFromIndex(train_df, dataset["train"]["indices"])
     dataset["val"]["data"] = getDataFromIndex(train_df, dataset["val"]["indices"])
 

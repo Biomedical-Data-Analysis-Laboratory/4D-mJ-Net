@@ -54,7 +54,7 @@ def getFullDirectoryPath(path):
 # setup the global environment
 def setupEnvironment(args, setting):
     constants.setRootPath(setting["root_path"])
-    setupEnvironmentForGPUs(args, setting)
+    N_GPU = setupEnvironmentForGPUs(args, setting)
 
     for key, rel_path in setting["relative_paths"].items():
         if isinstance(rel_path, dict):
@@ -63,6 +63,8 @@ def setupEnvironment(args, setting):
                 createDir(key.upper()+"/"+sub_path)
         else:
             createDir(rel_path)
+
+    return N_GPU
 
 ################################################################################
 # setup the environment for the GPUs

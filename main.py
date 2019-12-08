@@ -1,7 +1,9 @@
 #!/usr/bin/python
 
 import sys
-import utils, constants, dataset_utils
+
+from Utils import general_utils, dataset_utils
+import constants
 from NeuralNetworkClass import NeuralNetwork
 
 
@@ -10,22 +12,21 @@ def main():
     networks = dict()
 
     # Get the command line arguments
-    args = utils.getCommandLineArguments()
+    args = general_utils.getCommandLineArguments()
 
     # Read the settings from json file
-    setting = utils.getSettingFile(args.sname)
+    setting = general_utils.getSettingFile(args.sname)
 
     # set up the environment for GPUs
-    n_gpu = utils.setupEnvironment(args, setting)
+    n_gpu = general_utils.setupEnvironment(args, setting)
 
     # initialize model(s)
     for name, info in setting["models"].items():
         networks[name] = NeuralNetwork(info, setting)
 
-    train_df = pd.DataFrame(columns=['patient_id', 'label', 'pixels', 'ground_truth', "label_code"])
     for key, net in networks.items():
         for testPatient in setting["PATIENT_TO_TEST"]:
-            p_id = utils.getStringPatientIndex(testPatient)
+            p_id = general_utils.getStringPatientIndex(testPatient)
             # Training or Test ?
 
             # Check if the model was already trained and saved
@@ -34,9 +35,9 @@ def main():
             else:
                 ## GET THE DATASET
                 # if we are using a data augmentation dataset we need to get the dataset differently each time
-                if net.da: train_df = utils.getDataset(train_df, net, p_id)
+                if net.da: train_df = general_utils.getDataset(net, p_id)
                 else: # Otherwise get dataset only the first time
-                    if len(train_df.index) == 0: train_df = utils.getDataset(train_df, net)
+                    if len(train_df.index) == 0: train_df = general_utils.getDataset(net)
 
                 ## PREPARE DATASET
                 net.prepareDataset(train_df, p_id)

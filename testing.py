@@ -1,6 +1,6 @@
 # Run the testing function, save the images ..
-
-import utils, constants
+from Utils import general_utils
+import constants
 
 import os, time
 import cv2
@@ -13,15 +13,15 @@ import numpy as np
 def predictAndSaveImages(that, p_id):
     relativePatientFolder = constants.PREFIX_IMAGES+p_id+"/"
     patientFolder = that.patientsFolder+relativePatientFolder
-    utils.createDir(that.saveImagesFolder+relativePatientFolder)
+    general_utils.createDir(that.saveImagesFolder+relativePatientFolder)
 
     if constants.getVerbose():
-        utils.printSeparation("-", 10)
+        general_utils.printSeparation("-", 10)
 
     for subfolder in glob.glob(patientFolder+"*/"):
         start = time.time()
 
-        idx = utils.getStringPatientIndex(subfolder.replace(patientFolder, '').replace("/", "")) # image index
+        idx = general_utils.getStringPatientIndex(subfolder.replace(patientFolder, '').replace("/", "")) # image index
 
         if constants.getVerbose():
             print("Analyzing Patient {0}, image {1}...".format(p_id, idx))
@@ -56,13 +56,13 @@ def predictAndSaveImages(that, p_id):
                 filename = imagename.replace(subfolder, '')
                 if not that.supervised:
                     image = imagesDict[filename]
-                    slicingWindow = utils.getSlicingWindow(image, startingX, startingY, constants.M, constants.N)
+                    slicingWindow = general_utils.getSlicingWindow(image, startingX, startingY, constants.M, constants.N)
                     pixels[count] = slicingWindow
                     count+=1
                 else:
                     if filename != "01.png":
                         image = imagesDict[filename]
-                        slicingWindow = utils.getSlicingWindow(image, startingX, startingY, constants.M, constants.N)
+                        slicingWindow = general_utils.getSlicingWindow(image, startingX, startingY, constants.M, constants.N)
                         pixels[count] = slicingWindow
                         count+=1
 
@@ -95,9 +95,9 @@ def predictAndSaveImages(that, p_id):
         end = time.time()
         if constants.getVerbose():
             print("Total time: {0}s".format(round(end-start, 3)))
-            utils.printSeparation("-", 10)
+            general_utils.printSeparation("-", 10)
     if constants.getVerbose():
-        utils.printSeparation("-", 10)
+        general_utils.printSeparation("-", 10)
 
 ################################################################################
 # Test the model with the selected patient

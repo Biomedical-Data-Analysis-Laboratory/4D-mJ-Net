@@ -1,6 +1,8 @@
+from Utils import dataset_utils
 import constants
 
 import sys, argparse, os, json, time
+import pandas as pd
 import tensorflow as tf
 import tensorflow.keras.backend as K
 
@@ -85,8 +87,9 @@ def setupEnvironmentForGPUs(args, setting):
 
 ################################################################################
 # Return the dataset based
-def getDataset(train_df, net, p_id=None):
+def getDataset(net, p_id=None):
     start = time.time()
+    train_df = pd.DataFrame(columns=['patient_id', 'label', 'pixels', 'ground_truth', "label_code"])
 
     if constants.getVerbose():
         printSeparation("-",50)
@@ -98,8 +101,8 @@ def getDataset(train_df, net, p_id=None):
         # no debugging and no data augmentation
         if net.da:
             print("Data augmented training/testing... load the dataset differently for each patient")
-            train_df = loadTrainingDataframe(net, p_id)
-        else: train_df = loadTrainingDataframe(net)
+            train_df = dataset_utils.loadTrainingDataframe(net, p_id)
+        else: train_df = dataset_utils.loadTrainingDataframe(net)
 
     end = time.time()
     print("Total time to load the Dataset: {0}s".format(round(end-start, 3)))
@@ -114,7 +117,7 @@ def getSlicingWindow(img, startX, startY, M, N):
 ################################################################################
 # Generate a summary of the dataset
 def generateDatasetSummary(train_df):
-    N_BACKGROUND, N_BRAIN, N_BRAIN, N_CORE, N_TOT = getNumberOfElements(train_df)
+    N_BACKGROUND, N_BRAIN, N_PENUMBRA, N_CORE, N_TOT = getNumberOfElements(train_df)
 
     printSeparation('+', 90)
     print("DATASET SUMMARY: \n")
@@ -134,7 +137,7 @@ def getNumberOfElements(train_df):
     N_CORE = len([x for x in train_df.label if x=="core"])
     N_TOT = train_df.shape[0]
 
-    return (N_BACKGROUND, N_BRAIN, N_BRAIN, N_CORE, N_TOT)
+    return (N_BACKGROUND, N_BRAIN, N_PENUMBRA, N_CORE, N_TOT)
 
 ################################################################################
 # Funtion that calculates the DICE coefficient. Important when calculates the different of two images

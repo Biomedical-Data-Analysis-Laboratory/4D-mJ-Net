@@ -1,5 +1,6 @@
 import constants
 
+import glob
 import random
 import pandas as pd
 import numpy as np
@@ -59,11 +60,11 @@ def loadTrainingDataframe(net, testing_id=None):
 # Function to divide the dataframe in train and test based on the patient id;
 # plus it reshape the pixel array and initialize the model.
 def prepareDataset(dataset, train_df, validation_perc, supervised, p_id):
-    val_mod = 100/validation_perc
+    val_mod = int(100/validation_perc)
 
     # train indices are ALL except the one = p_id
     dataset["train"]["indices"] = np.nonzero((train_df.patient_id.values != p_id))[0]
-    dataset["train"]["indices"] = np.nonzero((dataset["train"]["indices"]%val_mod != 0))
+    dataset["train"]["indices"] = np.nonzero((dataset["train"]["indices"]%val_mod != 0))[0]
     dataset["val"]["indices"] = np.nonzero((dataset["train"]["indices"]%val_mod == 0))[0]
     dataset["train"]["data"] = getDataFromIndex(train_df, dataset["train"]["indices"])
     dataset["val"]["data"] = getDataFromIndex(train_df, dataset["val"]["indices"])
@@ -87,4 +88,6 @@ def getLabelsFromIndex(train_df, indices):
     # if SIGMOID_ACT: ??
     # convert the label in [0, 1] values
     labels = labels.astype("float32")
-    retun labels /= 255
+    labels /= 255
+
+    return labels

@@ -11,10 +11,10 @@ def getOptimizer(optInfo):
     if optInfo["name"].lower()=="adam":
         optimizer = tf.keras.optimizers.Adam(
             lr=optInfo["lr"],
-            beta_1=optInfo["beta_1"]
-            beta_2=optInfo["beta_2"]
-            epsilon=optInfo["epsilon"]
-            decay=optInfo["decay"]
+            beta_1=optInfo["beta_1"],
+            beta_2=optInfo["beta_2"],
+            epsilon=optInfo["epsilon"],
+            decay=optInfo["decay"],
             amsgrad=False)
     # elif optInfo["name"].lower()=="sgd":
     #     ...

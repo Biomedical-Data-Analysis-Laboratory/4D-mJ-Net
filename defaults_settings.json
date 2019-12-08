@@ -33,7 +33,7 @@
     "data_augmentation": 1,
     "cross_validation": 0,
     "train_again": 0,
-    "supervised": 0,
+    "supervised": 0
     }
   }
 }

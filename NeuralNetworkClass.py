@@ -2,6 +2,7 @@ from Utils import general_utils, dataset_utils
 import models, training, testing, constants
 
 import os
+import numpy as np
 import tensorflow as tf
 from tensorflow.keras.models import model_from_json
 from tensorflow.keras.utils import to_categorical, multi_gpu_model
@@ -108,6 +109,12 @@ class NeuralNetwork(object):
 
         self.model.compile(optimizer=self.optimizer, loss=general_utils.dice_coef_loss, metrics=[general_utils.dice_coef])
         class_weights = None
+        class_weights = {
+            constants.LABELS.index("background"):(self.N_TOT-self.N_BACKGROUND)/self.N_TOT,
+            constants.LABELS.index("brain"):(self.N_TOT-self.N_BRAIN)/self.N_TOT,
+            constants.LABELS.index("penumbra"):(self.N_TOT-self.N_PENUMBRA)/self.N_TOT,
+            constants.LABELS.index("core"):(self.N_TOT-self.N_CORE)/self.N_TOT
+        }
 # # TODO: change this! I don't want the sample_weights but the class_weights
         sample_weights = self.train_df.label.map({
                     constants.LABELS[0]:self.N_TOT-self.N_BACKGROUND,

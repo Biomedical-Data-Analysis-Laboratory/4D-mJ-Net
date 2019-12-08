@@ -13,7 +13,7 @@ def getOptimizer(optInfo):
             lr=optInfo["lr"],
             beta_1=optInfo["beta_1"],
             beta_2=optInfo["beta_2"],
-            epsilon=optInfo["epsilon"],
+            epsilon=None if optInfo["epsilon"]=="None" else optInfo["epsilon"],
             decay=optInfo["decay"],
             amsgrad=False)
     # elif optInfo["name"].lower()=="sgd":
@@ -28,18 +28,12 @@ def fitModel(model, dataset, epochs, class_weights, sample_weights):
     batch_stats = CollectBatchStats()
     callback=[batch_stats]
 
-
-    print(dataset["val"]["data"], dataset["val"]["labels"])
-    print(class_weights)
-    print(sample_weights)
-
     training = model.fit(dataset["train"]["data"],
                 dataset["train"]["labels"],
                 epochs=epochs,
                 callbacks=callback,
                 shuffle=True,
                 validation_data=(dataset["val"]["data"], dataset["val"]["labels"]),
-                class_weight=class_weights,
                 sample_weight=sample_weights,
                 verbose=constants.getVerbose())
 

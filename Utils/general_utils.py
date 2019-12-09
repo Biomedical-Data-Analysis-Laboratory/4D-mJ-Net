@@ -46,11 +46,6 @@ def getSettingFile(filename):
     return setting
 
 ################################################################################
-# get the full directory path, given a relative path
-def getFullDirectoryPath(path):
-    return constants.getRootPath()+path
-
-################################################################################
 # setup the global environment
 def setupEnvironment(args, setting):
     constants.setRootPath(setting["root_path"])
@@ -89,13 +84,14 @@ def setupEnvironmentForGPUs(args, setting):
 
 ################################################################################
 # Return the dataset based
-def getDataset(net, p_id=None):
+def getDataset(net, p_id=None, multiprocessing=0):
     start = time.time()
     train_df = pd.DataFrame(columns=['patient_id', 'label', 'pixels', 'ground_truth', "label_code"])
 
     if constants.getVerbose():
         printSeparation("-",50)
-        print("Loading Dataset...")
+        if multiprocessing: print("Loading Dataset using MULTIprocessing...")
+        else: print("Loading Dataset using SINGLEprocessing...")
         printSeparation("-",50)
 
     if constants.DEBUG: train_df = dataset_utils.initTestingDataFrame()
@@ -103,8 +99,8 @@ def getDataset(net, p_id=None):
         # no debugging and no data augmentation
         if net.da:
             print("Data augmented training/testing... load the dataset differently for each patient")
-            train_df = dataset_utils.loadTrainingDataframe(net, p_id)
-        else: train_df = dataset_utils.loadTrainingDataframe(net)
+            train_df = dataset_utils.loadTrainingDataframe(net, testing_id=p_id, multiprocessing=multiprocessing)
+        else: train_df = dataset_utils.loadTrainingDataframe(net, multiprocessing=multiprocessing)
 
     end = time.time()
     print("Total time to load the Dataset: {0}s".format(round(end-start, 3)))
@@ -142,6 +138,22 @@ def getNumberOfElements(train_df):
     return (N_BACKGROUND, N_BRAIN, N_PENUMBRA, N_CORE, N_TOT)
 
 ################################################################################
+# Get the epoch number from the partial weight filename
+def getEpochFromPartialWeightFilename(partialWeightsPath):
+    return int(partialWeightsPath[partialWeightsPath.index(":")+1:partialWeightsPath.index(".h5")])
+
+def getLoss(name):
+    loss = {}
+
+    if name=="dice_coef":
+        loss["loss"] = dice_coef_loss
+        loss["metrics"] = dice_coef
+        loss["name"] = name
+    # elif .. # TODO:
+
+    return loss
+
+################################################################################
 # Funtion that calculates the DICE coefficient. Important when calculates the different of two images
 def dice_coef(y_true, y_pred):
     """
@@ -173,6 +185,11 @@ def getStringPatientIndex(patient_index):
     if len(p_id)==1: p_id = "0"+p_id
 
     return p_id
+
+################################################################################
+# get the full directory path, given a relative path
+def getFullDirectoryPath(path):
+    return constants.getRootPath()+path
 
 ################################################################################
 # Generate a directory in dir_path

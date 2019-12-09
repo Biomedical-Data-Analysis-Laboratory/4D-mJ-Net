@@ -2,7 +2,7 @@ verbose = False
 root_path = ""
 
 # just for testing and debugging
-DEBUG = True
+DEBUG = False
 
 default_setting_filename = "defaults_settings.json"
 

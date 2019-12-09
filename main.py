@@ -10,6 +10,7 @@ from NeuralNetworkClass import NeuralNetwork
 # MAIN FUNCTION
 def main():
     networks = dict()
+    train_df = None
 
     # Get the command line arguments
     args = general_utils.getCommandLineArguments()
@@ -35,19 +36,20 @@ def main():
             else:
                 ## GET THE DATASET
                 # if we are using a data augmentation dataset we need to get the dataset differently each time
-                if net.da: train_df = general_utils.getDataset(net, p_id)
+                if net.da: train_df = general_utils.getDataset(net, p_id, multiprocessing=setting["init"]["multiprocessing"])
                 else: # Otherwise get dataset only the first time
-                    if len(train_df.index) == 0: train_df = general_utils.getDataset(net)
+                    if train_df is None: train_df = general_utils.getDataset(net, multiprocessing=setting["init"]["multiprocessing"])
 
                 ## PREPARE DATASET
                 net.prepareDataset(train_df, p_id)
-                ## RUN TRAINING
+                ## SET THE CALLBACKS, RUN TRAINING & SAVE THE MODELS WEIGHTS
+                net.setCallbacks(p_id)
                 net.runTraining(p_id, n_gpu)
-
+                net.saveModelAndWeight(p_id)
 
             ## PERFOM TESTING
             if net.supervised:
-                net.evaluateModelWithCategorics()
+                net.evaluateModelWithCategorics(p_id)
             # predict and save the images
             net.predictAndSaveImages(p_id)
 

@@ -1,13 +1,14 @@
 {
   "root_path": "/home/stud/lucat/PhD_Project/Stroke_segmentation/",
+  "dataset_path": "/home/stud/lucat/PhD_Project/Stroke_segmentation/DATASET/",
   "PATIENT_TO_TEST": [12,13,14,15,16],
   "init": {
     "TF_CPP_MIN_LOG_LEVEL": "2",
     "per_process_gpu_memory_fraction": 1,
-    "allow_growth": 1
+    "allow_growth": 1,
+    "multiprocessing": 1
   },
   "relative_paths": {
-    "dataset": "DATASET/",
     "labeled_images": "Manual_annotations/",
     "patients": "PATIENTS/",
     "save": {
@@ -20,7 +21,8 @@
   "models": {
     "mJ-Net": {
       "name": "mJNet",
-      "epochs": 50,
+      "loss": "dice_coef",
+      "epochs": 2,
       "validation_perc": 10,
       "optimizer": {
         "name": "Adam",
@@ -29,11 +31,25 @@
         "beta_2":0.999,
         "epsilon":"None",
         "decay":0.0
-    },
-    "data_augmentation": 1,
-    "cross_validation": 0,
-    "train_again": 0,
-    "supervised": 0
+      },
+      "callbacks":{
+        "ModelCheckpoint": {
+          "monitor": "loss",
+          "period": 1
+        },
+        "EarlyStopping": {
+          "monitor": "loss",
+          "min_delta": 0,
+          "patience": 5
+        },
+        "CollectBatchStats": {
+          "acc":"dice_coef"
+        }
+      },
+      "data_augmentation": 0,
+      "cross_validation": 0,
+      "train_again": 0,
+      "supervised": 0
     }
   }
 }

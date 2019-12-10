@@ -4,7 +4,7 @@ root_path = ""
 # just for testing and debugging
 DEBUG = False
 
-default_setting_filename = "defaults_settings.json"
+default_setting_filename = "Settings/defaults_settings.json"
 
 M, N = 16, 16
 SLICING_PIXELS = int(M/4)

@@ -33,6 +33,8 @@ def getCommandLineArguments():
 def getSettingFile(filename):
     setting = dict()
 
+    # the path of the setting file start from the main.py
+    # (= current working directory)
     with open(os.path.join(os.getcwd(), filename)) as f:
         setting = json.load(f)
 

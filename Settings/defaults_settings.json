@@ -36,7 +36,7 @@
       },
       "callbacks":{
         "ModelCheckpoint": {
-          "monitor": "loss",
+          "monitor": "dice_coef",
           "period": 1
         },
         "EarlyStopping": {
@@ -46,10 +46,10 @@
         },
         "ReduceLROnPlateau": {
           "monitor": "dice_coef",
-          "factor": 0.01,
+          "factor": 0.0005,
           "patience": 2,
           "min_delta": 0.001,
-          "min_lr": 0
+          "min_lr": 0.00000001
         },
         "CollectBatchStats": {
           "acc":"dice_coef"

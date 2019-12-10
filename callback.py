@@ -21,7 +21,6 @@ class CollectBatchStats(tf.keras.callbacks.Callback):
         self.batch_losses.append(logs['loss'])
         self.batch_acc.append(logs[self.acc])
 
-
     # when an epoch is finished, it removes the old saved weights (from previous epochs)
     def on_epoch_end(self, epoch, logs=None):
         # save loss and accuracy in files
@@ -33,7 +32,7 @@ class CollectBatchStats(tf.keras.callbacks.Callback):
             loss_file.write(textToSave)
 
         tmpSavedModels = glob.glob(self.savedModelName+":*.h5")
-        if len(tmpSavedModels) > 1:
+        if len(tmpSavedModels) > 1: # just to be sure and not delete everything
             for file in tmpSavedModels:
                 if self.savedModelName+":" in file:
                     tmpEpoch = general_utils.getEpochFromPartialWeightFilename(file)

@@ -184,7 +184,6 @@ class NeuralNetwork(object):
                 use_multiprocessing=self.mp)
 
         # TODO: check what it is
-        print(self.train)
         print(self.train.history)
         self.training_score = round(self.train.history[self.loss["name"]][self.epochs-1], 6)
         self.loss_val = round(self.train.history["loss"][self.epochs-1], 6)

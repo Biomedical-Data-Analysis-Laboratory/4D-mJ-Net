@@ -62,28 +62,16 @@ def fitModel(model, dataset, epochs, listOfCallbacks, class_weights, sample_weig
 ################################################################################
 # For plotting the loss and accuracy of the trained model
 def plotLossAndAccuracy(nn, p_id):
-    key = nn.loss["name"]
-    # Loss Curves
-    plt.figure(figsize=[8,6])
-    plt.plot(nn.train.history['loss'],'r',linewidth=3.0)
-    plt.plot(nn.train.history['val_loss'],'b',linewidth=3.0)
-    plt.legend(['Training loss', 'Validation Loss'],fontsize=10)
-    plt.xlabel('Epochs ',fontsize=16)
-    plt.ylabel('Loss',fontsize=16)
-    plt.title('Loss Curves',fontsize=16)
 
-    plt.savefig(nn.savePlotFolder+nn.getNNID(p_id)+"_Loss_"+str(constants.SLICING_PIXELS)+"_"+str(constants.M)+"x"+str(constants.N)+".png")
+    for key in nn.train.history.keys():
+        #plt.figure(figsize=[8,6])
+        plt.plot(nn.train.history[key],'r',linewidth=3.0)
+        plt.legend([key],fontsize=10)
+        plt.xlabel('Epochs ',fontsize=16)
+        plt.ylabel(key,fontsize=16)
+        plt.title(key + 'Curves',fontsize=16)
 
-    # Accuracy Curves
-    plt.figure(figsize=[8,6])
-    plt.plot(nn.train.history[key],'r',linewidth=3.0)
-    plt.plot(nn.train.history["val_"+key],'b',linewidth=3.0)
-    plt.legend(['Training Accuracy', 'Validation Accuracy'],fontsize=10)
-    plt.xlabel('Epochs ',fontsize=16)
-    plt.ylabel('Accuracy',fontsize=16)
-    plt.title('Accuracy Curves',fontsize=16)
-
-    plt.savefig(nn.savePlotFolder+nn.getNNID(p_id)+"_Acc_"+str(constants.SLICING_PIXELS)+"_"+str(constants.M)+"x"+str(constants.N)+".png")
+        plt.savefig(nn.savePlotFolder+nn.getNNID(p_id)+"_"+key+"_"+str(constants.SLICING_PIXELS)+"_"+str(constants.M)+"x"+str(constants.N)+".png")
 
 ################################################################################
 ################################################################################

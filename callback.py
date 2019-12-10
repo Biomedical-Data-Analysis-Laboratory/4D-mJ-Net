@@ -1,32 +1,43 @@
 import constants
 from Utils import general_utils
 
-import os, glob
+import os, glob, json
 import tensorflow as tf
 
 ################################################################################
 # Return information about the loss and accuracy
 class CollectBatchStats(tf.keras.callbacks.Callback):
-    def __init__(self, root_path, savedModelName, acc="acc"):
+    def __init__(self, root_path, savedModelName, textFolderPath, acc="acc"):
         self.batch_losses = []
         self.batch_acc = []
         self.root_path = root_path
         self.savedModelName = savedModelName
+        self.textFolderPath = textFolderPath
         self.folderOfSavedModel = self.savedModelName[:self.savedModelName.rfind("/")+1]
+        self.modelName = self.savedModelName[self.savedModelName.rfind("/"):]
         self.acc = acc
 
     def on_batch_end(self, batch, logs=None):
         self.batch_losses.append(logs['loss'])
         self.batch_acc.append(logs[self.acc])
 
+
     # when an epoch is finished, it removes the old saved weights (from previous epochs)
     def on_epoch_end(self, epoch, logs=None):
+        # save loss and accuracy in files
+        textToSave = "epoch: {}".format(str(epoch))
+        for k, v in logs.items():
+            textToSave += ", {}: {}".format(k, round(v, 6))
+        textToSave += '\n'
+        with open(self.textFolderPath+self.modelName+"_logs.txt", "a+") as loss_file:
+            loss_file.write(textToSave)
+
         tmpSavedModels = glob.glob(self.savedModelName+":*.h5")
         if len(tmpSavedModels) > 1:
             for file in tmpSavedModels:
                 if self.savedModelName+":" in file:
                     tmpEpoch = general_utils.getEpochFromPartialWeightFilename(file)
-                    if tmpEpoch < epoch-1: # Remove the old saved weights
+                    if tmpEpoch < epoch: # Remove the old saved weights
                         os.remove(file)
 
 ################################################################################
@@ -51,4 +62,18 @@ def earlyStopping(monitor, min_delta, patience):
             patience=patience,
             verbose=constants.getVerbose(),
             mode="auto"
+    )
+
+################################################################################
+# Reduce learning rate when a metric has stopped improving.
+def reduceLROnPlateau(monitor, factor, patience, min_delta, min_lr):
+    return tf.keras.callbacks.ReduceLROnPlateau(
+            monitor=monitor,
+            factor=factor,
+            patience=patience,
+            verbose=constants.getVerbose(),
+            mode='auto',
+            min_delta=min_delta,
+            cooldown=0,
+            min_lr=min_lr
     )

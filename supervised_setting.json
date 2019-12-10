@@ -1,9 +1,9 @@
 {
   "root_path": "/home/stud/lucat/PhD_Project/Stroke_segmentation/",
   "dataset_path": "/local/home/lucat/DATASET/",
-  "PATIENT_TO_TEST": [12,13,14,15,16],
+  "PATIENT_TO_TEST": [2,3,4,5,6,7,8,9,10,11],
   "init": {
-    "TF_CPP_MIN_LOG_LEVEL": "2",
+    "TF_CPP_MIN_LOG_LEVEL": "3",
     "per_process_gpu_memory_fraction": 1,
     "allow_growth": 1,
     "MULTIPROCESSING": 1
@@ -42,23 +42,16 @@
         "EarlyStopping": {
           "monitor": "loss",
           "min_delta": 0,
-          "patience": 5
-        },
-        "ReduceLROnPlateau": {
-          "monitor": "dice_coef",
-          "factor": 0.01,
-          "patience": 2,
-          "min_delta": 0.001,
-          "min_lr": 0
+          "patience": 2
         },
         "CollectBatchStats": {
           "acc":"dice_coef"
         }
       },
       "data_augmentation": 1,
-      "cross_validation": 0,
+      "cross_validation": 1,
       "train_again": 0,
-      "supervised": 0
+      "supervised": 1
     }
   }
 }

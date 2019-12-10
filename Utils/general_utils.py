@@ -1,11 +1,10 @@
-from Utils import dataset_utils
-import constants
+# DO NOT import dataset_utils here!
+import constants, training
 
 import sys, argparse, os, json, time
+import numpy as np
 import pandas as pd
 import tensorflow as tf
-import tensorflow.keras.backend as K
-
 
 ################################################################################
 ######################## UTILS FUNCTIONS #######################################
@@ -41,7 +40,6 @@ def getSettingFile(filename):
     if constants.getVerbose():
         printSeparation("-",50)
         print("Load setting file: {}".format(filename))
-        printSeparation("-",50)
 
     return setting
 
@@ -78,34 +76,8 @@ def setupEnvironmentForGPUs(args, setting):
     if constants.getVerbose():
         printSeparation("-",50)
         print("Use {0} GPU(s): {1}".format(N_GPU, GPU))
-        printSeparation("-",50)
 
     return N_GPU
-
-################################################################################
-# Return the dataset based
-def getDataset(net, p_id=None, multiprocessing=0):
-    start = time.time()
-    train_df = pd.DataFrame(columns=['patient_id', 'label', 'pixels', 'ground_truth', "label_code"])
-
-    if constants.getVerbose():
-        printSeparation("-",50)
-        if multiprocessing: print("Loading Dataset using MULTIprocessing...")
-        else: print("Loading Dataset using SINGLEprocessing...")
-        printSeparation("-",50)
-
-    if constants.DEBUG: train_df = dataset_utils.initTestingDataFrame()
-    else:
-        # no debugging and no data augmentation
-        if net.da:
-            print("Data augmented training/testing... load the dataset differently for each patient")
-            train_df = dataset_utils.loadTrainingDataframe(net, testing_id=p_id, multiprocessing=multiprocessing)
-        else: train_df = dataset_utils.loadTrainingDataframe(net, multiprocessing=multiprocessing)
-
-    end = time.time()
-    print("Total time to load the Dataset: {0}s".format(round(end-start, 3)))
-    generateDatasetSummary(train_df)
-    return train_df
 
 ################################################################################
 # return the selected window for an image
@@ -113,61 +85,38 @@ def getSlicingWindow(img, startX, startY, M, N):
     return img[startX:startX+M,startY:startY+N]
 
 ################################################################################
-# Generate a summary of the dataset
-def generateDatasetSummary(train_df):
-    N_BACKGROUND, N_BRAIN, N_PENUMBRA, N_CORE, N_TOT = getNumberOfElements(train_df)
-
-    printSeparation('+', 90)
-    print("DATASET SUMMARY: \n")
-    print("\t N. Background: {0}".format(N_BACKGROUND))
-    print("\t N. Brain: {0}".format(N_BRAIN))
-    print("\t N. Penumbra: {0}".format(N_PENUMBRA))
-    print("\t N. Core: {0}".format(N_CORE))
-    print("\t Tot: {0}".format(N_TOT))
-    printSeparation('+', 90)
-
-################################################################################
-# Return the number of element per class of the dataset
-def getNumberOfElements(train_df):
-    N_BACKGROUND = len([x for x in train_df.label if x=="background"])
-    N_BRAIN = len([x for x in train_df.label if x=="brain"])
-    N_PENUMBRA = len([x for x in train_df.label if x=="penumbra"])
-    N_CORE = len([x for x in train_df.label if x=="core"])
-    N_TOT = train_df.shape[0]
-
-    return (N_BACKGROUND, N_BRAIN, N_PENUMBRA, N_CORE, N_TOT)
-
-################################################################################
 # Get the epoch number from the partial weight filename
 def getEpochFromPartialWeightFilename(partialWeightsPath):
     return int(partialWeightsPath[partialWeightsPath.index(":")+1:partialWeightsPath.index(".h5")])
 
+################################################################################
+# Get the loss defined in the settings
 def getLoss(name):
     loss = {}
 
-    if name=="dice_coef":
-        loss["loss"] = dice_coef_loss
-        loss["metrics"] = dice_coef
-        loss["name"] = name
+    if name=="dice_coef_loss":
+        loss["loss"] = training.dice_coef_loss
+        loss["name"] = "dice_coef"
     # elif .. # TODO:
 
     return loss
 
 ################################################################################
-# Funtion that calculates the DICE coefficient. Important when calculates the different of two images
-def dice_coef(y_true, y_pred):
-    """
-    Dice = (2*|X & Y|)/ (|X|+ |Y|)
-         =  2*sum(|A*B|)/(sum(A^2)+sum(B^2))
-    ref: https://arxiv.org/pdf/1606.04797v1.pdf
-    """
-    intersection = K.sum(K.abs(y_true * y_pred), axis=-1)
-    return (2. * intersection + 1) / (K.sum(K.square(y_true),-1) + K.sum(K.square(y_pred),-1) + 1)
+# Get the loss defined in the settings
+def getMetrics(listMetrics):
+    metrics = []
 
-################################################################################
-# Function that calculates the DICE coefficient loss. Util for the LOSS function during the training of the model (for image in input and output)!
-def dice_coef_loss(y_true, y_pred):
-    return 1-dice_coef(y_true, y_pred)
+    for m in listMetrics:
+        if m=="dice_coef":
+            metrics.append(training.dice_coef)
+        elif m=="sensitivity":
+            metrics.append(training.sensitivity)
+        elif m=="specificity":
+            metrics.append(training.specificity)
+        elif m=="auroc":
+            metrics.append(training.aucroc)
+
+    return metrics
 
 ################################################################################
 ################################################################################

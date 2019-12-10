@@ -36,11 +36,11 @@
       },
       "callbacks":{
         "ModelCheckpoint": {
-          "monitor": "dice_coef",
+          "monitor": "loss",
           "period": 1
         },
         "EarlyStopping": {
-          "monitor": "loss",
+          "monitor": "dice_coef",
           "min_delta": 0,
           "patience": 5
         },

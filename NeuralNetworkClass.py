@@ -56,7 +56,7 @@ class NeuralNetwork(object):
         if self.getVerbose():
             general_utils.printSeparation("-", 50)
             print("Setting callbacks...")
-        self.callbacks = training.getCallbacks(root_path=self.rootPath, info=self.infoCallbacks, filename=self.getSavedInformation(p_id), textFolderPath=self.saveTextFolder)
+        self.callbacks = training.getCallbacks(root_path=self.rootPath, info=self.infoCallbacks, filename=self.getSavedInformation(p_id, path=self.savedModelfolder), textFolderPath=self.saveTextFolder)
 
 ################################################################################
 # return a Boolean to control if the model was already saved
@@ -88,7 +88,7 @@ class NeuralNetwork(object):
     def arePartialWeightsSaved(self, p_id):
         self.partialWeightsPath = ""
         # path ==> weight name plus a suffix ":"
-        path = self.getSavedInformation(p_id)+":"
+        path = self.getSavedInformation(p_id, path=self.savedModelfolder)+":"
         for file in glob.glob(self.savedModelfolder+"*.h5"):
             if path in self.rootPath+file: # we have a match
                 self.partialWeightsPath = file
@@ -119,7 +119,7 @@ class NeuralNetwork(object):
             print("Preparing Dataset for patient {}...".format(p_id))
 
         # get the dataset
-        self.dataset = dataset_utils.prepareDataset(self.dataset, self.train_df, self.validation_perc, self.supervised, p_id, self.mp)
+        self.dataset = dataset_utils.prepareDataset(self, p_id)
         # get the number of element per class in the dataset
         self.N_BACKGROUND, self.N_BRAIN, self.N_PENUMBRA, self.N_CORE, self.N_TOT = dataset_utils.getNumberOfElements(self.train_df)
 
@@ -232,21 +232,21 @@ class NeuralNetwork(object):
 
 ################################################################################
 # return the saved model or weight (based on the suffix)
-    def getSavedInformation(self, p_id, suffix=""):
+    def getSavedInformation(self, p_id, path, other_info="", suffix=""):
         # mJ-Net_DA_ADAM_4_16x16.json <-- example weights name
         # mJ-Net_DA_ADAM_4_16x16.h5 <-- example model name
-        path = general_utils.getFullDirectoryPath(self.savedModelfolder)+self.getNNID(p_id)+"_"+str(constants.SLICING_PIXELS)+"_"+str(constants.M)+"x"+str(constants.N)
+        path = general_utils.getFullDirectoryPath(path)+self.getNNID(p_id)+other_info+"_"+str(constants.SLICING_PIXELS)+"_"+str(constants.M)+"x"+str(constants.N)
         return path+suffix
 
 ################################################################################
 # return the saved model
     def getSavedModel(self, p_id):
-        return self.getSavedInformation(p_id, ".json")
+        return self.getSavedInformation(p_id, path=self.savedModelfolder, suffix=".json")
 
 ################################################################################
 # return the saved weight
     def getSavedWeight(self, p_id):
-        return self.getSavedInformation(p_id, ".h5")
+        return self.getSavedInformation(p_id, path=self.savedModelfolder, suffix=".h5")
 
 ################################################################################
 # return NeuralNetwork ID

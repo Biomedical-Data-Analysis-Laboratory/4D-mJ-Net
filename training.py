@@ -64,14 +64,15 @@ def fitModel(model, dataset, epochs, listOfCallbacks, class_weights, sample_weig
 def plotLossAndAccuracy(nn, p_id):
 
     for key in nn.train.history.keys():
-        #plt.figure(figsize=[8,6])
-        plt.plot(nn.train.history[key],'r',linewidth=3.0)
-        plt.legend([key],fontsize=10)
-        plt.xlabel('Epochs ',fontsize=16)
-        plt.ylabel(key,fontsize=16)
-        plt.title(key + 'Curves',fontsize=16)
+        fig, ax = plt.subplots(nrows=1, ncols=1)  # create figure & 1 axis
+        ax.plot(nn.train.history[key],'r',linewidth=3.0)
+        ax.legend([key],fontsize=10)
+        ax.xlabel('Epochs ',fontsize=16)
+        ax.ylabel(key,fontsize=16)
+        ax.title(key + 'Curves',fontsize=16)
 
-        plt.savefig(nn.savePlotFolder+nn.getNNID(p_id)+"_"+key+"_"+str(constants.SLICING_PIXELS)+"_"+str(constants.M)+"x"+str(constants.N)+".png")
+        fig.savefig(nn.savePlotFolder+nn.getNNID(p_id)+"_"+key+"_"+str(constants.SLICING_PIXELS)+"_"+str(constants.M)+"x"+str(constants.N)+".png")
+        plt.close(fig)
 
 ################################################################################
 ################################################################################

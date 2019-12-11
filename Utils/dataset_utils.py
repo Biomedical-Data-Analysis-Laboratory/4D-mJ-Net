@@ -1,10 +1,11 @@
 import constants
 from Utils import general_utils
 
-import glob, random, time
+import os, glob, random, time, random
 import multiprocessing
 import pandas as pd
 import numpy as np
+#import pickle
 
 ################################################################################
 # Function to test the model `NOT USED OTHERWISE`
@@ -109,26 +110,50 @@ def getDataset(net, p_id=None):
 ################################################################################
 # Function to divide the dataframe in train and test based on the patient id;
 # plus it reshape the pixel array and initialize the model.
-def prepareDataset(dataset, train_df, validation_perc, supervised, p_id, mp=0):
+def prepareDataset(nn, p_id):
     start = time.time()
-    val_mod = int(100/validation_perc)
 
+    # train_indices_file = nn.getSavedInformation(p_id, nn.saveTextFolder, other_info="_train_indices", suffix='.pkl')
+    # val_indices_file = nn.getSavedInformation(p_id, nn.saveTextFolder, other_info="_val_indices", suffix='.pkl')
+    #
+    # if os.path.isfile(train_indices_file) and os.path.isfile(val_indices_file):
+    #     # train and val indices already saved... read them!
+    #     with open(train_indices_file, 'rb') as f:
+    #         nn.dataset["train"]["indices"] = pickle.load(f)
+    #     with open(val_indices_file, 'rb') as f:
+    #         nn.dataset["val"]["indices"] = pickle.load(f)
+    # else: # NO train and val indices; extract new ones and save them!
+    nn.dataset["train"]["indices"] = list()
+    nn.dataset["val"]["indices"] = list()
     # train indices are ALL except the one = p_id
-    train_val_dataset = np.nonzero((train_df.patient_id.values != p_id))[0]
-    dataset["train"]["indices"] = np.nonzero((train_val_dataset%val_mod != 0))[0]
-    dataset["val"]["indices"] = np.nonzero((train_val_dataset%val_mod == 0))[0]
+    train_val_dataset = np.nonzero((nn.train_df.patient_id.values != p_id))[0]
 
-    dataset["train"]["data"] = getDataFromIndex(train_df, dataset["train"]["indices"], mp)
+    # do NOT use a patient(s) as a validation set because maybe it doesn't have
+    # too much information about core and penumbra.
+    # Instead, get a percentage from each class!
+    for classLabelName in constants.LABELS:
+        random.seed(0)
+        classIndices = np.nonzero((nn.train_df.label.values[train_val_dataset]==classLabelName))[0]
+        classValIndices = random.sample(list(classIndices), int((len(classIndices)*nn.validation_perc)/100))
+        nn.dataset["train"]["indices"].extend(list(set(classIndices)-set(classValIndices)))
+        nn.dataset["val"]["indices"].extend(classValIndices)
 
-    dataset["val"]["data"] = getDataFromIndex(train_df, dataset["val"]["indices"], mp)
+        # save the files
+        # with open(train_indices_file, 'wb') as f:
+        #      pickle.dump(nn.dataset["train"]["indices"], f)
+        # with open(val_indices_file, 'wb') as f:
+        #      pickle.dump(nn.dataset["val"]["indices"], f)
 
-    if supervised:
-        dataset = getTestDataset(dataset, train_df, p_id, mp)
+    nn.dataset["train"]["data"] = getDataFromIndex(nn.train_df, nn.dataset["train"]["indices"], nn.mp)
+    nn.dataset["val"]["data"] = getDataFromIndex(nn.train_df, nn.dataset["val"]["indices"], nn.mp)
+
+    if nn.supervised:
+        nn.dataset = getTestDataset(nn.dataset, nn.train_df, p_id, nn.mp)
 
     end = time.time()
     print("Total time to prepare the Dataset: {}s".format(round(end-start, 3)))
 
-    return dataset
+    return nn.dataset
 
 ################################################################################
 # Get the test dataset

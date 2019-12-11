@@ -3,7 +3,7 @@
   "dataset_path": "/local/home/lucat/DATASET/",
   "PATIENT_TO_TEST": [12,13,14,15,16],
   "init": {
-    "TF_CPP_MIN_LOG_LEVEL": "2",
+    "TF_CPP_MIN_LOG_LEVEL": "3",
     "per_process_gpu_memory_fraction": 1,
     "allow_growth": 1,
     "MULTIPROCESSING": 1

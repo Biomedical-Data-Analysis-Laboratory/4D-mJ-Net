@@ -137,6 +137,7 @@ def evaluateModelWithCategorics(nn, p_id, mp):
         print("TEST %s: %.2f%%" % (nn.model.metrics_names[index], round(val,6)*100))
     general_utils.printSeparation("-",50)
 
+    # TODO: change something here!
     with open(general_utils.getFullDirectoryPath(nn.saveTextFolder)+nn.getNNID(p_id)+".txt", "a+") as text_file:
         text_file.write("\n -----------------------------------------------------")
         if training_score!=None: text_file.write("\n TRAIN %s: %.2f%%" % (nn.model.metrics_names[1], nn.training_score*100))

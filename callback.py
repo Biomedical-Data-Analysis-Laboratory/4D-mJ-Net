@@ -31,10 +31,10 @@ class CollectBatchStats(tf.keras.callbacks.Callback):
         with open(self.textFolderPath+self.modelName+"_logs.txt", "a+") as loss_file:
             loss_file.write(textToSave)
 
-        tmpSavedModels = glob.glob(self.savedModelName+":*.h5")
+        tmpSavedModels = glob.glob(self.savedModelName+constants.suffix_partial_weights+"*.h5")
         if len(tmpSavedModels) > 1: # just to be sure and not delete everything
             for file in tmpSavedModels:
-                if self.savedModelName+":" in file:
+                if self.savedModelName+constants.suffix_partial_weights in file:
                     tmpEpoch = general_utils.getEpochFromPartialWeightFilename(file)
                     if tmpEpoch < epoch: # Remove the old saved weights
                         os.remove(file)
@@ -43,7 +43,7 @@ class CollectBatchStats(tf.keras.callbacks.Callback):
 # Save the best model every "period" number of epochs
 def modelCheckpoint(filename, monitor, period):
     return tf.keras.callbacks.ModelCheckpoint(
-            filename+":{epoch:02d}.h5",
+            filename+constants.suffix_partial_weights+"{epoch:02d}.h5",
             monitor=monitor,
             verbose=constants.getVerbose(),
             save_best_only=True,

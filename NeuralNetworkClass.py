@@ -20,16 +20,20 @@ class NeuralNetwork(object):
 
         self.name = info["name"]
         self.epochs = info["epochs"]
-        self.validation_perc = info["validation_perc"]
+        self.val = {
+            "validation_perc": info["val"]["validation_perc"],
+            "random_validation_selection": info["val"]["random_validation_selection"]
+            }
         self.test_steps = info["test_steps"]
 
         self.dataset = {
             "train": {},
             "val": {},
             "test": {}
-        }
+            }
 
         self.optimizerName = info["optimizer"]["name"]
+        self.params = info["params"]
         self.loss = general_utils.getLoss(info["loss"])
         self.metrics = general_utils.getMetrics(info["metrics"])
 
@@ -87,8 +91,8 @@ class NeuralNetwork(object):
 # Check if there are saved partial weights
     def arePartialWeightsSaved(self, p_id):
         self.partialWeightsPath = ""
-        # path ==> weight name plus a suffix ":"
-        path = self.getSavedInformation(p_id, path=self.savedModelfolder)+":"
+        # path ==> weight name plus a suffix ":" <-- constants.suffix_partial_weights
+        path = self.getSavedInformation(p_id, path=self.savedModelfolder)+constants.suffix_partial_weights
         for file in glob.glob(self.savedModelfolder+"*.h5"):
             if path in self.rootPath+file: # we have a match
                 self.partialWeightsPath = file
@@ -132,7 +136,7 @@ class NeuralNetwork(object):
 # Run the training over the dataset based on the model
     def runTraining(self, p_id, n_gpu):
         self.dataset["train"]["labels"] = dataset_utils.getLabelsFromIndex(train_df=self.train_df, indices=self.dataset["train"]["indices"])
-        self.dataset["val"]["labels"] = dataset_utils.getLabelsFromIndex(train_df=self.train_df, indices=self.dataset["val"]["indices"])
+        self.dataset["val"]["labels"] = None if self.val["validation_perc"]==0 else dataset_utils.getLabelsFromIndex(train_df=self.train_df, indices=self.dataset["val"]["indices"])
         if self.supervised: self.dataset["test"]["labels"] = dataset_utils.getLabelsFromIndex(train_df=self.train_df, indices=self.dataset["test"]["indices"])
 
         if self.getVerbose():
@@ -142,14 +146,14 @@ class NeuralNetwork(object):
         # based on the number of GPUs availables
         # call the function called self.name in models.py
         if n_gpu==1:
-            self.model = getattr(models, self.name)(self.dataset["train"]["data"])
+            self.model = getattr(models, self.name)(self.dataset["train"]["data"], params=self.params)
         else:
             with tf.device('/cpu:0'):
-                self.model = getattr(models, self.name)(self.dataset["train"]["data"])
+                self.model = getattr(models, self.name)(self.dataset["train"]["data"], params=self.params)
                 self.model = multi_gpu_model(self.model, gpus=n_gpu)
 
         if self.getVerbose() and self.summaryFlag==0:
-            #print(self.model.summary())
+            print(self.model.summary())
             self.summaryFlag+=1
 
         # check if the model has some saved weights to load...
@@ -195,7 +199,7 @@ class NeuralNetwork(object):
         p_id = general_utils.getStringPatientIndex(p_id)
         # serialize model to JSON
         model_json = self.model.to_json()
-        with open(filename_model, "w") as json_file:
+        with open(saved_modelname, "w") as json_file:
             json_file.write(model_json)
         # serialize weights to HDF5
         self.model.save_weights(saved_weightname)
@@ -254,6 +258,10 @@ class NeuralNetwork(object):
         id = self.name
         if self.da: id += "_DA"
         id += ("_"+self.optimizerName.upper())
+
+        id += ("_VAL"+str(self.val["validation_perc"]))
+        if self.val["random_validation_selection"]: id += ("_RANDOM")
+
         # if there is cross validation, add the PATIENT_ID to differenciate the models
         if self.cross_validation:
             id += ("_" + p_id)

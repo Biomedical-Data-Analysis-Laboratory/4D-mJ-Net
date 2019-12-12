@@ -113,39 +113,29 @@ def getDataset(net, p_id=None):
 def prepareDataset(nn, p_id):
     start = time.time()
 
-    # train_indices_file = nn.getSavedInformation(p_id, nn.saveTextFolder, other_info="_train_indices", suffix='.pkl')
-    # val_indices_file = nn.getSavedInformation(p_id, nn.saveTextFolder, other_info="_val_indices", suffix='.pkl')
-    #
-    # if os.path.isfile(train_indices_file) and os.path.isfile(val_indices_file):
-    #     # train and val indices already saved... read them!
-    #     with open(train_indices_file, 'rb') as f:
-    #         nn.dataset["train"]["indices"] = pickle.load(f)
-    #     with open(val_indices_file, 'rb') as f:
-    #         nn.dataset["val"]["indices"] = pickle.load(f)
-    # else: # NO train and val indices; extract new ones and save them!
     nn.dataset["train"]["indices"] = list()
     nn.dataset["val"]["indices"] = list()
     # train indices are ALL except the one = p_id
     train_val_dataset = np.nonzero((nn.train_df.patient_id.values != p_id))[0]
 
-    # do NOT use a patient(s) as a validation set because maybe it doesn't have
-    # too much information about core and penumbra.
-    # Instead, get a percentage from each class!
-    for classLabelName in constants.LABELS:
-        random.seed(0)
-        classIndices = np.nonzero((nn.train_df.label.values[train_val_dataset]==classLabelName))[0]
-        classValIndices = random.sample(list(classIndices), int((len(classIndices)*nn.validation_perc)/100))
-        nn.dataset["train"]["indices"].extend(list(set(classIndices)-set(classValIndices)))
-        nn.dataset["val"]["indices"].extend(classValIndices)
-
-        # save the files
-        # with open(train_indices_file, 'wb') as f:
-        #      pickle.dump(nn.dataset["train"]["indices"], f)
-        # with open(val_indices_file, 'wb') as f:
-        #      pickle.dump(nn.dataset["val"]["indices"], f)
+    if nn.val["random_validation_selection"]:
+        # perform a random selection of the validation
+        val_mod = int(100/nn["val"]["validation_perc"])
+        nn.dataset["train"]["indices"] = np.nonzero((train_val_dataset%val_mod != 0))[0]
+        nn.dataset["val"]["indices"] = np.nonzero((train_val_dataset%val_mod == 0))[0]
+    else:
+        # do NOT use a patient(s) as a validation set because maybe it doesn't have
+        # too much information about core and penumbra.
+        # Instead, get a percentage from each class!
+        for classLabelName in constants.LABELS:
+            random.seed(0)
+            classIndices = np.nonzero((nn.train_df.label.values[train_val_dataset]==classLabelName))[0]
+            classValIndices = [] if nn.val["validation_perc"]==0 else random.sample(list(classIndices), int((len(classIndices)*nn.val["validation_perc"])/100))
+            nn.dataset["train"]["indices"].extend(list(set(classIndices)-set(classValIndices)))
+            if nn.val["validation_perc"]!=0: nn.dataset["val"]["indices"].extend(classValIndices)
 
     nn.dataset["train"]["data"] = getDataFromIndex(nn.train_df, nn.dataset["train"]["indices"], nn.mp)
-    nn.dataset["val"]["data"] = getDataFromIndex(nn.train_df, nn.dataset["val"]["indices"], nn.mp)
+    nn.dataset["val"]["data"] = None if nn.val["validation_perc"]==0 else getDataFromIndex(nn.train_df, nn.dataset["val"]["indices"], nn.mp)
 
     if nn.supervised:
         nn.dataset = getTestDataset(nn.dataset, nn.train_df, p_id, nn.mp)

@@ -10,9 +10,10 @@ from NeuralNetworkClass import NeuralNetwork
 from tensorflow.python.util import deprecation
 deprecation._PRINT_DEPRECATION_WARNINGS = False
 
+################################################################################
 # MAIN FUNCTION
 def main():
-    networks = dict()
+    networks = list()
     train_df = None
 
     # Get the command line arguments
@@ -25,17 +26,16 @@ def main():
     n_gpu = general_utils.setupEnvironment(args, setting)
 
     # initialize model(s)
-    for name, info in setting["models"].items():
-        networks[name] = NeuralNetwork(info, setting)
+    for info in setting["models"]:
+        networks.append(NeuralNetwork(info, setting))
 
-    for key, nn in networks.items():
+    for nn in networks:
         for testPatient in setting["PATIENT_TO_TEST"]:
             p_id = general_utils.getStringPatientIndex(testPatient)
             isAlreadySaved = False
 
             # set the multi/single PROCESSING
             nn.setProcessingEnv(setting["init"]["MULTIPROCESSING"])
-            # Training or Test ?
 
             # Check if the model was already trained and saved
             if nn.isModelSaved(p_id):
@@ -61,10 +61,7 @@ def main():
             # predict and save the images
             nn.predictAndSaveImages(p_id)
 
-
-
-
-
-
+################################################################################
+################################################################################
 if __name__ == '__main__':
     main()

@@ -15,6 +15,7 @@ SAMPLES = 50
 LABELS = ["background", "brain", "penumbra", "core"] # background:255, brain:0, penumbra:~76, core:~150
 PIXELVALUES = [255, 0, 76, 150]
 PREFIX_IMAGES = "PA"
+suffix_partial_weights = "__"
 
 dataFrameColumnsTest = ['patient_id', 'label', 'pixels', 'ground_truth'] # without the "label_code"
 dataFrameColumns = ['patient_id', 'label', 'pixels', 'ground_truth', "label_code"]

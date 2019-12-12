@@ -21,7 +21,8 @@ def predictAndSaveImages(that, p_id):
 
     relativePatientFolder = constants.PREFIX_IMAGES+p_id+"/"
     patientFolder = that.patientsFolder+relativePatientFolder
-    general_utils.createDir(that.saveImagesFolder+relativePatientFolder)
+    general_utils.createDir(that.saveImagesFolder+that.getNNID(p_id))
+    general_utils.createDir(that.saveImagesFolder+that.getNNID(p_id)+"/"+relativePatientFolder)
 
     if constants.getVerbose():
         general_utils.printSeparation("-", 100)
@@ -36,7 +37,7 @@ def predictAndSaveImages(that, p_id):
     #         pool.starmap(predictImage, input)
     # else:
     for subfolder in glob.glob(patientFolder+"*/"):
-        predictImage(that, subfolder, p_id, patientFolder, relativePatientFolder)
+        predictImage(that, subfolder, p_id, patientFolder, that.getNNID(p_id)+"/"+relativePatientFolder)
 
     end = time.time()
     print("Total time: {0}s for patient {1}.".format(round(end-start, 3), p_id))

@@ -1,5 +1,7 @@
 import constants, callback
 
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import tensorflow as tf
 import tensorflow.keras.backend as K
@@ -45,13 +47,15 @@ def getCallbacks(info, root_path, filename, textFolderPath):
 ################################################################################
 # Fit the model
 def fitModel(model, dataset, epochs, listOfCallbacks, class_weights, sample_weights, initial_epoch, use_multiprocessing):
+    validation_data = None
+    if dataset["val"]["data"] is not None and dataset["val"]["labels"] is not None: validation_data = (dataset["val"]["data"], dataset["val"]["labels"])
 
     training = model.fit(dataset["train"]["data"],
                 dataset["train"]["labels"],
                 epochs=epochs,
                 callbacks=listOfCallbacks,
                 shuffle=True,
-                validation_data=(dataset["val"]["data"], dataset["val"]["labels"]),
+                validation_data=validation_data,
                 sample_weight=sample_weights,
                 initial_epoch=initial_epoch,
                 verbose=constants.getVerbose(),
@@ -67,9 +71,9 @@ def plotLossAndAccuracy(nn, p_id):
         fig, ax = plt.subplots(nrows=1, ncols=1)  # create figure & 1 axis
         ax.plot(nn.train.history[key],'r',linewidth=3.0)
         ax.legend([key],fontsize=10)
-        ax.xlabel('Epochs ',fontsize=16)
-        ax.ylabel(key,fontsize=16)
-        ax.title(key + 'Curves',fontsize=16)
+        ax.set_xlabel('Epochs ', fontsize=16)
+        ax.set_ylabel(key, fontsize=16)
+        ax.set_title(key + 'Curves', fontsize=16)
 
         fig.savefig(nn.savePlotFolder+nn.getNNID(p_id)+"_"+key+"_"+str(constants.SLICING_PIXELS)+"_"+str(constants.M)+"x"+str(constants.N)+".png")
         plt.close(fig)

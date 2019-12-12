@@ -6,7 +6,7 @@
     "TF_CPP_MIN_LOG_LEVEL": "3",
     "per_process_gpu_memory_fraction": 1,
     "allow_growth": 1,
-    "MULTIPROCESSING": 1
+    "MULTIPROCESSING": 0
   },
   "relative_paths": {
     "labeled_images": "Manual_annotations/",
@@ -23,9 +23,9 @@
       "name": "mJNet_LongJ_Drop",
       "loss": "dice_coef_loss",
       "metrics": ["dice_coef", "sensitivity", "specificity"],
-      "epochs": 30,
+      "epochs": 60,
       "val":{
-        "validation_perc": 5,
+        "validation_perc": 10,
         "random_validation_selection": 0
       },
       "test_steps":1,
@@ -79,7 +79,7 @@
       "metrics": ["dice_coef", "sensitivity", "specificity"],
       "epochs": 100,
       "val":{
-        "validation_perc": 10,
+        "validation_perc": 0,
         "random_validation_selection": 0
       },
       "test_steps":1,
@@ -107,7 +107,7 @@
           "period": 1
         },
         "EarlyStopping": {
-          "monitor": "val_loss",
+          "monitor": "loss",
           "min_delta": 0.0001,
           "patience": 10
         },

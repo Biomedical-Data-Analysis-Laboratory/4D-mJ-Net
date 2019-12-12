@@ -15,13 +15,14 @@ import tensorflow as tf
 # get the arguments from the command line
 def getCommandLineArguments():
     parser = argparse.ArgumentParser()
-    parser.add_argument("-v", "--verbose", help="Increase output verbosity",
-                    action="store_true")
+    parser.add_argument("-v", "--verbose", help="Increase output verbosity", action="store_true")
+    parser.add_argument("-d", "--debug", help="DEBUG mode", action="store_true")
     parser.add_argument("-s", "--sname", help="Pass the setting filename")
     parser.add_argument("gpu", help="Give the id of gpu (or a list of the gpus) to use")
     args = parser.parse_args()
 
     constants.setVerbose(args.verbose)
+    constants.setDEBUG(args.debug)
 
     if not args.sname:
         args.sname = constants.default_setting_filename
@@ -89,7 +90,7 @@ def getSlicingWindow(img, startX, startY, M, N):
 ################################################################################
 # Get the epoch number from the partial weight filename
 def getEpochFromPartialWeightFilename(partialWeightsPath):
-    return int(partialWeightsPath[partialWeightsPath.index(":")+1:partialWeightsPath.index(".h5")])
+    return int(partialWeightsPath[partialWeightsPath.index(constants.suffix_partial_weights)+len(constants.suffix_partial_weights):partialWeightsPath.index(".h5")])
 
 ################################################################################
 # Get the loss defined in the settings

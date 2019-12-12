@@ -5,7 +5,8 @@ import os, glob, random, time, random
 import multiprocessing
 import pandas as pd
 import numpy as np
-#import pickle
+import hickle as hkl # Price et al., (2018). Hickle: A HDF5-based python pickle replacement. Journal of Open Source Software, 3(32), 1115, https://doi.org/10.21105/joss.01115
+
 
 ################################################################################
 # Function to test the model `NOT USED OTHERWISE`
@@ -40,12 +41,12 @@ def loadTrainingDataframe(net, testing_id=None):
 
     frames = [train_df]
     if not net.mp: # (SINGLE PROCESSING VERSION)
-        for filename_train in glob.glob(net.datasetFolder+"*.h5"):
+        for filename_train in glob.glob(net.datasetFolder+"*.hkl"):
             tmp_df = loadSingleTrainingData(net.da, filename_train, testing_id)
             frames.append(tmp_df)
     else: # MMULTI PROCESSING VERSION)
         input = []
-        for filename_train in glob.glob(net.datasetFolder+"*.h5"):
+        for filename_train in glob.glob(net.datasetFolder+"*.hkl"):
             input.append((net.da, filename_train, testing_id))
 
         with multiprocessing.Pool(processes=cpu_count) as pool: # auto closing workers
@@ -74,9 +75,15 @@ def loadSingleTrainingData(da, filename_train, testing_id):
         if constants.getVerbose(): print("---> Load normal dataset for patient {0}".format(testing_id))
         suffix= ""
 
-    tmp_df = readFromHDF(filename_train, suffix)
+    #tmp_df = readFromHDF(filename_train, suffix)
+    tmp_df = readFromHickle(filename_train, suffix) # Faster and less space consuming!
 
     return tmp_df
+
+################################################################################
+# Return the elements in the filename saved as a hickle
+def readFromHickle(filename, suffix):
+    return hkl.load(filename)
 
 ################################################################################
 # read the elements from filename and specific key
@@ -94,7 +101,7 @@ def getDataset(net, p_id=None):
         if net.mp: print("Loading Dataset using MULTIprocessing...")
         else: print("Loading Dataset using SINGLEprocessing...")
 
-    if constants.DEBUG: train_df = initTestingDataFrame()
+    if constants.getDEBUG(): train_df = initTestingDataFrame()
     else:
         # no debugging and no data augmentation
         if net.da:

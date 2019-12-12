@@ -12,10 +12,10 @@
     "labeled_images": "Manual_annotations/",
     "patients": "PATIENTS/",
     "save": {
-      "model": "SAVED_MODELS/",
-      "plot": "SAVED_PLOTS/",
-      "images": "SAVED_IMAGES/",
-      "text": "SAVED_TEXT/"
+      "model": "MODELS/",
+      "plot": "PLOTS/",
+      "images": "IMAGES/",
+      "text": "TEXT/"
     }
   },
   "models": {
@@ -24,7 +24,10 @@
       "loss": "dice_coef_loss",
       "metrics": ["dice_coef", "sensitivity", "specificity"],
       "epochs": 150,
-      "validation_perc": 10,
+      "val":{
+        "validation_perc": 0,
+        "random_validation_selection": 0
+      },
       "test_steps":1,
       "optimizer": {
         "name": "Adam",
@@ -33,6 +36,15 @@
         "beta_2":0.999,
         "epsilon":"None",
         "decay":0.0
+      },
+      "params":{
+        "dropout":{
+          "1":0.3,
+          "2":0.3,
+          "3":0.3,
+          "4":0.3,
+          "5":0.3
+        }
       },
       "callbacks":{
         "ModelCheckpoint": {
@@ -43,6 +55,13 @@
           "monitor": "loss",
           "min_delta": 0,
           "patience": 2
+        },
+        "ReduceLROnPlateau": {
+          "monitor": "dice_coef",
+          "factor": 0.0005,
+          "patience": 2,
+          "min_delta": 0.001,
+          "min_lr": 0.00000001
         },
         "CollectBatchStats": {
           "acc":"dice_coef"

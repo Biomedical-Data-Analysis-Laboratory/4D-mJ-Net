@@ -28,6 +28,7 @@ def predictAndSaveImages(that, p_id):
         general_utils.printSeparation("-", 100)
         general_utils.printSeparation("-", 100)
 
+    # TODO: find a way to use multiprocessing the generation of the images
     # if that.mp:
     #     cpu_count = multiprocessing.cpu_count()
     #     input = []
@@ -117,8 +118,8 @@ def predictImage(that, subfolder, p_id, patientFolder, relativePatientFolder):
     cv2.imwrite(that.saveImagesFolder+relativePatientFolder+idx+".png", imagePredicted)
 
     # HEATMAP
-    heatmap_img = cv2.applyColorMap(imagePredicted, cv2.COLORMAP_JET)
-    cv2.imwrite(that.saveImagesFolder+relativePatientFolder+idx+"_heatmap2.png", heatmap_img)
+    heatmap_img = cv2.applyColorMap(~imagePredicted, cv2.COLORMAP_JET)
+    cv2.imwrite(that.saveImagesFolder+relativePatientFolder+idx+"_heatmap.png", heatmap_img)
 
     end = time.time()
     if constants.getVerbose():

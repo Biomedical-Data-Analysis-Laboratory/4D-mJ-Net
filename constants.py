@@ -1,10 +1,6 @@
 verbose = False
 root_path = ""
 
-# just for testing and debugging
-# TODO: add a command line !
-DEBUG = False
-
 default_setting_filename = "Settings/defaults_settings.json"
 
 M, N = 16, 16
@@ -24,12 +20,19 @@ dataFrameColumns = ['patient_id', 'label', 'pixels', 'ground_truth', "label_code
 def getVerbose():
     return verbose
 
+def getDEBUG():
+    return DEBUG
+
 def getRootPath():
     return root_path
 
 def setVerbose(v):
     global verbose
     verbose = v
+
+def setDEBUG(d):
+    global DEBUG
+    DEBUG = d
 
 def setRootPath(path):
     global root_path

@@ -22,8 +22,8 @@
     {
       "name": "mJNet_LongJ_Drop",
       "loss": "dice_coef_loss",
-      "metrics": ["dice_coef", "sensitivity", "specificity"],
-      "epochs": 60,
+      "metrics": ["dice_coef", "sensitivity", "specificity", "precision", "f1"],
+      "epochs": 100,
       "val":{
         "validation_perc": 10,
         "random_validation_selection": 0
@@ -59,7 +59,7 @@
         },
         "ReduceLROnPlateau": {
           "monitor": "dice_coef",
-          "factor": 0.0005,
+          "factor": 0.5,
           "patience": 2,
           "min_delta": 0.001,
           "min_lr": 0.00000001
@@ -76,7 +76,7 @@
     {
       "name": "mJNet_Drop",
       "loss": "dice_coef_loss",
-      "metrics": ["dice_coef", "sensitivity", "specificity"],
+      "metrics": ["dice_coef", "sensitivity", "specificity", "precision", "f1"],
       "epochs": 100,
       "val":{
         "validation_perc": 0,
@@ -113,7 +113,7 @@
         },
         "ReduceLROnPlateau": {
           "monitor": "dice_coef",
-          "factor": 0.0005,
+          "factor": 0.5,
           "patience": 2,
           "min_delta": 0.001,
           "min_lr": 0.00000001

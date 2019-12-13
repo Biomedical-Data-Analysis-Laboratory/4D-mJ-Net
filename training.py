@@ -46,7 +46,7 @@ def getCallbacks(info, root_path, filename, textFolderPath):
 
 ################################################################################
 # Fit the model
-def fitModel(model, dataset, epochs, listOfCallbacks, class_weights, sample_weights, initial_epoch, use_multiprocessing):
+def fitModel(model, dataset, epochs, listOfCallbacks, sample_weights, initial_epoch, use_multiprocessing):
     validation_data = None
     if dataset["val"]["data"] is not None and dataset["val"]["labels"] is not None: validation_data = (dataset["val"]["data"], dataset["val"]["labels"])
 
@@ -105,6 +105,7 @@ def dice_coef_loss(y_true, y_pred):
 
 ################################################################################
 # Function that calculate the metrics for the SENSITIVITY
+# ALSO CALLED "RECALL"!
 def sensitivity(y_true, y_pred):
     true_positives = K.sum(K.round(K.clip(y_true * y_pred, 0, 1)))
     possible_positives = K.sum(K.round(K.clip(y_true, 0, 1)))
@@ -117,6 +118,29 @@ def specificity(y_true, y_pred):
     possible_negatives = K.sum(K.round(K.clip(1-y_true, 0, 1)))
     return true_negatives / (possible_negatives + K.epsilon())
 
+################################################################################
+# Function that calculate the metrics for the PRECISION
+def precision(y_true, y_pred):
+    """Precision metric.
+
+    Only computes a batch-wise average of precision.
+
+    Computes the precision, a metric for multi-label classification of
+    how many selected items are relevant.
+    """
+    true_positives = K.sum(K.round(K.clip(y_true * y_pred, 0, 1)))
+    predicted_positives = K.sum(K.round(K.clip(y_pred, 0, 1)))
+    precision = true_positives / (predicted_positives + K.epsilon())
+    return precision
+
+################################################################################
+# Function that calculate the metrics for the F1 SCORE
+def f1(y_true, y_pred):
+    prec = precision(y_true, y_pred)
+    recall = sensitivity(y_true, y_pred)
+    return 2*((prec*recall)/(prec+recall+K.epsilon()))
+
+## ????
 ################################################################################
 # Function that calculate AUC-ROC:
 # define roc_callback, inspired by https://github.com/keras-team/keras/issues/6050#issuecomment-329996505

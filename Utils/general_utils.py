@@ -112,10 +112,14 @@ def getMetrics(listMetrics):
     for m in listMetrics:
         if m=="dice_coef":
             metrics.append(training.dice_coef)
-        elif m=="sensitivity":
+        elif m=="sensitivity" or m=="recall":
             metrics.append(training.sensitivity)
         elif m=="specificity":
             metrics.append(training.specificity)
+        elif m=="precision":
+            metrics.append(training.precision)
+        elif m=="f1":
+            metrics.append(training.f1)
         elif m=="auroc":
             metrics.append(training.aucroc)
 

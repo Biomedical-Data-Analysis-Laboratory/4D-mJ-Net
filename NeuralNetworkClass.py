@@ -163,17 +163,11 @@ class NeuralNetwork(object):
 
         self.compileModel()
 
-        class_weights = {
-            constants.LABELS.index("background"):(self.N_TOT-self.N_BACKGROUND)/self.N_TOT,
-            constants.LABELS.index("brain"):(self.N_TOT-self.N_BRAIN)/self.N_TOT,
-            constants.LABELS.index("penumbra"):(self.N_TOT-self.N_PENUMBRA)/self.N_TOT,
-            constants.LABELS.index("core"):(self.N_TOT-self.N_CORE)/self.N_TOT}
-
         sample_weights = self.train_df.label.map({
-                    constants.LABELS[0]:self.N_TOT-self.N_BACKGROUND,
-                    constants.LABELS[1]:self.N_TOT-self.N_BRAIN,
-                    constants.LABELS[2]:self.N_TOT-self.N_PENUMBRA,
-                    constants.LABELS[3]:self.N_TOT-self.N_CORE})
+                    constants.LABELS[0]:0.1,
+                    constants.LABELS[1]:1,
+                    constants.LABELS[2]:5,
+                    constants.LABELS[3]:10})
         sample_weights = sample_weights.values[self.dataset["train"]["indices"]]
 
         # fit and train the model
@@ -182,7 +176,6 @@ class NeuralNetwork(object):
                 dataset=self.dataset,
                 epochs=self.epochs,
                 listOfCallbacks=self.callbacks,
-                class_weights=class_weights,
                 sample_weights=sample_weights,
                 initial_epoch=self.initial_epoch,
                 use_multiprocessing=self.mp)

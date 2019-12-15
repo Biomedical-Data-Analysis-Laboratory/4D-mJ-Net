@@ -148,9 +148,10 @@ class NeuralNetwork(object):
         if n_gpu==1:
             self.model = getattr(models, self.name)(self.dataset["train"]["data"], params=self.params)
         else:
+            # TODO: problems during the load of the model (?)
             with tf.device('/cpu:0'):
                 self.model = getattr(models, self.name)(self.dataset["train"]["data"], params=self.params)
-                self.model = multi_gpu_model(self.model, gpus=n_gpu)
+            self.model = multi_gpu_model(self.model, gpus=n_gpu)
 
         if self.getVerbose() and self.summaryFlag==0:
             print(self.model.summary())

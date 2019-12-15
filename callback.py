@@ -65,7 +65,7 @@ def earlyStopping(monitor, min_delta, patience):
 
 ################################################################################
 # Reduce learning rate when a metric has stopped improving.
-def reduceLROnPlateau(monitor, factor, patience, min_delta, min_lr):
+def reduceLROnPlateau(monitor, factor, patience, min_delta, cooldown, min_lr):
     return tf.keras.callbacks.ReduceLROnPlateau(
             monitor=monitor,
             factor=factor,
@@ -73,6 +73,6 @@ def reduceLROnPlateau(monitor, factor, patience, min_delta, min_lr):
             verbose=constants.getVerbose(),
             mode='auto',
             min_delta=min_delta,
-            cooldown=0,
+            cooldown=cooldown,
             min_lr=min_lr
     )

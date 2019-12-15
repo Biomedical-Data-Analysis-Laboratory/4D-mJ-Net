@@ -37,7 +37,7 @@ def getCallbacks(info, root_path, filename, textFolderPath):
             cbs.append(callback.earlyStopping(info[key]["monitor"], info[key]["min_delta"], info[key]["patience"]))
         # reduce the learning rate if the monitor is not improving
         elif key=="ReduceLROnPlateau":
-            cbs.append(callback.reduceLROnPlateau(info[key]["monitor"], info[key]["factor"], info[key]["patience"], info[key]["min_delta"], info[key]["min_lr"]))
+            cbs.append(callback.reduceLROnPlateau(info[key]["monitor"], info[key]["factor"], info[key]["patience"], info[key]["min_delta"], info[key]["cooldown"], info[key]["min_lr"]))
         # collect info
         elif key=="CollectBatchStats":
             cbs.append(callback.CollectBatchStats(root_path, filename, textFolderPath, info[key]["acc"]))

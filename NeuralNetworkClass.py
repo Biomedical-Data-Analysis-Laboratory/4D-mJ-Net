@@ -164,10 +164,10 @@ class NeuralNetwork(object):
         self.compileModel()
 
         sample_weights = self.train_df.label.map({
-                    constants.LABELS[0]:0.1,
+                    constants.LABELS[0]:1,
                     constants.LABELS[1]:1,
-                    constants.LABELS[2]:5,
-                    constants.LABELS[3]:10})
+                    constants.LABELS[2]:50,
+                    constants.LABELS[3]:100})
         sample_weights = sample_weights.values[self.dataset["train"]["indices"]]
 
         # fit and train the model

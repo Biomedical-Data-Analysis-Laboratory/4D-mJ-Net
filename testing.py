@@ -131,29 +131,23 @@ def predictImage(that, subfolder, p_id, patientFolder, relativePatientFolder):
 def evaluateModelWithCategorics(nn, p_id, mp):
     testing = nn.model.evaluate(nn.dataset["test"]["data"], nn.dataset["test"]["labels"], verbose=constants.getVerbose(), use_multiprocessing=mp)
 
-    loss_testing_score = round(testing[0], 6)
-    testing_score = round(testing[1], 6)
     general_utils.printSeparation("-",50)
-    if nn.training_score!=None: print("TRAIN %s: %.2f%%" % (nn.model.metrics_names[1], nn.training_score*100))
+    for index, history in enumerate(nn.train.history):
+        print("TRAIN %s: %.2f%%" % (nn.model.metrics_names[index], round(history[-1], 6)*100))
     for index, val in enumerate(testing):
         print("TEST %s: %.2f%%" % (nn.model.metrics_names[index], round(val,6)*100))
     general_utils.printSeparation("-",50)
 
     # TODO: change something here!
     with open(general_utils.getFullDirectoryPath(nn.saveTextFolder)+nn.getNNID(p_id)+".txt", "a+") as text_file:
-        text_file.write("\n -----------------------------------------------------")
-        if training_score!=None: text_file.write("\n TRAIN %s: %.2f%%" % (nn.model.metrics_names[1], nn.training_score*100))
-        text_file.write("\n -----------------------------------------------------")
-        text_file.write("\n LOSS: " + str(nn.loss_val))
-        text_file.write("\n -----------------------------------------------------")
-        text_file.write("\n TEST %s: %.2f%%" % (nn.model.metrics_names[1], testing_score*100))
-        text_file.write("\n -----------------------------------------------------")
-        text_file.write("\n TEST LOSS %s: %.2f%%" % (nn.model.metrics_names[1], loss_testing_score))
-
-    return testing_score
+        for index, history in enumerate(nn.train.history):
+            text_file.write("TRAIN %s: %.2f%% \n" % (nn.model.metrics_names[index], round(history[-1], 6)*100))
+        for index, val in enumerate(testing):
+            text_file.write("TEST %s: %.2f%% \n" % (nn.model.metrics_names[index], round(val,6)*100))
+        text_file.write("----------------------------------------------------- \n")
 
 ################################################################################
-
+# Test the model (already saved) with the selected patient 
 def evaluateModelAlreadySaved(nn, p_id, mp):
     filename_train = nn.datasetFolder+"trainComplete"+str(p_id)+".h5"
     nn.train_df = dataset_utils.readFromHDF(filename_train, "")

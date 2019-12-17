@@ -133,7 +133,7 @@ def evaluateModelWithCategorics(nn, p_id, mp):
 
     general_utils.printSeparation("-",50)
     for index, history in enumerate(nn.train.history):
-        print("TRAIN %s: %.2f%%" % (nn.model.metrics_names[index], round(history[-1], 6)*100))
+        print("TRAIN %s: %.2f%%" % (nn.model.metrics_names[index], round(float(history[-1]), 6)*100))
     for index, val in enumerate(testing):
         print("TEST %s: %.2f%%" % (nn.model.metrics_names[index], round(val,6)*100))
     general_utils.printSeparation("-",50)
@@ -141,13 +141,13 @@ def evaluateModelWithCategorics(nn, p_id, mp):
     # TODO: change something here!
     with open(general_utils.getFullDirectoryPath(nn.saveTextFolder)+nn.getNNID(p_id)+".txt", "a+") as text_file:
         for index, history in enumerate(nn.train.history):
-            text_file.write("TRAIN %s: %.2f%% \n" % (nn.model.metrics_names[index], round(history[-1], 6)*100))
+            text_file.write("TRAIN %s: %.2f%% \n" % (nn.model.metrics_names[index], round(float(history[-1]), 6)*100))
         for index, val in enumerate(testing):
             text_file.write("TEST %s: %.2f%% \n" % (nn.model.metrics_names[index], round(val,6)*100))
         text_file.write("----------------------------------------------------- \n")
 
 ################################################################################
-# Test the model (already saved) with the selected patient 
+# Test the model (already saved) with the selected patient
 def evaluateModelAlreadySaved(nn, p_id, mp):
     filename_train = nn.datasetFolder+"trainComplete"+str(p_id)+".h5"
     nn.train_df = dataset_utils.readFromHDF(filename_train, "")

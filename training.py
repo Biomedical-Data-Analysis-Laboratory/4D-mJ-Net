@@ -104,6 +104,21 @@ def dice_coef_loss(y_true, y_pred):
     return 1-dice_coef(y_true, y_pred)
 
 ################################################################################
+# Function to calculate the Jaccard similarity
+# The loss has been modified to have a smooth gradient as it converges on zero.
+#     This has been shifted so it converges on 0 and is smoothed to avoid exploding
+#     or disappearing gradient.
+#     Jaccard = (|X & Y|)/ (|X|+ |Y| - |X & Y|)
+#             = sum(|A*B|)/(sum(|A|)+sum(|B|)-sum(|A*B|))
+#
+# http://www.bmva.org/bmvc/2013/Papers/paper0032/paper0032.pdf
+def jaccard_distance(y_true, y_pred, smooth=100):
+    intersection = K.sum(K.abs(y_true * y_pred), axis=-1)
+    sum_ = K.sum(K.abs(y_true) + K.abs(y_pred), axis=-1)
+    jac = (intersection + smooth) / (sum_ - intersection + smooth)
+    return (1 - jac) * smooth
+
+################################################################################
 # Function that calculate the metrics for the SENSITIVITY
 # ALSO CALLED "RECALL"!
 def sensitivity(y_true, y_pred):

@@ -18,6 +18,9 @@ class NeuralNetwork(object):
         super(NeuralNetwork, self).__init__()
         self.summaryFlag = 0
 
+        # Used to override the path for the saved model in order to test patients with a specific model
+        self.OVERRIDE_MODELS_ID_PATH = setting["OVERRIDE_MODELS_ID_PATH"] if setting["OVERRIDE_MODELS_ID_PATH"]!="" else False
+
         self.name = info["name"]
         self.epochs = info["epochs"]
         self.val = {
@@ -233,7 +236,7 @@ class NeuralNetwork(object):
     def getSavedInformation(self, p_id, path, other_info="", suffix=""):
         # mJ-Net_DA_ADAM_4_16x16.json <-- example weights name
         # mJ-Net_DA_ADAM_4_16x16.h5 <-- example model name
-        path = general_utils.getFullDirectoryPath(path)+self.getNNID(p_id)+other_info+"_"+str(constants.SLICING_PIXELS)+"_"+str(constants.M)+"x"+str(constants.N)
+        path = general_utils.getFullDirectoryPath(path)+self.getNNID(p_id)+other_info+general_utils.getSuffix()
         return path+suffix
 
 ################################################################################
@@ -249,16 +252,21 @@ class NeuralNetwork(object):
 ################################################################################
 # return NeuralNetwork ID
     def getNNID(self, p_id):
-        id = self.name
-        if self.da: id += "_DA"
-        id += ("_"+self.optimizerName.upper())
+        # CAREFUL WITH THIS
+        if self.OVERRIDE_MODELS_ID_PATH:
+            # needs to override the model id to use a different model to test various patients
+            id = self.OVERRIDE_MODELS_ID_PATH
+        else:
+            id = self.name
+            if self.da: id += "_DA"
+            id += ("_"+self.optimizerName.upper())
 
-        id += ("_VAL"+str(self.val["validation_perc"]))
-        if self.val["random_validation_selection"]: id += ("_RANDOM")
+            id += ("_VAL"+str(self.val["validation_perc"]))
+            if self.val["random_validation_selection"]: id += ("_RANDOM")
 
-        # if there is cross validation, add the PATIENT_ID to differenciate the models
-        if self.cross_validation:
-            id += ("_" + p_id)
+            # if there is cross validation, add the PATIENT_ID to differenciate the models
+            if self.cross_validation:
+                id += ("_" + p_id)
 
         return id
 

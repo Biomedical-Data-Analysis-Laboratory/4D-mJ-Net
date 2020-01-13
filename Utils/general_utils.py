@@ -112,6 +112,8 @@ def getMetrics(listMetrics):
     for m in listMetrics:
         if m=="dice_coef":
             metrics.append(training.dice_coef)
+        elif m=="jaccard_distance":
+            metrics.append(training.jaccard_distance)
         elif m=="sensitivity" or m=="recall":
             metrics.append(training.sensitivity)
         elif m=="specificity":
@@ -141,6 +143,11 @@ def getStringPatientIndex(patient_index):
     if len(p_id)==1: p_id = "0"+p_id
 
     return p_id
+
+################################################################################
+# return the suffix for the model and the patient dataset
+def getSuffix():
+    return "_"+str(constants.SLICING_PIXELS)+"_"+str(constants.M)+"x"+str(constants.N)
 
 ################################################################################
 # get the full directory path, given a relative path

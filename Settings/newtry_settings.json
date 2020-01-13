@@ -2,6 +2,7 @@
   "root_path": "/home/stud/lucat/PhD_Project/Stroke_segmentation/",
   "dataset_path": "/local/home/lucat/DATASET/",
   "PATIENT_TO_TEST": [12,13,14,15,16],
+  "OVERRIDE_MODELS_ID_PATH": "",
   "init": {
     "TF_CPP_MIN_LOG_LEVEL": "3",
     "per_process_gpu_memory_fraction": 1,
@@ -20,12 +21,12 @@
   },
   "models": [
     {
-      "name": "mJNet_LongJ_Drop",
+      "name": "mJNet_LongJ",
       "loss": "dice_coef_loss",
-      "metrics": ["dice_coef", "sensitivity", "specificity", "precision", "f1"],
-      "epochs": 100,
+      "metrics": ["dice_coef", "jaccard_distance", "sensitivity", "specificity", "precision", "f1"],
+      "epochs": 15,
       "val":{
-        "validation_perc": 10,
+        "validation_perc": 5,
         "random_validation_selection": 0
       },
       "test_steps":1,
@@ -39,7 +40,6 @@
       },
       "params":{
         "dropout":{
-          "0.1": 0.3,
           "1":0.3,
           "2":0.3,
           "3":0.3,
@@ -53,15 +53,16 @@
           "period": 1
         },
         "EarlyStopping": {
-          "monitor": "val_loss",
+          "monitor": "loss",
           "min_delta": 0.0001,
-          "patience": 10
+          "patience": 5
         },
         "ReduceLROnPlateau": {
           "monitor": "dice_coef",
-          "factor": 0.5,
-          "patience": 2,
+          "factor": 0.2,
+          "patience": 3,
           "min_delta": 0.001,
+          "cooldown": 2,
           "min_lr": 0.00000001
         },
         "CollectBatchStats": {
@@ -74,12 +75,12 @@
       "supervised": 0
     },
     {
-      "name": "mJNet_Drop",
+      "name": "mJNet_LongJ_Drop",
       "loss": "dice_coef_loss",
-      "metrics": ["dice_coef", "sensitivity", "specificity", "precision", "f1"],
-      "epochs": 100,
+      "metrics": ["dice_coef", "jaccard_distance", "sensitivity", "specificity", "precision", "f1"],
+      "epochs": 15,
       "val":{
-        "validation_perc": 0,
+        "validation_perc": 5,
         "random_validation_selection": 0
       },
       "test_steps":1,
@@ -113,10 +114,10 @@
         },
         "ReduceLROnPlateau": {
           "monitor": "dice_coef",
-          "factor": 0.5,
-          "patience": 2,
+          "factor": 0.2,
+          "patience": 3,
           "min_delta": 0.001,
-          "cooldown": 5,
+          "cooldown": 2,
           "min_lr": 0.00000001
         },
         "CollectBatchStats": {

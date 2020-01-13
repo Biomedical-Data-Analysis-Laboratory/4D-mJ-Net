@@ -39,14 +39,16 @@ def loadTrainingDataframe(net, testing_id=None):
     # columns : ['patient_id', 'label', 'pixels', 'ground_truth', "label_code"]
     train_df = pd.DataFrame(columns=constants.dataFrameColumns)
 
+    suffix = general_utils.getSuffix()
+
     frames = [train_df]
     if not net.mp: # (SINGLE PROCESSING VERSION)
-        for filename_train in glob.glob(net.datasetFolder+"*.hkl"):
+        for filename_train in glob.glob(net.datasetFolder+"*"+suffix+".hkl"):
             tmp_df = loadSingleTrainingData(net.da, filename_train, testing_id)
             frames.append(tmp_df)
     else: # MMULTI PROCESSING VERSION)
         input = []
-        for filename_train in glob.glob(net.datasetFolder+"*.hkl"):
+        for filename_train in glob.glob(net.datasetFolder+"*"+suffix+".hkl"):
             input.append((net.da, filename_train, testing_id))
 
         with multiprocessing.Pool(processes=cpu_count) as pool: # auto closing workers
@@ -166,7 +168,7 @@ def getDataFromIndex(train_df, indices, mp):
     start = time.time()
 
     if not mp: # (SINGLE PROCESSING VERSION)
-        data = np.array([np.array(a).reshape(constants.M,constants.N,constants.NUMBER_OF_IMAGE_PER_SECTION) for a in train_df.pixels.values[indices]])
+        data = np.array([np.array(a).reshape(constants.NUMBER_OF_IMAGE_PER_SECTION,constants.M,constants.N) for a in train_df.pixels.values[indices]])
     else: # (MULTI PROCESSING VERSION)
         cpu_count = multiprocessing.cpu_count()
         input = [a for a in train_df.pixels.values[indices]]
@@ -183,7 +185,7 @@ def getDataFromIndex(train_df, indices, mp):
 ################################################################################
 
 def getSingleDataFromIndex(singledata):
-    return np.array(singledata).reshape(constants.M,constants.N,constants.NUMBER_OF_IMAGE_PER_SECTION)
+    return np.array(singledata).reshape(constants.NUMBER_OF_IMAGE_PER_SECTION,constants.M,constants.N)
 
 ################################################################################
 # Return the labels ginve the indices

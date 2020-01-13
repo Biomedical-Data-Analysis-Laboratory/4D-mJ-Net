@@ -21,14 +21,15 @@ def predictAndSaveImages(that, p_id):
 
     relativePatientFolder = constants.PREFIX_IMAGES+p_id+"/"
     patientFolder = that.patientsFolder+relativePatientFolder
-    general_utils.createDir(that.saveImagesFolder+that.getNNID(p_id))
-    general_utils.createDir(that.saveImagesFolder+that.getNNID(p_id)+"/"+relativePatientFolder)
+    general_utils.createDir(that.saveImagesFolder+that.getNNID(p_id)+general_utils.getSuffix())
+    general_utils.createDir(that.saveImagesFolder+that.getNNID(p_id)+general_utils.getSuffix()+"/"+relativePatientFolder)
 
     if constants.getVerbose():
         general_utils.printSeparation("-", 100)
         general_utils.printSeparation("-", 100)
 
-    # TODO: find a way to use multiprocessing the generation of the images
+    # TODO: reduce the prediction time to <60s!
+    # TODO: find a way to use multiprocessing the generation of the images!!!!
     # if that.mp:
     #     cpu_count = multiprocessing.cpu_count()
     #     input = []
@@ -38,7 +39,7 @@ def predictAndSaveImages(that, p_id):
     #         pool.starmap(predictImage, input)
     # else:
     for subfolder in glob.glob(patientFolder+"*/"):
-        predictImage(that, subfolder, p_id, patientFolder, that.getNNID(p_id)+"/"+relativePatientFolder)
+        predictImage(that, subfolder, p_id, patientFolder, that.getNNID(p_id)+general_utils.getSuffix()+"/"+relativePatientFolder)
 
     end = time.time()
     print("Total time: {0}s for patient {1}.".format(round(end-start, 3), p_id))
@@ -66,13 +67,13 @@ def predictImage(that, subfolder, p_id, patientFolder, relativePatientFolder):
             image = cv2.imread(imagename, 0)
             imagesDict[filename] = image
         else:
-            if filename != "01.png": # don't take the first image (the manually annotated one)
-                image = cv2.imread(imagename, 0)
-                imagesDict[filename] = image
+            #if filename != "01.png": # don't take the first image (the manually annotated one)
+            image = cv2.imread(imagename, 0)
+            imagesDict[filename] = image
 
     # Generate the predicted image
     while True:
-        pixels = np.zeros(shape=(constants.NUMBER_OF_IMAGE_PER_SECTION,constants.M,constants.N))
+        pixels = np.zeros(shape=(1,constants.NUMBER_OF_IMAGE_PER_SECTION,constants.M,constants.N))
         count = 0
         row, column = 0, 0
 
@@ -84,12 +85,14 @@ def predictImage(that, subfolder, p_id, patientFolder, relativePatientFolder):
                 pixels[count] = general_utils.getSlicingWindow(image, startingX, startingY, constants.M, constants.N)
                 count+=1
             else:
-                if filename != "01.png":
-                    image = imagesDict[filename]
-                    pixels[count] = general_utils.getSlicingWindow(image, startingX, startingY, constants.M, constants.N)
-                    count+=1
+                #if filename != "01.png":
+                image = imagesDict[filename]
+                pixels[count] = general_utils.getSlicingWindow(image, startingX, startingY, constants.M, constants.N)
+                count+=1
 
-        pixels = pixels.reshape(1, pixels.shape[1], pixels.shape[2], pixels.shape[0], 1)
+        # print(pixels.shape)
+        pixels = pixels.reshape(1, pixels.shape[0], pixels.shape[1], pixels.shape[2], 1)
+        # print(pixels.shape)
 
         ### MODEL PREDICT
         slicingWindowPredicted = predictFromModel(that, pixels)[that.test_steps-1]
@@ -97,6 +100,9 @@ def predictImage(that, subfolder, p_id, patientFolder, relativePatientFolder):
 
         # Transform the slicingWindowPredicted into a touple of three dimension!
         threeDimensionSlicingWindow = np.zeros(shape=(slicingWindowPredicted.shape[0],slicingWindowPredicted.shape[1], 3), dtype=np.uint8)
+
+        with open(that.saveImagesFolder+relativePatientFolder+idx+"_logs.txt", "a+") as img_file:
+            img_file.write(np.array2string(slicingWindowPredicted))
 
         for r, _ in enumerate(slicingWindowPredicted):
             for c, pixel in enumerate(slicingWindowPredicted[r]):
@@ -132,16 +138,16 @@ def evaluateModelWithCategorics(nn, p_id, mp):
     testing = nn.model.evaluate(nn.dataset["test"]["data"], nn.dataset["test"]["labels"], verbose=constants.getVerbose(), use_multiprocessing=mp)
 
     general_utils.printSeparation("-",50)
-    for index, history in enumerate(nn.train.history):
-        print("TRAIN %s: %.2f%%" % (nn.model.metrics_names[index], round(float(history[-1]), 6)*100))
+
+    for metric_name in nn.train.history:
+        print("TRAIN %s: %.2f%%" % (metric_name, round(float(nn.train.history[metric_name][-1]), 6)*100))
     for index, val in enumerate(testing):
         print("TEST %s: %.2f%%" % (nn.model.metrics_names[index], round(val,6)*100))
     general_utils.printSeparation("-",50)
 
-    # TODO: change something here!
     with open(general_utils.getFullDirectoryPath(nn.saveTextFolder)+nn.getNNID(p_id)+".txt", "a+") as text_file:
-        for index, history in enumerate(nn.train.history):
-            text_file.write("TRAIN %s: %.2f%% \n" % (nn.model.metrics_names[index], round(float(history[-1]), 6)*100))
+        for metric_name in nn.train.history:
+            text_file.write("TRAIN %s: %.2f%%" % (metric_name, round(float(nn.train.history[metric_name][-1]), 6)*100))
         for index, val in enumerate(testing):
             text_file.write("TEST %s: %.2f%% \n" % (nn.model.metrics_names[index], round(val,6)*100))
         text_file.write("----------------------------------------------------- \n")
@@ -149,8 +155,10 @@ def evaluateModelWithCategorics(nn, p_id, mp):
 ################################################################################
 # Test the model (already saved) with the selected patient
 def evaluateModelAlreadySaved(nn, p_id, mp):
-    filename_train = nn.datasetFolder+"trainComplete"+str(p_id)+".h5"
-    nn.train_df = dataset_utils.readFromHDF(filename_train, "")
+    filename_train = nn.datasetFolder+"patient"+str(p_id)+".hkl"
+    nn.train_df = dataset_utils.readFromHickle(filename_train, "")
+#    filename_train = nn.datasetFolder+"trainComplete"+str(p_id)+".h5"
+#   nn.train_df = dataset_utils.readFromHDF(filename_train, "")
     nn.dataset = dataset_utils.getTestDataset(nn.dataset, nn.train_df, p_id, mp)
     nn.dataset["test"]["labels"] = dataset_utils.getLabelsFromIndex(train_df=nn.train_df, indices=nn.dataset["test"]["indices"])
 

@@ -5,6 +5,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import tensorflow as tf
 import tensorflow.keras.backend as K
+from sklearn.metrics import roc_auc_score
 
 ################################################################################
 # Return the optimizer based on the setting
@@ -26,7 +27,7 @@ def getOptimizer(optInfo):
 
 ################################################################################
 # Return the callbacks defined in the setting
-def getCallbacks(info, root_path, filename, textFolderPath):
+def getCallbacks(info, root_path, filename, textFolderPath, dataset, model, sample_weights):
     cbs = []
     for key in info.keys():
         # save the weights
@@ -41,6 +42,10 @@ def getCallbacks(info, root_path, filename, textFolderPath):
         # collect info
         elif key=="CollectBatchStats":
             cbs.append(callback.CollectBatchStats(root_path, filename, textFolderPath, info[key]["acc"]))
+        elif key=="RocCallback":
+            training_data = (dataset["train"]["data"], dataset["train"]["labels"])
+            validation_data = (dataset["val"]["data"], dataset["val"]["labels"])
+            cbs.append(callback.RocCallback(training_data, validation_data, model, sample_weights, filename, textFolderPath))
 
     return cbs
 
@@ -112,11 +117,15 @@ def dice_coef_loss(y_true, y_pred):
 #             = sum(|A*B|)/(sum(|A|)+sum(|B|)-sum(|A*B|))
 #
 # http://www.bmva.org/bmvc/2013/Papers/paper0032/paper0032.pdf
-def jaccard_distance(y_true, y_pred, smooth=100):
+def jaccard_distance(y_true, y_pred, smooth=1):
     intersection = K.sum(K.abs(y_true * y_pred), axis=-1)
     sum_ = K.sum(K.abs(y_true) + K.abs(y_pred), axis=-1)
-    jac = (intersection + smooth) / (sum_ - intersection + smooth)
-    return (1 - jac) * smooth
+    return (intersection + smooth) / (sum_ - intersection + smooth)
+
+################################################################################
+# Function that calculates the JACCARD index loss. Util for the LOSS function during the training of the model (for image in input and output)!
+def jaccard_index_loss(y_true, y_pred, smooth=1):
+    return (1 - jaccard_distance(y_true, y_pred, smooth)) * smooth
 
 ################################################################################
 # Function that calculate the metrics for the SENSITIVITY
@@ -154,24 +163,3 @@ def f1(y_true, y_pred):
     prec = precision(y_true, y_pred)
     recall = sensitivity(y_true, y_pred)
     return 2*((prec*recall)/(prec+recall+K.epsilon()))
-
-## ????
-################################################################################
-# Function that calculate AUC-ROC:
-# define roc_callback, inspired by https://github.com/keras-team/keras/issues/6050#issuecomment-329996505
-def aucroc(y_true, y_pred):
-    # any tensorflow metric
-    value, update_op = tf.contrib.metrics.streaming_auc(y_pred, y_true)
-
-    # find all variables created for this metric
-    metric_vars = [i for i in tf.local_variables() if 'auc_roc' in i.name.split('/')[1]]
-
-    # Add metric variables to GLOBAL_VARIABLES collection.
-    # They will be initialized for new session.
-    for v in metric_vars:
-        tf.add_to_collection(tf.GraphKeys.GLOBAL_VARIABLES, v)
-
-    # force to update metric values
-    with tf.control_dependencies([update_op]):
-        value = tf.identity(value)
-        return value

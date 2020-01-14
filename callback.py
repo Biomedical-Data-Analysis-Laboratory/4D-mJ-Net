@@ -3,6 +3,7 @@ from Utils import general_utils
 
 import os, glob, json
 import tensorflow as tf
+from sklearn.metrics import roc_auc_score
 
 ################################################################################
 # Return information about the loss and accuracy
@@ -38,6 +39,49 @@ class CollectBatchStats(tf.keras.callbacks.Callback):
                     tmpEpoch = general_utils.getEpochFromPartialWeightFilename(file)
                     if tmpEpoch < epoch: # Remove the old saved weights
                         os.remove(file)
+
+################################################################################
+#
+class RocCallback(tf.keras.callbacks.Callback):
+    def __init__(self, training_data, validation_data, model, sample_weight, savedModelName, textFolderPath):
+        self.x = training_data[0]
+        self.y = training_data[1]
+        self.x_val = validation_data[0]
+        self.y_val = validation_data[1]
+        self.model = model
+        self.sample_weight = sample_weight
+
+        self.savedModelName = savedModelName
+        self.modelName = self.savedModelName[self.savedModelName.rfind("/"):]
+
+    def on_train_begin(self, logs={}):
+        return
+
+    def on_train_end(self, logs={}):
+        return
+
+    def on_epoch_begin(self, epoch, logs={}):
+        return
+
+    def on_epoch_end(self, epoch, logs={}):
+        # TODO: predict_proba does NOT exist!
+        y_pred_train = self.model.predict_proba(self.x)
+        roc_train = roc_auc_score(self.y, y_pred_train, sample_weight=self.sample_weight)
+        y_pred_val = self.model.predict_proba(self.x_val)
+        roc_val = roc_auc_score(self.y_val, y_pred_val, sample_weight=self.sample_weight)
+
+        print('\r roc-auc_train: %s - roc-auc_val: %s' % (str(round(roc_train,4)),str(round(roc_val,4))),end=100*' '+'\n')
+
+        with open(self.textFolderPath+self.modelName+"_aucroc.txt", "a+") as aucroc_file:
+            aucroc_file.write('\r roc-auc_train: %s - roc-auc_val: %s' % (str(round(roc_train,4)),str(round(roc_val,4))),end=100*' '+'\n')
+
+        return
+
+    def on_batch_begin(self, batch, logs={}):
+        return
+
+    def on_batch_end(self, batch, logs={}):
+        return
 
 ################################################################################
 # Save the best model every "period" number of epochs

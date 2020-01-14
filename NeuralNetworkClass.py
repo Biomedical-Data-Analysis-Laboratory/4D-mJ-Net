@@ -59,11 +59,11 @@ class NeuralNetwork(object):
 
 ################################################################################
 # Initialize the callbacks
-    def setCallbacks(self, p_id):
+    def setCallbacks(self, p_id, sample_weights):
         if self.getVerbose():
             general_utils.printSeparation("-", 50)
             print("Setting callbacks...")
-        self.callbacks = training.getCallbacks(root_path=self.rootPath, info=self.infoCallbacks, filename=self.getSavedInformation(p_id, path=self.savedModelfolder), textFolderPath=self.saveTextFolder)
+        self.callbacks = training.getCallbacks(root_path=self.rootPath, info=self.infoCallbacks, filename=self.getSavedInformation(p_id, path=self.savedModelfolder), textFolderPath=self.saveTextFolder, dataset=self.dataset, model=self.model, sample_weights=sample_weights)
 
 ################################################################################
 # return a Boolean to control if the model was already saved
@@ -169,10 +169,13 @@ class NeuralNetwork(object):
 
         sample_weights = self.train_df.label.map({
                     constants.LABELS[0]:1,
-                    constants.LABELS[1]:1,
+                    constants.LABELS[1]:10,
                     constants.LABELS[2]:50,
                     constants.LABELS[3]:100})
         sample_weights = sample_weights.values[self.dataset["train"]["indices"]]
+
+        # Set the callbacks
+        self.setCallbacks(p_id, sample_weights)
 
         # fit and train the model
         self.train = training.fitModel(

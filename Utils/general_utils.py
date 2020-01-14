@@ -100,6 +100,9 @@ def getLoss(name):
     if name=="dice_coef_loss":
         loss["loss"] = training.dice_coef_loss
         loss["name"] = "dice_coef"
+    elif name=="jaccard_index_loss":
+        loss["loss"] = training.jaccard_index_loss
+        loss["name"] = "jaccard_distance"
     # elif .. # TODO:
 
     return loss
@@ -122,8 +125,6 @@ def getMetrics(listMetrics):
             metrics.append(training.precision)
         elif m=="f1":
             metrics.append(training.f1)
-        elif m=="auroc":
-            metrics.append(training.aucroc)
 
     return metrics
 

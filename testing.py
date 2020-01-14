@@ -73,7 +73,7 @@ def predictImage(that, subfolder, p_id, patientFolder, relativePatientFolder):
 
     # Generate the predicted image
     while True:
-        pixels = np.zeros(shape=(1,constants.NUMBER_OF_IMAGE_PER_SECTION,constants.M,constants.N))
+        pixels = np.zeros(shape=(constants.NUMBER_OF_IMAGE_PER_SECTION,constants.M,constants.N))
         count = 0
         row, column = 0, 0
 
@@ -90,9 +90,7 @@ def predictImage(that, subfolder, p_id, patientFolder, relativePatientFolder):
                 pixels[count] = general_utils.getSlicingWindow(image, startingX, startingY, constants.M, constants.N)
                 count+=1
 
-        # print(pixels.shape)
         pixels = pixels.reshape(1, pixels.shape[0], pixels.shape[1], pixels.shape[2], 1)
-        # print(pixels.shape)
 
         ### MODEL PREDICT
         slicingWindowPredicted = predictFromModel(that, pixels)[that.test_steps-1]
@@ -111,7 +109,8 @@ def predictImage(that, subfolder, p_id, patientFolder, relativePatientFolder):
         # Create the image
         imagePredicted[startingX:startingX+constants.M, startingY:startingY+constants.N] = threeDimensionSlicingWindow
 
-        if startingX>=constants.IMAGE_WIDTH-constants.M and startingY>=constants.IMAGE_HEIGHT-constants.N: # if we reach the end of the image, break the while loop.
+        # if we reach the end of the image, break the while loop.
+        if startingX>=constants.IMAGE_WIDTH-constants.M and startingY>=constants.IMAGE_HEIGHT-constants.N:
             break
         # going to the next slicingWindow
         if startingY<constants.IMAGE_HEIGHT-constants.N: startingY+=constants.N

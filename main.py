@@ -53,7 +53,6 @@ def main():
                 ## PREPARE DATASET
                 nn.prepareDataset(train_df, p_id)
                 ## SET THE CALLBACKS, RUN TRAINING & SAVE THE MODELS WEIGHTS
-                nn.setCallbacks(p_id)
                 nn.runTraining(p_id, n_gpu)
                 nn.saveModelAndWeight(p_id)
 

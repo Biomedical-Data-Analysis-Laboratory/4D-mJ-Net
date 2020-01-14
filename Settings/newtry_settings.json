@@ -24,7 +24,7 @@
       "name": "mJNet_LongJ",
       "loss": "dice_coef_loss",
       "metrics": ["dice_coef", "jaccard_distance", "sensitivity", "specificity", "precision", "f1"],
-      "epochs": 15,
+      "epochs": 300,
       "val":{
         "validation_perc": 5,
         "random_validation_selection": 0
@@ -77,8 +77,8 @@
     {
       "name": "mJNet_LongJ_Drop",
       "loss": "dice_coef_loss",
-      "metrics": ["dice_coef", "jaccard_distance", "sensitivity", "specificity", "precision", "f1"],
-      "epochs": 15,
+      "metrics": ["dice_coef", "jaccard_distance", "sensitivity", "specificity", "precision", "f1", "aucroc"],
+      "epochs": 300,
       "val":{
         "validation_perc": 5,
         "random_validation_selection": 0

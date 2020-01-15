@@ -40,7 +40,7 @@ def loadTrainingDataframe(net, testing_id=None):
     train_df = pd.DataFrame(columns=constants.dataFrameColumns)
 
     suffix = general_utils.getSuffix()
-
+    
     frames = [train_df]
     if not net.mp: # (SINGLE PROCESSING VERSION)
         for filename_train in glob.glob(net.datasetFolder+"*"+suffix+".hkl"):

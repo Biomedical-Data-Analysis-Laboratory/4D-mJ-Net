@@ -41,9 +41,10 @@ def setDEBUG(d):
     DEBUG = d
 
 def setTileDimension(t):
-    global M, N
+    global M, N, SLICING_PIXELS
     M = int(t)
     N = int(t)
+    SLICING_PIXELS = int(M/4)
 
 def setRootPath(path):
     global root_path

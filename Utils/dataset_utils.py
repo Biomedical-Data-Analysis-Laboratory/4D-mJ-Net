@@ -15,13 +15,13 @@ def initTestingDataFrame():
     testingList = []
     for sample in range(0, constants.SAMPLES*2):
         if sample<constants.SAMPLES:
-            rand_pixels = np.random.randint(low=0, high=50, size=(constants.NUMBER_OF_IMAGE_PER_SECTION, constants.M, constants.N))
+            rand_pixels = np.random.randint(low=0, high=50, size=(constants.getN()UMBER_OF_IMAGE_PER_SECTION, constants.getM(), constants.getN()))
             label = constants.LABELS[0]
-            ground_truth = np.zeros(shape=(constants.M, constants.N))
+            ground_truth = np.zeros(shape=(constants.getM(), constants.getN()))
         else:
-            rand_pixels = np.random.randint(low=180, high=255, size=(constants.NUMBER_OF_IMAGE_PER_SECTION, constants.M, constants.N))
+            rand_pixels = np.random.randint(low=180, high=255, size=(constants.getN()UMBER_OF_IMAGE_PER_SECTION, constants.getM(), constants.getN()))
             label = constants.LABELS[1]
-            ground_truth = np.ones(shape=(constants.M, constants.N))*255
+            ground_truth = np.ones(shape=(constants.getM(), constants.getN()))*255
 
         testingList.append((random.choice(patientList), label, rand_pixels, ground_truth))
 
@@ -90,7 +90,7 @@ def readFromHickle(filename, suffix):
 ################################################################################
 # read the elements from filename and specific key
 def readFromHDF(filename_train, suffix):
-    return pd.read_hdf(filename_train, key="X_"+str(constants.M)+"x"+str(constants.N)+"_"+str(constants.SLICING_PIXELS) + suffix)
+    return pd.read_hdf(filename_train, key="X_"+str(constants.getM())+"x"+str(constants.getN())+"_"+str(constants.SLICING_PIXELS) + suffix)
 
 ################################################################################
 # Return the dataset based on the patient id
@@ -168,7 +168,7 @@ def getDataFromIndex(train_df, indices, mp):
     start = time.time()
 
     if not mp: # (SINGLE PROCESSING VERSION)
-        data = np.array([np.array(a).reshape(constants.NUMBER_OF_IMAGE_PER_SECTION,constants.M,constants.N) for a in train_df.pixels.values[indices]])
+        data = np.array([np.array(a).reshape(constants.getN()UMBER_OF_IMAGE_PER_SECTION,constants.getM(),constants.getN()) for a in train_df.pixels.values[indices]])
     else: # (MULTI PROCESSING VERSION)
         cpu_count = multiprocessing.cpu_count()
         input = [a for a in train_df.pixels.values[indices]]
@@ -185,12 +185,12 @@ def getDataFromIndex(train_df, indices, mp):
 ################################################################################
 
 def getSingleDataFromIndex(singledata):
-    return np.array(singledata).reshape(constants.NUMBER_OF_IMAGE_PER_SECTION,constants.M,constants.N)
+    return np.array(singledata).reshape(constants.getN()UMBER_OF_IMAGE_PER_SECTION,constants.getM(),constants.getN())
 
 ################################################################################
 # Return the labels ginve the indices
 def getLabelsFromIndex(train_df, indices):
-    labels = np.array([np.array(a).reshape(constants.M,constants.N) for a in train_df.ground_truth.values[indices]])
+    labels = np.array([np.array(a).reshape(constants.getM(),constants.getN()) for a in train_df.ground_truth.values[indices]])
     # if SIGMOID_ACT: ??
     # convert the label in [0, 1] values
     labels = labels.astype("float32")

@@ -23,6 +23,12 @@ def getVerbose():
 def getDEBUG():
     return DEBUG
 
+def getM():
+    return M
+
+def getN():
+    return N
+
 def getRootPath():
     return root_path
 
@@ -33,6 +39,11 @@ def setVerbose(v):
 def setDEBUG(d):
     global DEBUG
     DEBUG = d
+
+def setTileDimension(t):
+    global M, N
+    M = int(t)
+    N = int(t)
 
 def setRootPath(path):
     global root_path

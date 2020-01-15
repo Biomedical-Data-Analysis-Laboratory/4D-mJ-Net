@@ -48,11 +48,11 @@ def mJNet(X, params, drop=False, longJ=False):
         print(K.int_shape(pool_drop_1))
         if drop: pool_drop_1 = layers.Dropout(params["dropout"]["0.1"])(pool_drop_1)
     else:
-        conv_1 = layers.Conv3D(16, kernel_size=(constants.NUMBER_OF_IMAGE_PER_SECTION,3,3), activation='relu', padding='same')(input_x)
+        conv_1 = layers.Conv3D(16, kernel_size=(constants.getN()UMBER_OF_IMAGE_PER_SECTION,3,3), activation='relu', padding='same')(input_x)
         conv_1 = layers.BatchNormalization()(conv_1)
         # conv_1 : (30, 32, 32, 16)
         print(K.int_shape(conv_1))
-        pool_drop_1 = layers.AveragePooling3D((constants.NUMBER_OF_IMAGE_PER_SECTION,1,1))(conv_1)
+        pool_drop_1 = layers.AveragePooling3D((constants.getN()UMBER_OF_IMAGE_PER_SECTION,1,1))(conv_1)
         # pool_drop_1 : (1, 32, 32, 16)
         print(K.int_shape(pool_drop_1))
         if drop: pool_drop_1 = layers.Dropout(params["dropout"]["1"])(pool_drop_1)
@@ -134,7 +134,7 @@ def mJNet(X, params, drop=False, longJ=False):
     conv_7 = layers.Conv3D(1, (1,1,1), activation="sigmoid", padding='same')(pool_drop_5)
     # conv_7 : (1, 32, 32, 16)
     print(K.int_shape(conv_7))
-    y = layers.Reshape((constants.M,constants.N))(conv_7)
+    y = layers.Reshape((constants.getM(),constants.getN()))(conv_7)
     print(K.int_shape(y))
     model = models.Model(inputs=input_x, outputs=y)
     return model

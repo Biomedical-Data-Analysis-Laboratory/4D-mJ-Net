@@ -18,11 +18,13 @@ def getCommandLineArguments():
     parser.add_argument("-v", "--verbose", help="Increase output verbosity", action="store_true")
     parser.add_argument("-d", "--debug", help="DEBUG mode", action="store_true")
     parser.add_argument("-s", "--sname", help="Pass the setting filename")
+    parser.add_argument("-t", "--tile", help="Set the tile pixels dimension (MxM)")
     parser.add_argument("gpu", help="Give the id of gpu (or a list of the gpus) to use")
     args = parser.parse_args()
 
     constants.setVerbose(args.verbose)
     constants.setDEBUG(args.debug)
+    constants.setTileDimension(args.tile)
 
     if not args.sname:
         args.sname = constants.default_setting_filename
@@ -148,7 +150,7 @@ def getStringPatientIndex(patient_index):
 ################################################################################
 # return the suffix for the model and the patient dataset
 def getSuffix():
-    return "_"+str(constants.SLICING_PIXELS)+"_"+str(constants.M)+"x"+str(constants.N)
+    return "_"+str(constants.SLICING_PIXELS)+"_"+str(constants.getM())+"x"+str(constants.getN())
 
 ################################################################################
 # get the full directory path, given a relative path

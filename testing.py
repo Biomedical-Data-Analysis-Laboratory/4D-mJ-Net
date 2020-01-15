@@ -73,7 +73,7 @@ def predictImage(that, subfolder, p_id, patientFolder, relativePatientFolder):
 
     # Generate the predicted image
     while True:
-        pixels = np.zeros(shape=(constants.NUMBER_OF_IMAGE_PER_SECTION,constants.M,constants.N))
+        pixels = np.zeros(shape=(constants.getN()UMBER_OF_IMAGE_PER_SECTION,constants.getM(),constants.getN()))
         count = 0
         row, column = 0, 0
 
@@ -82,12 +82,12 @@ def predictImage(that, subfolder, p_id, patientFolder, relativePatientFolder):
             filename = imagename.replace(subfolder, '')
             if not that.supervised:
                 image = imagesDict[filename]
-                pixels[count] = general_utils.getSlicingWindow(image, startingX, startingY, constants.M, constants.N)
+                pixels[count] = general_utils.getSlicingWindow(image, startingX, startingY, constants.getM(), constants.getN())
                 count+=1
             else:
                 #if filename != "01.png":
                 image = imagesDict[filename]
-                pixels[count] = general_utils.getSlicingWindow(image, startingX, startingY, constants.M, constants.N)
+                pixels[count] = general_utils.getSlicingWindow(image, startingX, startingY, constants.getM(), constants.getN())
                 count+=1
 
         pixels = pixels.reshape(1, pixels.shape[0], pixels.shape[1], pixels.shape[2], 1)
@@ -107,17 +107,17 @@ def predictImage(that, subfolder, p_id, patientFolder, relativePatientFolder):
                 threeDimensionSlicingWindow[r][c] = (pixel*255,)*3
 
         # Create the image
-        imagePredicted[startingX:startingX+constants.M, startingY:startingY+constants.N] = threeDimensionSlicingWindow
+        imagePredicted[startingX:startingX+constants.getM(), startingY:startingY+constants.getN()] = threeDimensionSlicingWindow
 
         # if we reach the end of the image, break the while loop.
-        if startingX>=constants.IMAGE_WIDTH-constants.M and startingY>=constants.IMAGE_HEIGHT-constants.N:
+        if startingX>=constants.IMAGE_WIDTH-constants.getM() and startingY>=constants.IMAGE_HEIGHT-constants.getN():
             break
         # going to the next slicingWindow
-        if startingY<constants.IMAGE_HEIGHT-constants.N: startingY+=constants.N
+        if startingY<constants.IMAGE_HEIGHT-constants.getN(): startingY+=constants.getN()
         else:
             if startingX<constants.IMAGE_WIDTH:
                 startingY=0
-                startingX+=constants.M
+                startingX+=constants.getM()
 
     # save the image predicted in the specific folder
     cv2.imwrite(that.saveImagesFolder+relativePatientFolder+idx+".png", imagePredicted)

@@ -3,7 +3,7 @@ root_path = ""
 
 default_setting_filename = "Settings/defaults_settings.json"
 
-M, N = 32, 32
+M, N = 16, 16
 SLICING_PIXELS = int(M/4)
 IMAGE_WIDTH, IMAGE_HEIGHT = 512, 512
 NUMBER_OF_IMAGE_PER_SECTION = 30 # number of image (divided by time) for each section of the brain

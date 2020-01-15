@@ -67,8 +67,7 @@
         },
         "CollectBatchStats": {
           "acc":"dice_coef"
-        },
-        "RocCallback":{}
+        }
       },
       "data_augmentation": 1,
       "cross_validation": 0,

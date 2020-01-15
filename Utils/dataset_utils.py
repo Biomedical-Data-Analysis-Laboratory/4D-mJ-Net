@@ -15,11 +15,11 @@ def initTestingDataFrame():
     testingList = []
     for sample in range(0, constants.SAMPLES*2):
         if sample<constants.SAMPLES:
-            rand_pixels = np.random.randint(low=0, high=50, size=(constants.getN()UMBER_OF_IMAGE_PER_SECTION, constants.getM(), constants.getN()))
+            rand_pixels = np.random.randint(low=0, high=50, size=(constants.NUMBER_OF_IMAGE_PER_SECTION, constants.getM(), constants.getN()))
             label = constants.LABELS[0]
             ground_truth = np.zeros(shape=(constants.getM(), constants.getN()))
         else:
-            rand_pixels = np.random.randint(low=180, high=255, size=(constants.getN()UMBER_OF_IMAGE_PER_SECTION, constants.getM(), constants.getN()))
+            rand_pixels = np.random.randint(low=180, high=255, size=(constants.NUMBER_OF_IMAGE_PER_SECTION, constants.getM(), constants.getN()))
             label = constants.LABELS[1]
             ground_truth = np.ones(shape=(constants.getM(), constants.getN()))*255
 
@@ -168,7 +168,7 @@ def getDataFromIndex(train_df, indices, mp):
     start = time.time()
 
     if not mp: # (SINGLE PROCESSING VERSION)
-        data = np.array([np.array(a).reshape(constants.getN()UMBER_OF_IMAGE_PER_SECTION,constants.getM(),constants.getN()) for a in train_df.pixels.values[indices]])
+        data = np.array([np.array(a).reshape(constants.NUMBER_OF_IMAGE_PER_SECTION,constants.getM(),constants.getN()) for a in train_df.pixels.values[indices]])
     else: # (MULTI PROCESSING VERSION)
         cpu_count = multiprocessing.cpu_count()
         input = [a for a in train_df.pixels.values[indices]]
@@ -185,7 +185,7 @@ def getDataFromIndex(train_df, indices, mp):
 ################################################################################
 
 def getSingleDataFromIndex(singledata):
-    return np.array(singledata).reshape(constants.getN()UMBER_OF_IMAGE_PER_SECTION,constants.getM(),constants.getN())
+    return np.array(singledata).reshape(constants.NUMBER_OF_IMAGE_PER_SECTION,constants.getM(),constants.getN())
 
 ################################################################################
 # Return the labels ginve the indices

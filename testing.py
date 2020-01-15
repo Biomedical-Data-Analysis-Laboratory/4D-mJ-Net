@@ -73,7 +73,7 @@ def predictImage(that, subfolder, p_id, patientFolder, relativePatientFolder):
 
     # Generate the predicted image
     while True:
-        pixels = np.zeros(shape=(constants.getN()UMBER_OF_IMAGE_PER_SECTION,constants.getM(),constants.getN()))
+        pixels = np.zeros(shape=(constants.NUMBER_OF_IMAGE_PER_SECTION,constants.getM(),constants.getN()))
         count = 0
         row, column = 0, 0
 

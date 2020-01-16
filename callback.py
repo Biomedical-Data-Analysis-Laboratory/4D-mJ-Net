@@ -14,7 +14,7 @@ class CollectBatchStats(tf.keras.callbacks.Callback):
         self.root_path = root_path
         self.savedModelName = savedModelName
         self.textFolderPath = textFolderPath
-        self.folderOfSavedModel = self.savedModelName[:self.savedModelName.rfind("/")+1]
+        #self.folderOfSavedModel = self.savedModelName[:self.savedModelName.rfind("/")+1]
         self.modelName = self.savedModelName[self.savedModelName.rfind("/"):]
         self.acc = acc
 
@@ -41,7 +41,8 @@ class CollectBatchStats(tf.keras.callbacks.Callback):
                         os.remove(file)
 
 ################################################################################
-#
+# Callback for the AUC_ROC
+# TODO: NOT working!! <-- use it just for testing
 class RocCallback(tf.keras.callbacks.Callback):
     def __init__(self, training_data, validation_data, model, sample_weight, savedModelName, textFolderPath):
         self.x = training_data[0]

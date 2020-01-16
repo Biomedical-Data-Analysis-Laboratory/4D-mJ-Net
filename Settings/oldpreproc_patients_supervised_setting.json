@@ -1,6 +1,6 @@
 {
   "root_path": "/home/stud/lucat/PhD_Project/Stroke_segmentation/",
-  "dataset_path": "/local/home/lucat/DATASET/",
+  "dataset_path": "/local/home/lucat/DATASET/oldPatients",
   "PATIENT_TO_TEST": [2,3,4,5,6,7,8,9,10,11],
   "OVERRIDE_MODELS_ID_PATH": "",
   "init": {
@@ -11,13 +11,13 @@
   },
   "relative_paths": {
     "labeled_images": "Manual_annotations/",
-    "patients": "PATIENTS/",
+    "patients": "OLDPREPROC_PATIENTS/",
     "save": {
-      "model": "MODELS/",
-      "partial_model": "TMP_MODELS/",
-      "plot": "PLOTS/",
-      "images": "IMAGES/",
-      "text": "TEXT/"
+      "model": "OLDPREPROC_MODELS/",
+      "partial_model": "OLDPREPROC_TMP_MODELS/",
+      "plot": "OLDPREPROC_PLOTS/",
+      "images": "OLDPREPROC_IMAGES/",
+      "text": "OLDPREPROC_TEXT/"
     }
   },
   "models": [

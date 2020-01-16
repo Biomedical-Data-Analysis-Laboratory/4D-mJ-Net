@@ -37,21 +37,25 @@ def main():
             # set the multi/single PROCESSING
             nn.setProcessingEnv(setting["init"]["MULTIPROCESSING"])
 
+            ################################################################
+            # NOTE: this is just a TEST! (it should go inside the RUN TRAINING...)
+            ################################################################
+            ## GET THE DATASET:
+            # - The dataset is composed of all the .hkl (or .h5) files in the dataset folder!
+            # if we are using a data augmentation dataset we need to get the dataset differently each time
+            if nn.da: train_df = dataset_utils.getDataset(nn, p_id)
+            else: # Otherwise get dataset only the first time
+                if train_df is None: train_df = dataset_utils.getDataset(nn)
+            ## PREPARE DATASET
+            nn.prepareDataset(train_df, p_id)
+
             # Check if the model was already trained and saved
             if nn.isModelSaved(p_id):
+                # SET THE CALLBACKS & LOAD MODEL
+                nn.setCallbacks(p_id)
                 nn.loadSavedModel(p_id)
                 isAlreadySaved = True
             else:
-                ## GET THE DATASET:
-                # - The dataset is composed of all the .hkl (or .h5) files in the dataset folder!
-
-                # if we are using a data augmentation dataset we need to get the dataset differently each time
-                if nn.da: train_df = dataset_utils.getDataset(nn, p_id)
-                else: # Otherwise get dataset only the first time
-                    if train_df is None: train_df = dataset_utils.getDataset(nn)
-
-                ## PREPARE DATASET
-                nn.prepareDataset(train_df, p_id)
                 ## SET THE CALLBACKS, RUN TRAINING & SAVE THE MODELS WEIGHTS
                 nn.runTraining(p_id, n_gpu)
                 nn.saveModelAndWeight(p_id)

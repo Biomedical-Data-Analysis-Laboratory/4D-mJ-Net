@@ -49,7 +49,8 @@ class NeuralNetwork(object):
         self.datasetFolder = setting["dataset_path"]
         self.patientsFolder = setting["relative_paths"]["patients"]
         self.labeledImagesFolder = setting["relative_paths"]["labeled_images"]
-        self.savedModelfolder = "SAVE/"+setting["relative_paths"]["save"]["model"]
+        self.savedModelFolder = "SAVE/"+setting["relative_paths"]["save"]["model"]
+        self.savePartialModelFolder = "SAVE/"+setting["relative_paths"]["save"]["partial_model"]
         self.saveImagesFolder = "SAVE/"+setting["relative_paths"]["save"]["images"]
         self.savePlotFolder = "SAVE/"+setting["relative_paths"]["save"]["plot"]
         self.saveTextFolder = "SAVE/"+setting["relative_paths"]["save"]["text"]
@@ -59,11 +60,20 @@ class NeuralNetwork(object):
 
 ################################################################################
 # Initialize the callbacks
-    def setCallbacks(self, p_id, sample_weights):
+    def setCallbacks(self, p_id, sample_weights=None):
         if self.getVerbose():
             general_utils.printSeparation("-", 50)
             print("Setting callbacks...")
-        self.callbacks = training.getCallbacks(root_path=self.rootPath, info=self.infoCallbacks, filename=self.getSavedInformation(p_id, path=self.savedModelfolder), textFolderPath=self.saveTextFolder, dataset=self.dataset, model=self.model, sample_weights=sample_weights)
+
+        self.callbacks = training.getCallbacks(
+            root_path=self.rootPath,
+            info=self.infoCallbacks,
+            filename=self.getSavedInformation(p_id, path=self.savePartialModelFolder),
+            textFolderPath=self.saveTextFolder,
+            dataset=self.dataset,
+            #model=self.model,
+            sample_weights=sample_weights
+        )
 
 ################################################################################
 # return a Boolean to control if the model was already saved
@@ -95,8 +105,8 @@ class NeuralNetwork(object):
     def arePartialWeightsSaved(self, p_id):
         self.partialWeightsPath = ""
         # path ==> weight name plus a suffix ":" <-- constants.suffix_partial_weights
-        path = self.getSavedInformation(p_id, path=self.savedModelfolder)+constants.suffix_partial_weights
-        for file in glob.glob(self.savedModelfolder+"*.h5"):
+        path = self.getSavedInformation(p_id, path=self.savePartialModelFolder)+constants.suffix_partial_weights
+        for file in glob.glob(self.savePartialModelFolder+"*.h5"):
             if path in self.rootPath+file: # we have a match
                 self.partialWeightsPath = file
                 return True
@@ -133,7 +143,11 @@ class NeuralNetwork(object):
 ################################################################################
 # compile the model, callable also from outside
     def compileModel(self):
-        self.model.compile(optimizer=self.optimizer, loss=self.loss["loss"], metrics=[self.metrics])
+        self.model.compile(
+            optimizer=self.optimizer,
+            loss=self.loss["loss"],
+            metrics=[self.metrics]
+        )
 
 ################################################################################
 # Run the training over the dataset based on the model
@@ -167,12 +181,7 @@ class NeuralNetwork(object):
 
         self.compileModel()
 
-        sample_weights = self.train_df.label.map({
-                    constants.LABELS[0]:1,
-                    constants.LABELS[1]:10,
-                    constants.LABELS[2]:50,
-                    constants.LABELS[3]:100})
-        sample_weights = sample_weights.values[self.dataset["train"]["indices"]]
+        sample_weights = self.getSampleWeights("train")
 
         # Set the callbacks
         self.setCallbacks(p_id, sample_weights)
@@ -189,6 +198,19 @@ class NeuralNetwork(object):
 
         # plot the loss and accuracy of the training
         training.plotLossAndAccuracy(self, p_id)
+
+################################################################################
+# Get the sample weight from the dataset
+    def getSampleWeights(self, flag):
+
+        sample_weights = self.train_df.label.map({
+            constants.LABELS[0]:1,
+            constants.LABELS[1]:10,
+            constants.LABELS[2]:50,
+            constants.LABELS[3]:100
+        })
+
+        return sample_weights.values[self.dataset[flag]["indices"]]
 
 ################################################################################
 # Save the trained model and its relative weights
@@ -225,9 +247,9 @@ class NeuralNetwork(object):
             print("Evaluating the model for patient {}".format(p_id))
 
         if isAlreadySaved:
-            self.testing_score = testing.evaluateModelAlreadySaved(self, p_id, self.mp)
+            self.testing_score = testing.evaluateModelAlreadySaved(self, p_id)
         else:
-            self.testing_score = testing.evaluateModelWithCategorics(self, p_id, self.mp)
+            self.testing_score = testing.evaluateModelWithCategorics(self, p_id)
 
 ################################################################################
 # set the flag for single/multi PROCESSING
@@ -245,12 +267,12 @@ class NeuralNetwork(object):
 ################################################################################
 # return the saved model
     def getSavedModel(self, p_id):
-        return self.getSavedInformation(p_id, path=self.savedModelfolder, suffix=".json")
+        return self.getSavedInformation(p_id, path=self.savedModelFolder, suffix=".json")
 
 ################################################################################
 # return the saved weight
     def getSavedWeight(self, p_id):
-        return self.getSavedInformation(p_id, path=self.savedModelfolder, suffix=".h5")
+        return self.getSavedInformation(p_id, path=self.savedModelFolder, suffix=".h5")
 
 ################################################################################
 # return NeuralNetwork ID

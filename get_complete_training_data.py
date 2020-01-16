@@ -25,11 +25,11 @@ import hickle as hkl # Price et al., (2018). Hickle: A HDF5-based python pickle 
 
 ROOT_PATH = "/home/stud/lucat/PhD_Project/Stroke_segmentation/"
 #ROOT_PATH = "/Users/lucatomasetti/Desktop/uni-stavanger/MASTER_THESIS/"
-SCRIPT_PATH = "/local/home/lucat/DATASET/"
+SCRIPT_PATH = "/local/home/lucat/DATASET/oldPatients"
 
 
 LABELLED_IMAGES_FOLDER_LOCATION = ROOT_PATH + "Manual_annotations/" #  COMBINED_GRAYAREA_2.0
-SAVE_REGISTERED_FOLDER = ROOT_PATH + "PATIENTS/" # "Registered_images_2.0/"
+SAVE_REGISTERED_FOLDER = ROOT_PATH + "OLDPREPROC_PATIENTS/" # "Registered_images_2.0/"
 
 NUMBER_OF_IMAGE_PER_SECTION = 30 # number of image (divided by time) for each section of the brain
 IMAGE_WIDTH, IMAGE_HEIGHT = 512, 512
@@ -123,7 +123,9 @@ def fillDataset(train_df, relativePath, patientIndex, timeFolder):
     imagesDict = {} # faster access to the images
     for imagename in np.sort(glob.glob(timeFolder+"*.png")): # sort the images !
         filename = imagename.replace(timeFolder, '')
-        #if filename != "01.png": # don't take the first image (the manually annotated one)
+        # don't take the first image (the manually annotated one)
+        if "OLDPREPROC_PATIENTS/" in SAVE_REGISTERED_FOLDER and filename == "01.png": continue
+
         image = cv2.imread(imagename, 0)
         imagesDict[filename] = image
 
@@ -180,7 +182,9 @@ def fillDataset(train_df, relativePath, patientIndex, timeFolder):
                 if str(startingY) not in otherInforList[data_aug_idx][str(startingX)].keys(): otherInforList[data_aug_idx][str(startingX)][str(startingY)] = dict()
 
                 filename = imagename.replace(timeFolder, '')
-                #if filename != "01.png": # don't take the first image (the manually annotated one)
+                # don't take the first image (the manually annotated one)
+                if "OLDPREPROC_PATIENTS/" in SAVE_REGISTERED_FOLDER and  filename == "01.png": continue
+
                 image = imagesDict[filename]
                 slicingWindow = getSlicingWindow(image, startingX, startingY, M, N)
 
@@ -270,7 +274,7 @@ def initializeDataset():
         relativePath = patientFolder.replace(SAVE_REGISTERED_FOLDER, '')
         patientIndex = relativePath.replace("PA", "").replace("/", "")
         #filename_train = SCRIPT_PATH+"trainComplete"+str(patientIndex)+".h5"
-        filename_train = SCRIPT_PATH+"newPatient"+str(patientIndex)+suffix_filename+".hkl"
+        filename_train = SCRIPT_PATH+"patient"+str(patientIndex)+suffix_filename+".hkl"
         subfolders = glob.glob(patientFolder+"*/")
 
         if int(patientIndex)>1 and int(patientIndex)<=11:

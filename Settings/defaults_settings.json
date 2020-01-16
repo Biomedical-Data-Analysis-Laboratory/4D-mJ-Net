@@ -14,6 +14,7 @@
     "patients": "PATIENTS/",
     "save": {
       "model": "MODELS/",
+      "partial_model": "TMP_MODELS/",
       "plot": "PLOTS/",
       "images": "IMAGES/",
       "text": "TEXT/"
@@ -59,10 +60,10 @@
         },
         "ReduceLROnPlateau": {
           "monitor": "dice_coef",
-          "factor": 0.2,
-          "patience": 3,
+          "factor": 0.1,
+          "patience": 8,
           "min_delta": 0.001,
-          "cooldown": 2,
+          "cooldown": 5,
           "min_lr": 0.00000001
         },
         "CollectBatchStats": {
@@ -77,7 +78,7 @@
     {
       "name": "mJNet_LongJ_Drop",
       "loss": "dice_coef_loss",
-      "metrics": ["dice_coef", "jaccard_distance", "sensitivity", "specificity", "precision", "f1", "aucroc"],
+      "metrics": ["dice_coef", "jaccard_distance", "sensitivity", "specificity", "precision", "f1"],
       "epochs": 300,
       "val":{
         "validation_perc": 5,
@@ -114,10 +115,10 @@
         },
         "ReduceLROnPlateau": {
           "monitor": "dice_coef",
-          "factor": 0.2,
-          "patience": 3,
+          "factor": 0.1,
+          "patience": 8,
           "min_delta": 0.001,
-          "cooldown": 2,
+          "cooldown": 5,
           "min_lr": 0.00000001
         },
         "CollectBatchStats": {

@@ -18,16 +18,21 @@ def getOptimizer(optInfo):
             beta_2=optInfo["beta_2"],
             epsilon=None if optInfo["epsilon"]=="None" else optInfo["epsilon"],
             decay=optInfo["decay"],
-            amsgrad=False)
-    # elif optInfo["name"].lower()=="sgd":
-    #     ...
-    #     TODO!
+            amsgrad=False
+        )
+    elif optInfo["name"].lower()=="sgd":
+        optimizer = tf.keras.optimizers.SGD(
+            learning_rate=optInfo["learning_rate"],
+            decay=optInfo["decay"],
+            momentum=optInfo["momentum"],
+            nesterov=True if optInfo["nesterov"]=="True" else False
+        )
 
     return optimizer
 
 ################################################################################
 # Return the callbacks defined in the setting
-def getCallbacks(info, root_path, filename, textFolderPath, dataset, model, sample_weights):
+def getCallbacks(info, root_path, filename, textFolderPath, dataset, sample_weights):
     cbs = []
     for key in info.keys():
         # save the weights
@@ -45,6 +50,8 @@ def getCallbacks(info, root_path, filename, textFolderPath, dataset, model, samp
         elif key=="RocCallback":
             training_data = (dataset["train"]["data"], dataset["train"]["labels"])
             validation_data = (dataset["val"]["data"], dataset["val"]["labels"])
+            # # TODO: no model passed!
+            # # TODO: filename is different (isthe TMP_MODELS not MODELS folder)
             cbs.append(callback.RocCallback(training_data, validation_data, model, sample_weights, filename, textFolderPath))
 
     return cbs

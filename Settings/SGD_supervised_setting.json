@@ -11,13 +11,13 @@
   },
   "relative_paths": {
     "labeled_images": "Manual_annotations/",
-    "patients": "PATIENTS/",
+    "patients": "OLDPREPROC_PATIENTS/",
     "save": {
-      "model": "MODELS/",
-      "partial_model": "TMP_MODELS/",
-      "plot": "PLOTS/",
-      "images": "IMAGES/",
-      "text": "TEXT/"
+      "model": "OLDPREPROC_MODELS/",
+      "partial_model": "OLDPREPROC_TMP_MODELS/",
+      "plot": "OLDPREPROC_PLOTS/",
+      "images": "OLDPREPROC_IMAGES/",
+      "text": "OLDPREPROC_TEXT/"
     }
   },
   "models": [
@@ -32,12 +32,11 @@
       },
       "test_steps":1,
       "optimizer": {
-        "name": "Adam",
-        "lr": 0.001,
-        "beta_1": 0.9,
-        "beta_2":0.999,
-        "epsilon":"None",
-        "decay":0.0
+        "name": "SGD",
+        "learning_rate": 0.01,
+        "decay": 1e-6,
+        "momentum":0.9,
+        "nesterov":"True"
       },
       "params":{
         "dropout":{

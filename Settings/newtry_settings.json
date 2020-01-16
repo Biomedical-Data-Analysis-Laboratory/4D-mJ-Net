@@ -14,6 +14,7 @@
     "patients": "PATIENTS/",
     "save": {
       "model": "MODELS/",
+      "partial_model": "TMP_MODELS/",
       "plot": "PLOTS/",
       "images": "IMAGES/",
       "text": "TEXT/"

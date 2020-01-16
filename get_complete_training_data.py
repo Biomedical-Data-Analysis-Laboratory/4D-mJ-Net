@@ -25,7 +25,7 @@ import hickle as hkl # Price et al., (2018). Hickle: A HDF5-based python pickle 
 
 ROOT_PATH = "/home/stud/lucat/PhD_Project/Stroke_segmentation/"
 #ROOT_PATH = "/Users/lucatomasetti/Desktop/uni-stavanger/MASTER_THESIS/"
-SCRIPT_PATH = "/local/home/lucat/DATASET/oldPatients"
+SCRIPT_PATH = "/local/home/lucat/DATASET/oldPatients/"
 
 
 LABELLED_IMAGES_FOLDER_LOCATION = ROOT_PATH + "Manual_annotations/" #  COMBINED_GRAYAREA_2.0

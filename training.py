@@ -116,6 +116,17 @@ def dice_coef_loss(y_true, y_pred):
     return 1-dice_coef(y_true, y_pred)
 
 ################################################################################
+# REAL Dice coefficient = (2*|X & Y|)/ (|X|+ |Y|)
+def mod_dice_coef(y_true, y_pred):
+    intersection = K.sum(K.abs(y_true * y_pred), axis=-1)
+    sum_ = (K.sum(K.abs(y_true) + K.abs(y_pred), axis=-1) + 1)
+    return  (2. * intersection + 1) / sum_
+
+def mod_dice_coef_loss(y_true, y_pred):
+    return 1-mod_dice_coef(y_true, y_pred)
+
+
+################################################################################
 # Function to calculate the Jaccard similarity
 # The loss has been modified to have a smooth gradient as it converges on zero.
 #     This has been shifted so it converges on 0 and is smoothed to avoid exploding

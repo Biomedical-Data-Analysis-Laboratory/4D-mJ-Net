@@ -105,6 +105,7 @@ def predictImage(that, subfolder, p_id, patientFolder, relativePatientFolder):
 
         for r, _ in enumerate(slicingWindowPredicted):
             for c, pixel in enumerate(slicingWindowPredicted[r]):
+                if pixel > 0.9: pixel = 1
                 threeDimensionSlicingWindow[r][c] = (pixel*255,)*3
 
         # Create the image

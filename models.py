@@ -72,7 +72,7 @@ def mJNet(X, params, drop=False, longJ=False):
     if drop: pool_drop_2 = layers.Dropout(params["dropout"]["2"])(pool_drop_2)
 
     # from (1,M/2,N/2) to (1,M/4,N/4)
-    conv_3 = layers.Conv3D(64, (1,2,2), activation='relu', padding='same')(pool_drop_2)
+    conv_3 = layers.Conv3D(64, (1,3,3), activation='relu', padding='same')(pool_drop_2)
     conv_3 = layers.BatchNormalization()(conv_3)
     # conv_3 : (1, 16, 16, 64)
     print(K.int_shape(conv_3))
@@ -86,7 +86,7 @@ def mJNet(X, params, drop=False, longJ=False):
     if drop: pool_drop_3 = layers.Dropout(params["dropout"]["3"])(pool_drop_3)
 
     # last convolutional layers
-    conv_4 = layers.Conv3D(128, (1,2,2), activation='relu', padding='same')(pool_drop_3)
+    conv_4 = layers.Conv3D(128, (1,3,3), activation='relu', padding='same')(pool_drop_3)
     conv_4 = layers.BatchNormalization()(conv_4)
     # conv_4 : (1, 8, 8, 128)
     print(K.int_shape(conv_4))
@@ -99,7 +99,7 @@ def mJNet(X, params, drop=False, longJ=False):
     up_1 = layers.concatenate([layers.Conv3DTranspose(128, kernel_size=(1,2,2), strides=(1,2,2), activation='relu', padding='same')(conv_4), conv_3], axis=1)
     # up_1 : (2, 16, 16, 128)
     print(K.int_shape(up_1))
-    conv_5 = layers.Conv3D(128, (1,2,2), activation='relu', padding='same')(up_1)
+    conv_5 = layers.Conv3D(128, (1,3,3), activation='relu', padding='same')(up_1)
     conv_5 = layers.BatchNormalization()(conv_5)
     # conv_5 : (2, 16, 16, 128)
     print(K.int_shape(conv_5))
@@ -116,7 +116,7 @@ def mJNet(X, params, drop=False, longJ=False):
     up_2 = layers.concatenate([layers.Conv3DTranspose(64, kernel_size=(1,2,2), strides=(1,2,2), activation='relu', padding='same')(pool_drop_4), conv_2], axis=1)
     # up_2 : (2, 32, 32, 64)
     print(K.int_shape(up_2))
-    conv_6 = layers.Conv3D(32, (1,2,2), activation='relu', padding='same')(up_2)
+    conv_6 = layers.Conv3D(32, (1,3,3), activation='relu', padding='same')(up_2)
     conv_6 = layers.BatchNormalization()(conv_6)
     # conv_6 : (2, 32, 32, 32)
     print(K.int_shape(conv_6))

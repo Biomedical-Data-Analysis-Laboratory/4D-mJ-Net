@@ -63,7 +63,7 @@
           "factor": 0.1,
           "patience": 8,
           "min_delta": 0.001,
-          "cooldown": 5,
+          "cooldown": 1,
           "min_lr": 0.00000001
         },
         "CollectBatchStats": {
@@ -118,7 +118,7 @@
           "factor": 0.1,
           "patience": 8,
           "min_delta": 0.001,
-          "cooldown": 5,
+          "cooldown": 1,
           "min_lr": 0.00000001
         },
         "CollectBatchStats": {

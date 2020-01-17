@@ -100,13 +100,25 @@ def predictImage(that, subfolder, p_id, patientFolder, relativePatientFolder):
         # Transform the slicingWindowPredicted into a touple of three dimension!
         threeDimensionSlicingWindow = np.zeros(shape=(slicingWindowPredicted.shape[0],slicingWindowPredicted.shape[1], 3), dtype=np.uint8)
 
+        # remove the old logs.
+        os.remove(that.saveImagesFolder+relativePatientFolder+idx+"_logs.txt")
+
         with open(that.saveImagesFolder+relativePatientFolder+idx+"_logs.txt", "a+") as img_file:
             img_file.write(np.array2string(slicingWindowPredicted))
 
+        backgroundTile = np.array(slicingWindowPredicted[0])
+
         for r, _ in enumerate(slicingWindowPredicted):
+            # if the tile is very similar to the one in the top left corner (=background tile)
+            # then set everything to white ==>(255,255,255)
+            # if np.array_equal(backgroundTile, slicingWindowPredicted[r]):
+            #     slicingWindowPredicted[r] = np.ones_like(slicingWindowPredicted[r])
             for c, pixel in enumerate(slicingWindowPredicted[r]):
-                if pixel > 0.9: pixel = 1
+                # if pixel > 0.95: pixel = 1
                 threeDimensionSlicingWindow[r][c] = (pixel*255,)*3
+
+        with open(that.saveImagesFolder+relativePatientFolder+idx+"_logs.txt", "a+") as img_file:
+            img_file.write(np.array2string(threeDimensionSlicingWindow))
 
         # Create the image
         imagePredicted[startingX:startingX+constants.getM(), startingY:startingY+constants.getN()] = threeDimensionSlicingWindow

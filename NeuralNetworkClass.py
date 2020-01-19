@@ -35,7 +35,7 @@ class NeuralNetwork(object):
             "test": {}
             }
 
-        self.optimizerName = info["optimizer"]["name"]
+        self.optimizerInfo = info["optimizer"]
         self.params = info["params"]
         self.loss = general_utils.getLoss(info["loss"])
         self.metrics = general_utils.getMetrics(info["metrics"])
@@ -55,7 +55,6 @@ class NeuralNetwork(object):
         self.savePlotFolder = "SAVE/"+setting["relative_paths"]["save"]["plot"]
         self.saveTextFolder = "SAVE/"+setting["relative_paths"]["save"]["text"]
 
-        self.optimizer = training.getOptimizer(optInfo=info["optimizer"])
         self.infoCallbacks = info["callbacks"]
 
 ################################################################################
@@ -143,6 +142,9 @@ class NeuralNetwork(object):
 ################################################################################
 # compile the model, callable also from outside
     def compileModel(self):
+        # set the optimizer (or reset)
+        self.optimizer = training.getOptimizer(optInfo=self.optimizerInfo)
+        
         self.model.compile(
             optimizer=self.optimizer,
             loss=self.loss["loss"],
@@ -158,7 +160,7 @@ class NeuralNetwork(object):
 
         if self.getVerbose():
             general_utils.printSeparation("-", 50)
-            print("[INFO] Getting model {0} with {1} optimizer...".format(self.name, self.optimizerName))
+            print("[INFO] Getting model {0} with {1} optimizer...".format(self.name, self.optimizerInfo["name"]))
 
         # based on the number of GPUs availables
         # call the function called self.name in models.py
@@ -179,6 +181,7 @@ class NeuralNetwork(object):
         if self.arePartialWeightsSaved(p_id):
             self.loadModelFromPartialWeights(p_id)
 
+        # compile the model with optimizer, loss function and metrics
         self.compileModel()
 
         sample_weights = self.getSampleWeights("train")
@@ -284,7 +287,7 @@ class NeuralNetwork(object):
         else:
             id = self.name
             if self.da: id += "_DA"
-            id += ("_"+self.optimizerName.upper())
+            id += ("_"+self.optimizerInfo["name"].upper())
 
             id += ("_VAL"+str(self.val["validation_perc"]))
             if self.val["random_validation_selection"]: id += ("_RANDOM")

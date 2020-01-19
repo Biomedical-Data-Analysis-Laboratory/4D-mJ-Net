@@ -86,13 +86,13 @@ class RocCallback(tf.keras.callbacks.Callback):
 
 ################################################################################
 # Save the best model every "period" number of epochs
-def modelCheckpoint(filename, monitor, period):
+def modelCheckpoint(filename, monitor, mode, period):
     return tf.keras.callbacks.ModelCheckpoint(
             filename+constants.suffix_partial_weights+"{epoch:02d}.h5",
             monitor=monitor,
             verbose=constants.getVerbose(),
             save_best_only=True,
-            mode='auto',
+            mode=mode,
             period=period
     )
 

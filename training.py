@@ -37,7 +37,7 @@ def getCallbacks(info, root_path, filename, textFolderPath, dataset, sample_weig
     for key in info.keys():
         # save the weights
         if key=="ModelCheckpoint":
-            cbs.append(callback.modelCheckpoint(filename, info[key]["monitor"], info[key]["period"]))
+            cbs.append(callback.modelCheckpoint(filename, info[key]["monitor"], info[key]["mode"], info[key]["period"]))
         # stop if the monitor is not improving
         elif key=="EarlyStopping":
             cbs.append(callback.earlyStopping(info[key]["monitor"], info[key]["min_delta"], info[key]["patience"]))
@@ -117,6 +117,7 @@ def dice_coef_loss(y_true, y_pred):
 
 ################################################################################
 # REAL Dice coefficient = (2*|X & Y|)/ (|X|+ |Y|)
+# Calculate the real value for the Dice coefficient, but it returns lower values than the other dice_coef + lower specificity and precision
 def mod_dice_coef(y_true, y_pred):
     intersection = K.sum(K.abs(y_true * y_pred), axis=-1)
     sum_ = (K.sum(K.abs(y_true) + K.abs(y_pred), axis=-1) + 1)

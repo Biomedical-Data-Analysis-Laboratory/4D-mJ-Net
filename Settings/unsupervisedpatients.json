@@ -1,0 +1,75 @@
+{
+  "root_path": "/home/stud/lucat/PhD_Project/Stroke_segmentation/",
+  "dataset_path": "/local/home/lucat/DATASET/",
+  "PATIENT_TO_TEST": [12,13,14,15,16],
+  "OVERRIDE_MODELS_ID_PATH": "mJNet_DA_ADAM_VAL5_02",
+  "init": {
+    "TF_CPP_MIN_LOG_LEVEL": "3",
+    "per_process_gpu_memory_fraction": 1,
+    "allow_growth": 1,
+    "MULTIPROCESSING": 0
+  },
+  "relative_paths": {
+    "labeled_images": "Manual_annotations/",
+    "patients": "PATIENTS/",
+    "save": {
+      "model": "MODELS/",
+      "partial_model": "TMP_MODELS/",
+      "plot": "PLOTS/",
+      "images": "IMAGES/",
+      "text": "TEXT/"
+    }
+  },
+  "models": [
+     {
+      "name": "mJNet",
+      "loss": "dice_coef_loss",
+      "metrics": ["dice_coef", "jaccard_distance", "sensitivity", "specificity", "precision", "f1", "mod_dice_coef"],
+      "epochs": 50,
+      "val":{
+        "validation_perc": 5,
+        "random_validation_selection": 0
+      },
+      "test_steps":5,
+      "optimizer": {
+        "name": "Adam",
+        "lr": 0.001,
+        "beta_1": 0.9,
+        "beta_2":0.999,
+        "epsilon":"None",
+        "decay":0.0
+      },
+      "params":{
+        "dropout":{
+          "1":0.3,
+          "2":0.3,
+          "3":0.3,
+          "4":0.3,
+          "5":0.3
+        }
+      },
+      "callbacks":{
+        "ModelCheckpoint": {
+          "monitor": "dice_coef",
+          "mode": "max",
+          "period": 1
+        },
+        "ReduceLROnPlateau": {
+          "monitor": "val_loss",
+          "factor": 0.1,
+          "patience": 3,
+          "min_delta": 1e-4,
+          "cooldown": 1,
+          "min_lr": 0
+        },
+        "CollectBatchStats": {
+          "acc":"dice_coef"
+        }
+      },
+      "data_augmentation": 1,
+      "cross_validation": 0,
+      "train_again": 0,
+      "supervised": 0
+    }
+  ]
+}

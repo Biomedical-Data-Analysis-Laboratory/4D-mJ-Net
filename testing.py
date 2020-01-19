@@ -54,6 +54,10 @@ def predictImage(that, subfolder, p_id, patientFolder, relativePatientFolder):
 
     idx = general_utils.getStringPatientIndex(subfolder.replace(patientFolder, '').replace("/", "")) # image index
 
+    logsName = that.saveImagesFolder+relativePatientFolder+idx+"_logs.txt"
+    # remove the old logs.
+    if os.path.isfile(logsName): os.remove(logsName)
+
     if constants.getVerbose():
         print("Analyzing Patient {0}, image {1}...".format(p_id, idx))
 
@@ -100,11 +104,9 @@ def predictImage(that, subfolder, p_id, patientFolder, relativePatientFolder):
         # Transform the slicingWindowPredicted into a touple of three dimension!
         threeDimensionSlicingWindow = np.zeros(shape=(slicingWindowPredicted.shape[0],slicingWindowPredicted.shape[1], 3), dtype=np.uint8)
 
-        # remove the old logs.
-        os.remove(that.saveImagesFolder+relativePatientFolder+idx+"_logs.txt")
 
-        with open(that.saveImagesFolder+relativePatientFolder+idx+"_logs.txt", "a+") as img_file:
-            img_file.write(np.array2string(slicingWindowPredicted))
+        # with open(logsName, "a+") as img_file:
+        #     img_file.write(np.array2string(slicingWindowPredicted))
 
         backgroundTile = np.array(slicingWindowPredicted[0])
 
@@ -114,11 +116,11 @@ def predictImage(that, subfolder, p_id, patientFolder, relativePatientFolder):
             # if np.array_equal(backgroundTile, slicingWindowPredicted[r]):
             #     slicingWindowPredicted[r] = np.ones_like(slicingWindowPredicted[r])
             for c, pixel in enumerate(slicingWindowPredicted[r]):
-                # if pixel > 0.95: pixel = 1
+                if pixel >= 0.90: pixel = 1
                 threeDimensionSlicingWindow[r][c] = (pixel*255,)*3
 
-        with open(that.saveImagesFolder+relativePatientFolder+idx+"_logs.txt", "a+") as img_file:
-            img_file.write(np.array2string(threeDimensionSlicingWindow))
+        # with open(logsName, "a+") as img_file:
+        #     img_file.write(np.array2string(threeDimensionSlicingWindow))
 
         # Create the image
         imagePredicted[startingX:startingX+constants.getM(), startingY:startingY+constants.getN()] = threeDimensionSlicingWindow

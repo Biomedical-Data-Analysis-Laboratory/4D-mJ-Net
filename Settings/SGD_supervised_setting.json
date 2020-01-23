@@ -1,7 +1,7 @@
 {
   "root_path": "/home/stud/lucat/PhD_Project/Stroke_segmentation/",
   "dataset_path": "/local/home/lucat/DATASET/",
-  "PATIENT_TO_TEST": [2,3,4,5,6,7,8,9,10,11],
+  "PATIENT_TO_TEST": [3,4,5,6,7,8,9,10,11],
   "OVERRIDE_MODELS_ID_PATH": "",
   "init": {
     "TF_CPP_MIN_LOG_LEVEL": "3",
@@ -24,7 +24,7 @@
      {
       "name": "mJNet",
       "loss": "dice_coef_loss",
-      "metrics": ["dice_coef", "jaccard_distance", "sensitivity", "specificity", "precision", "f1"],
+      "metrics": ["dice_coef", "jaccard_distance", "sensitivity", "specificity", "precision", "f1", "mod_dice_coef"],
       "epochs": 50,
       "val":{
         "validation_perc": 5,
@@ -50,6 +50,7 @@
       "callbacks":{
         "ModelCheckpoint": {
           "monitor": "loss",
+          "mode": "min",
           "period": 1
         },
         "EarlyStopping": {
@@ -58,12 +59,12 @@
           "patience": 2
         },
         "ReduceLROnPlateau": {
-          "monitor": "dice_coef",
+          "monitor": "val_loss",
           "factor": 0.1,
-          "patience": 8,
-          "min_delta": 0.001,
-          "cooldown": 5,
-          "min_lr": 0.00000001
+          "patience": 3,
+          "min_delta": 1e-4,
+          "cooldown": 1,
+          "min_lr": 0
         },
         "CollectBatchStats": {
           "acc":"dice_coef"

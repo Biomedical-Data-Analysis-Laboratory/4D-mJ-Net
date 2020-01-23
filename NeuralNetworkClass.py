@@ -8,6 +8,7 @@ import tensorflow as tf
 from tensorflow.keras.models import model_from_json
 from tensorflow.keras.utils import to_categorical, multi_gpu_model
 
+
 ################################################################################
 # Class that defines a NeuralNetwork
 ################################################################################
@@ -39,6 +40,7 @@ class NeuralNetwork(object):
         self.params = info["params"]
         self.loss = general_utils.getLoss(info["loss"])
         self.metrics = general_utils.getMetrics(info["metrics"])
+        self.classes_to_evaluate = info["classes_to_evaluate"]
 
         self.da = True if info["data_augmentation"]==1 else False
         self.train_again = True if info["train_again"]==1 else False
@@ -56,6 +58,7 @@ class NeuralNetwork(object):
         self.saveTextFolder = "SAVE/"+setting["relative_paths"]["save"]["text"]
 
         self.infoCallbacks = info["callbacks"]
+
 
 ################################################################################
 # Initialize the callbacks
@@ -144,7 +147,7 @@ class NeuralNetwork(object):
     def compileModel(self):
         # set the optimizer (or reset)
         self.optimizer = training.getOptimizer(optInfo=self.optimizerInfo)
-        
+
         self.model.compile(
             optimizer=self.optimizer,
             loss=self.loss["loss"],
@@ -208,9 +211,9 @@ class NeuralNetwork(object):
 
         sample_weights = self.train_df.label.map({
             constants.LABELS[0]:1,
-            constants.LABELS[1]:10,
-            constants.LABELS[2]:50,
-            constants.LABELS[3]:100
+            constants.LABELS[1]:1,
+            constants.LABELS[2]:1,
+            constants.LABELS[3]:1
         })
 
         return sample_weights.values[self.dataset[flag]["indices"]]
@@ -245,6 +248,8 @@ class NeuralNetwork(object):
 ################################################################################
 # Test the model with the selected patient
     def evaluateModelWithCategorics(self, p_id, isAlreadySaved):
+        training.setClassesToEvaluate(self.classes_to_evaluate)
+
         if self.getVerbose():
             general_utils.printSeparation("+", 50)
             print("Evaluating the model for patient {}".format(p_id))

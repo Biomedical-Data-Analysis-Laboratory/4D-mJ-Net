@@ -1,7 +1,7 @@
 {
   "root_path": "/home/stud/lucat/PhD_Project/Stroke_segmentation/",
   "dataset_path": "/local/home/lucat/DATASET/",
-  "PATIENT_TO_TEST": [2],
+  "PATIENT_TO_TEST": [3,4,5],
   "OVERRIDE_MODELS_ID_PATH": "",
   "init": {
     "TF_CPP_MIN_LOG_LEVEL": "3",
@@ -26,6 +26,7 @@
       "loss": "dice_coef_loss",
       "metrics": ["dice_coef", "jaccard_distance", "sensitivity", "specificity", "precision", "f1", "mod_dice_coef"],
       "epochs": 50,
+      "classes_to_evaluate": ["penumbra", "core"],
       "val":{
         "validation_perc": 5,
         "random_validation_selection": 0

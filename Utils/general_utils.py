@@ -108,7 +108,15 @@ def getLoss(name):
     elif name=="mod_dice_coef_loss":
         loss["loss"] = training.mod_dice_coef_loss
         loss["name"] = "mod_dice_coef"
-    # elif .. # TODO:
+    elif name=="dice_coef_binary_loss":
+        loss["loss"] = training.dice_coef_binary_loss
+        loss["name"] = "dice_coef_binary"
+    elif name=="generalized_dice_loss":
+        loss["loss"] = training.generalized_dice_loss
+        loss["name"] = "generalized_dice_coeff"
+    elif name=="tversky_loss":
+        loss["loss"] = training.tversky_loss
+        loss["name"] = "tversky_loss"
 
     return loss
 
@@ -132,6 +140,10 @@ def getMetrics(listMetrics):
             metrics.append(training.f1)
         elif m=="mod_dice_coef":
             metrics.append(training.mod_dice_coef)
+        elif m=="dice_coef_binary":
+            metrics.append(training.dice_coef_binary)
+        elif m=="generalized_dice_coeff":
+            metrics.append(training.generalized_dice_coeff)
 
     return metrics
 

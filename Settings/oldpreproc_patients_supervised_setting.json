@@ -24,7 +24,7 @@
      {
       "name": "mJNet",
       "loss": "dice_coef_loss",
-      "metrics": ["dice_coef", "jaccard_distance", "sensitivity", "specificity", "precision", "f1"],
+      "metrics": ["dice_coef", "jaccard_distance", "sensitivity", "specificity", "precision", "f1", "mod_dice_coef"],
       "epochs": 5,
       "val":{
         "validation_perc": 5,
@@ -50,7 +50,8 @@
       },
       "callbacks":{
         "ModelCheckpoint": {
-          "monitor": "loss",
+          "monitor": "dice_coef",
+          "mode": "max",
           "period": 1
         },
         "EarlyStopping": {
@@ -59,12 +60,12 @@
           "patience": 2
         },
         "ReduceLROnPlateau": {
-          "monitor": "dice_coef",
+          "monitor": "val_loss",
           "factor": 0.1,
-          "patience": 8,
-          "min_delta": 0.001,
-          "cooldown": 5,
-          "min_lr": 0.00000001
+          "patience": 3,
+          "min_delta": 1e-4,
+          "cooldown": 1,
+          "min_lr": 0
         },
         "CollectBatchStats": {
           "acc":"dice_coef"
@@ -72,115 +73,6 @@
       },
       "data_augmentation": 1,
       "cross_validation": 1,
-      "train_again": 0,
-      "supervised": 1
-    },
-    {
-      "name": "mJNet_LongJ",
-      "loss": "dice_coef_loss",
-      "metrics": ["dice_coef", "jaccard_distance", "sensitivity", "specificity", "precision", "f1"],
-      "epochs": 5,
-      "val":{
-        "validation_perc": 5,
-        "random_validation_selection": 0
-      },
-      "test_steps":1,
-      "optimizer": {
-        "name": "Adam",
-        "lr": 0.001,
-        "beta_1": 0.9,
-        "beta_2":0.999,
-        "epsilon":"None",
-        "decay":0.0
-      },
-      "params":{
-        "dropout":{
-          "1":0.3,
-          "2":0.3,
-          "3":0.3,
-          "4":0.3,
-          "5":0.3
-        }
-      },
-      "callbacks":{
-        "ModelCheckpoint": {
-          "monitor": "loss",
-          "period": 1
-        },
-        "EarlyStopping": {
-          "monitor": "loss",
-          "min_delta": 0.0001,
-          "patience": 5
-        },
-        "ReduceLROnPlateau": {
-          "monitor": "dice_coef",
-          "factor": 0.1,
-          "patience": 8,
-          "min_delta": 0.001,
-          "cooldown": 5,
-          "min_lr": 0.00000001
-        },
-        "CollectBatchStats": {
-          "acc":"dice_coef"
-        }
-      },
-      "data_augmentation": 1,
-      "cross_validation": 0,
-      "train_again": 0,
-      "supervised": 1
-    },
-    {
-      "name": "mJNet_LongJ_Drop",
-      "loss": "dice_coef_loss",
-      "metrics": ["dice_coef", "jaccard_distance", "sensitivity", "specificity", "precision", "f1"],
-      "epochs": 5,
-      "val":{
-        "validation_perc": 5,
-        "random_validation_selection": 0
-      },
-      "test_steps":1,
-      "optimizer": {
-        "name": "Adam",
-        "lr": 0.001,
-        "beta_1": 0.9,
-        "beta_2":0.999,
-        "epsilon":"None",
-        "decay":0.0
-      },
-      "params":{
-        "dropout":{
-          "0.1": 0.3,
-          "1":0.3,
-          "2":0.3,
-          "3":0.3,
-          "4":0.3,
-          "5":0.3
-        }
-      },
-      "callbacks":{
-        "ModelCheckpoint": {
-          "monitor": "loss",
-          "period": 1
-        },
-        "EarlyStopping": {
-          "monitor": "loss",
-          "min_delta": 0.0001,
-          "patience": 10
-        },
-        "ReduceLROnPlateau": {
-          "monitor": "dice_coef",
-          "factor": 0.1,
-          "patience": 8,
-          "min_delta": 0.001,
-          "cooldown": 5,
-          "min_lr": 0.00000001
-        },
-        "CollectBatchStats": {
-          "acc":"dice_coef"
-        }
-      },
-      "data_augmentation": 1,
-      "cross_validation": 0,
       "train_again": 0,
       "supervised": 1
     }

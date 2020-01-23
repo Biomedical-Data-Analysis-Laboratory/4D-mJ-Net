@@ -168,7 +168,7 @@ def getDataFromIndex(train_df, indices, mp):
     start = time.time()
 
     if not mp: # (SINGLE PROCESSING VERSION)
-        data = np.array([np.array(a).reshape(constants.NUMBER_OF_IMAGE_PER_SECTION,constants.getM(),constants.getN()) for a in train_df.pixels.values[indices]])
+        data = np.array([np.array(a).reshape(constants.NUMBER_OF_IMAGE_PER_SECTION,constants.getM(),constants.getN(),1) for a in train_df.pixels.values[indices]])
     else: # (MULTI PROCESSING VERSION)
         cpu_count = multiprocessing.cpu_count()
         input = [a for a in train_df.pixels.values[indices]]
@@ -177,20 +177,21 @@ def getDataFromIndex(train_df, indices, mp):
             data = np.array(data)
 
     end = time.time()
-    print("*getDataFromIndex* Time: {}s".format(round(end-start, 3)))
 
-    data = data.reshape((data.shape[0], data.shape[1], data.shape[2], data.shape[3], 1))
+    # data = data.reshape((data.shape[0], data.shape[1], data.shape[2], data.shape[3], 1))
+    print("*getDataFromIndex* Time: {}s".format(round(end-start, 3)))
     return data
 
 ################################################################################
 
 def getSingleDataFromIndex(singledata):
-    return np.array(singledata).reshape(constants.NUMBER_OF_IMAGE_PER_SECTION,constants.getM(),constants.getN())
+    return np.array(singledata).reshape(constants.NUMBER_OF_IMAGE_PER_SECTION,constants.getM(),constants.getN(),1)
 
 ################################################################################
 # Return the labels ginve the indices
 def getLabelsFromIndex(train_df, indices):
     labels = np.array([np.array(a).reshape(constants.getM(),constants.getN()) for a in train_df.ground_truth.values[indices]])
+
     # if SIGMOID_ACT: ??
     # convert the label in [0, 1] values
     labels = labels.astype("float32")

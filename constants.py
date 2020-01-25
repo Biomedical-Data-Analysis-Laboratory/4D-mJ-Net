@@ -9,7 +9,7 @@ IMAGE_WIDTH, IMAGE_HEIGHT = 512, 512
 NUMBER_OF_IMAGE_PER_SECTION = 30 # number of image (divided by time) for each section of the brain
 SAMPLES = 50
 LABELS = ["background", "brain", "penumbra", "core"] # background:255, brain:0, penumbra:~76, core:~150
-PIXELVALUES = [255, 0, 76, 150]
+PIXELVALUES = [255, 1, 76, 150]
 PREFIX_IMAGES = "PA"
 suffix_partial_weights = "__"
 

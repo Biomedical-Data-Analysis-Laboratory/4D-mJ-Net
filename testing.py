@@ -1,10 +1,11 @@
 # Run the testing function, save the images ..
-from Utils import general_utils, dataset_utils
-import constants
+from Utils import general_utils, dataset_utils, metrics
+import constants, training
 
 import os, time, cv2, glob
 import multiprocessing
 import numpy as np
+import tensorflow.keras.backend as K
 
 
 def predictFromModel(nn, input):
@@ -17,17 +18,20 @@ def predictFromModel(nn, input):
 
 ################################################################################
 # Generate the images for the patient and save the images
-def predictAndSaveImages(that, p_id):
+def predictAndSaveImages(that, p_id, stats):
     start = time.time()
+
+    for func in that.statistics:
+        for classToEval in that.classes_to_evaluate:
+            if func.__name__ not in stats.keys(): stats[func.__name__] = {}
+            if classToEval not in stats[func.__name__].keys(): stats[func.__name__][classToEval] = []
 
     relativePatientFolder = constants.PREFIX_IMAGES+p_id+"/"
     patientFolder = that.patientsFolder+relativePatientFolder
     general_utils.createDir(that.saveImagesFolder+that.getNNID(p_id)+general_utils.getSuffix())
     general_utils.createDir(that.saveImagesFolder+that.getNNID(p_id)+general_utils.getSuffix()+"/"+relativePatientFolder)
 
-    if constants.getVerbose():
-        general_utils.printSeparation("-", 100)
-        general_utils.printSeparation("-", 100)
+    if constants.getVerbose(): general_utils.printSeparation("-", 100)
 
     # TODO: reduce the prediction time to <60s!
     # TODO: find a way to use multiprocessing the generation of the images!!!!
@@ -39,18 +43,30 @@ def predictAndSaveImages(that, p_id):
     #     with multiprocessing.Pool(processes=cpu_count) as pool: # auto closing workers
     #         pool.starmap(predictImage, input)
     # else:
+
+
     for subfolder in glob.glob(patientFolder+"*/"):
-        predictImage(that, subfolder, p_id, patientFolder, that.getNNID(p_id)+general_utils.getSuffix()+"/"+relativePatientFolder)
+        tmpStats = predictImage(that, subfolder, p_id, patientFolder, that.getNNID(p_id)+general_utils.getSuffix()+"/"+relativePatientFolder)
+        for func in that.statistics:
+            for classToEval in that.classes_to_evaluate:
+                meanV = np.mean(tmpStats[func.__name__][classToEval])
+                print("TEST MEAN %s %s: %.2f%% " % (func.__name__, classToEval, round(meanV,6)*100))
+                stats[func.__name__][classToEval].append(meanV)
+            general_utils.printSeparation("+",20)
 
     end = time.time()
     print("Total time: {0}s for patient {1}.".format(round(end-start, 3), p_id))
-    if constants.getVerbose():
-        general_utils.printSeparation("-", 100)
+
+    if constants.getVerbose(): general_utils.printSeparation("-", 100)
+
+    return stats
 
 ################################################################################
 # Generate a SINGLE image for the patient and save it
 def predictImage(that, subfolder, p_id, patientFolder, relativePatientFolder):
     start = time.time()
+    stats = {}
+    YTRUEToEvaluate, YPREDToEvaluate = [], []
 
     idx = general_utils.getStringPatientIndex(subfolder.replace(patientFolder, '').replace("/", "")) # image index
 
@@ -98,17 +114,21 @@ def predictImage(that, subfolder, p_id, patientFolder, relativePatientFolder):
         pixels = pixels.reshape(1, pixels.shape[0], pixels.shape[1], pixels.shape[2], 1)
 
         ### MODEL PREDICT
-        slicingWindowPredicted = predictFromModel(that, pixels)[that.test_steps-1]
+        y_true = general_utils.getSlicingWindow(labeled_image, startingX, startingY, constants.getM(), constants.getN())/255
         # slicingWindowPredicted contain only the prediction for the last step
+        slicingWindowPredicted = predictFromModel(that, pixels)[that.test_steps-1]
+
+        YTRUEToEvaluate.extend(y_true)
+        YPREDToEvaluate.extend(slicingWindowPredicted)
 
         # Transform the slicingWindowPredicted into a touple of three dimension!
         threeDimensionSlicingWindow = np.zeros(shape=(slicingWindowPredicted.shape[0],slicingWindowPredicted.shape[1], 3), dtype=np.uint8)
 
-
         # with open(logsName, "a+") as img_file:
         #     img_file.write(np.array2string(slicingWindowPredicted))
+        # cast_y_true = K.cast(y_true, dtype="float64")
+        # cast_slicingWindPred = K.cast(slicingWindowPredicted, dtype="float64")
 
-        backgroundTile = np.array(slicingWindowPredicted[0])
 
         for r, _ in enumerate(slicingWindowPredicted):
             # if the tile is very similar to the one in the top left corner (=background tile)
@@ -118,9 +138,6 @@ def predictImage(that, subfolder, p_id, patientFolder, relativePatientFolder):
             for c, pixel in enumerate(slicingWindowPredicted[r]):
                 if pixel >= 0.90: pixel = 1
                 threeDimensionSlicingWindow[r][c] = (pixel*255,)*3
-
-        # with open(logsName, "a+") as img_file:
-        #     img_file.write(np.array2string(threeDimensionSlicingWindow))
 
         # Create the image
         imagePredicted[startingX:startingX+constants.getM(), startingY:startingY+constants.getN()] = threeDimensionSlicingWindow
@@ -142,10 +159,28 @@ def predictImage(that, subfolder, p_id, patientFolder, relativePatientFolder):
     heatmap_img = cv2.applyColorMap(~imagePredicted, cv2.COLORMAP_JET)
     cv2.imwrite(that.saveImagesFolder+relativePatientFolder+idx+"_heatmap.png", heatmap_img)
 
+    tn, fn, fp, tp = {}, {}, {}, {}
+    for classToEval in that.classes_to_evaluate:
+        if classToEval=="penumbra": label=2
+        elif classToEval=="core": label=3
+        elif classToEval=="penumbracore": label=4
+
+        tn[classToEval], fn[classToEval], fp[classToEval], tp[classToEval] = metrics.mappingPrediction(YTRUEToEvaluate, YPREDToEvaluate, label)
+
+    for func in that.statistics:
+        for classToEval in that.classes_to_evaluate:
+            if func.__name__ not in stats.keys(): stats[func.__name__] = {}
+            if classToEval not in stats[func.__name__].keys(): stats[func.__name__][classToEval] = []
+
+            stats[func.__name__][classToEval].append(func(tn[classToEval], fn[classToEval], fp[classToEval], tp[classToEval]))
+            # stats[func.__name__].append(func(YTRUEToEvaluate, YPREDToEvaluate))
+
     end = time.time()
     if constants.getVerbose():
         print("Time: {0}s for image {1}.".format(round(end-start, 3), idx))
         general_utils.printSeparation("-", 100)
+
+    return stats
 
 ################################################################################
 # Test the model with the selected patient

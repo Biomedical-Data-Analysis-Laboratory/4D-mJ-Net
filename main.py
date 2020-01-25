@@ -30,6 +30,7 @@ def main():
         networks.append(NeuralNetwork(info, setting))
 
     for nn in networks:
+        stats = {}
         for testPatient in setting["PATIENT_TO_TEST"]:
             p_id = general_utils.getStringPatientIndex(testPatient)
             isAlreadySaved = False
@@ -37,17 +38,6 @@ def main():
             # set the multi/single PROCESSING
             nn.setProcessingEnv(setting["init"]["MULTIPROCESSING"])
 
-            ################################################################
-            # NOTE: this is just a TEST! (it should go inside the RUN TRAINING...)
-            ################################################################
-            ## GET THE DATASET:
-            # - The dataset is composed of all the .hkl (or .h5) files in the dataset folder!
-            # if we are using a data augmentation dataset we need to get the dataset differently each time
-            if nn.da: train_df = dataset_utils.getDataset(nn, p_id)
-            else: # Otherwise get dataset only the first time
-                if train_df is None: train_df = dataset_utils.getDataset(nn)
-            ## PREPARE DATASET
-            nn.prepareDataset(train_df, p_id)
 
             # Check if the model was already trained and saved
             if nn.isModelSaved(p_id):
@@ -56,6 +46,14 @@ def main():
                 nn.loadSavedModel(p_id)
                 isAlreadySaved = True
             else:
+                ## GET THE DATASET:
+                # - The dataset is composed of all the .hkl (or .h5) files in the dataset folder!
+                # if we are using a data augmentation dataset we need to get the dataset differently each time
+                if nn.da: train_df = dataset_utils.getDataset(nn, p_id)
+                else: # Otherwise get dataset only the first time
+                    if train_df is None: train_df = dataset_utils.getDataset(nn)
+                ## PREPARE DATASET
+                nn.prepareDataset(train_df, p_id)
                 ## SET THE CALLBACKS, RUN TRAINING & SAVE THE MODELS WEIGHTS
                 nn.runTraining(p_id, n_gpu)
                 nn.saveModelAndWeight(p_id)
@@ -64,7 +62,10 @@ def main():
             if nn.supervised:
                 nn.evaluateModelWithCategorics(p_id, isAlreadySaved)
             # predict and save the images
-            nn.predictAndSaveImages(p_id)
+            tmpStats = nn.predictAndSaveImages(p_id, stats)
+            for func in nn.statistics:
+                stats[func.__name__].append(np.mean(tmpStats[func.__name__]))
+        nn.saveStats(stats, "PATIENT_TO_TEST")
 
 ################################################################################
 ################################################################################

@@ -1,5 +1,5 @@
-from Utils import general_utils, dataset_utils
-import models, training, testing, constants
+from Utils import general_utils, dataset_utils, models
+import training, testing, constants
 
 import os
 import glob
@@ -39,8 +39,9 @@ class NeuralNetwork(object):
         self.optimizerInfo = info["optimizer"]
         self.params = info["params"]
         self.loss = general_utils.getLoss(info["loss"])
-        self.metrics = general_utils.getMetrics(info["metrics"])
         self.classes_to_evaluate = info["classes_to_evaluate"]
+        self.metricFuncs = general_utils.getStatisticFunctions(info["metrics"])
+        self.statistics = general_utils.getStatisticFunctions(info["statistics"])
 
         self.da = True if info["data_augmentation"]==1 else False
         self.train_again = True if info["train_again"]==1 else False
@@ -58,7 +59,6 @@ class NeuralNetwork(object):
         self.saveTextFolder = "SAVE/"+setting["relative_paths"]["save"]["text"]
 
         self.infoCallbacks = info["callbacks"]
-
 
 ################################################################################
 # Initialize the callbacks
@@ -151,7 +151,7 @@ class NeuralNetwork(object):
         self.model.compile(
             optimizer=self.optimizer,
             loss=self.loss["loss"],
-            metrics=[self.metrics]
+            metrics=[self.metricFuncs]
         )
 
 ################################################################################
@@ -238,18 +238,32 @@ class NeuralNetwork(object):
 
 ################################################################################
 # Call the function located in testing for predicting and saved the images
-    def predictAndSaveImages(self, p_id):
+    def predictAndSaveImages(self, p_id, stats):
         if self.getVerbose():
             general_utils.printSeparation("+", 50)
             print("Predicting and saving the images for patient {}".format(p_id))
 
-        testing.predictAndSaveImages(self, p_id)
+        stats = testing.predictAndSaveImages(self, p_id, stats)
+        self.saveStats(stats, p_id)
+        return stats
+
+################################################################################
+# Function to save in a file the statistic for the test patients
+    def saveStats(self, stats, p_id):
+        suffix = general_utils.getSuffix()
+        with open(general_utils.getFullDirectoryPath(self.saveTextFolder)+self.getNNID(p_id)+suffix+".txt", "a+") as text_file:
+            for func in self.statistics:
+                for classToEval in that.classes_to_evaluate:
+                    meanV = np.mean(stats[func.__name__][classToEval])
+                    stdV = np.std(stats[func.__name__][classToEval])
+                    text_file.write("TEST MEAN %s %s: %.2f%% \n" % (func.__name__, classToEval, round(meanV,6)*100))
+                    text_file.write("TEST STD %s %s: %.2f%% \n" % (func.__name__, classToEval, round(stdV,6)*100))
+                    text_file.write("+++++ \n")
+                text_file.write("----------------------------------------------------- \n")
 
 ################################################################################
 # Test the model with the selected patient
     def evaluateModelWithCategorics(self, p_id, isAlreadySaved):
-        training.setClassesToEvaluate(self.classes_to_evaluate)
-
         if self.getVerbose():
             general_utils.printSeparation("+", 50)
             print("Evaluating the model for patient {}".format(p_id))

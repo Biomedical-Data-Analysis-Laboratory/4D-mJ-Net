@@ -23,9 +23,11 @@
   "models": [
      {
       "name": "mJNet",
-      "loss": "dice_coef_loss",
-      "metrics": ["dice_coef", "jaccard_distance", "sensitivity", "specificity", "precision", "f1", "mod_dice_coef"],
+      "loss": "mod_dice_coef_loss",
+      "metrics": ["mod_dice_coef"],
       "epochs": 5,
+      "classes_to_evaluate": ["penumbra", "core", "penumbracore"],
+      "statistics": ["sensitivity", "specificity", "precision", "f1", "accuracy", "jaccard_index"],
       "val":{
         "validation_perc": 5,
         "random_validation_selection": 0
@@ -50,7 +52,7 @@
       },
       "callbacks":{
         "ModelCheckpoint": {
-          "monitor": "dice_coef",
+          "monitor": "mod_dice_coef",
           "mode": "max",
           "period": 1
         },
@@ -68,7 +70,7 @@
           "min_lr": 0
         },
         "CollectBatchStats": {
-          "acc":"dice_coef"
+          "acc":"mod_dice_coef"
         }
       },
       "data_augmentation": 1,

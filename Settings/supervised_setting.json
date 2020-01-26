@@ -32,7 +32,7 @@
         "validation_perc": 5,
         "random_validation_selection": 0
       },
-      "test_steps":5,
+      "test_steps":1,
       "optimizer": {
         "name": "Adam",
         "lr": 0.001,

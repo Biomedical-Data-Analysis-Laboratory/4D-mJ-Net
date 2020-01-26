@@ -53,6 +53,8 @@ def predictAndSaveImages(that, p_id, stats):
                 print("TEST MEAN %s %s: %.2f%% " % (func.__name__, classToEval, round(meanV,6)*100))
                 stats[func.__name__][classToEval].append(meanV)
             general_utils.printSeparation("+",20)
+            # print(func.__name__)
+            # print(stats[func.__name__])
 
     end = time.time()
     print("Total time: {0}s for patient {1}.".format(round(end-start, 3), p_id))
@@ -114,21 +116,18 @@ def predictImage(that, subfolder, p_id, patientFolder, relativePatientFolder):
         pixels = pixels.reshape(1, pixels.shape[0], pixels.shape[1], pixels.shape[2], 1)
 
         ### MODEL PREDICT
-        y_true = general_utils.getSlicingWindow(labeled_image, startingX, startingY, constants.getM(), constants.getN())/255
+        y_true = general_utils.getSlicingWindow(labeled_image, startingX, startingY, constants.getM(), constants.getN())
         # slicingWindowPredicted contain only the prediction for the last step
         slicingWindowPredicted = predictFromModel(that, pixels)[that.test_steps-1]
 
         YTRUEToEvaluate.extend(y_true)
-        YPREDToEvaluate.extend(slicingWindowPredicted)
+        YPREDToEvaluate.extend(slicingWindowPredicted*255)
 
         # Transform the slicingWindowPredicted into a touple of three dimension!
         threeDimensionSlicingWindow = np.zeros(shape=(slicingWindowPredicted.shape[0],slicingWindowPredicted.shape[1], 3), dtype=np.uint8)
 
         # with open(logsName, "a+") as img_file:
         #     img_file.write(np.array2string(slicingWindowPredicted))
-        # cast_y_true = K.cast(y_true, dtype="float64")
-        # cast_slicingWindPred = K.cast(slicingWindowPredicted, dtype="float64")
-
 
         for r, _ in enumerate(slicingWindowPredicted):
             # if the tile is very similar to the one in the top left corner (=background tile)
@@ -159,13 +158,24 @@ def predictImage(that, subfolder, p_id, patientFolder, relativePatientFolder):
     heatmap_img = cv2.applyColorMap(~imagePredicted, cv2.COLORMAP_JET)
     cv2.imwrite(that.saveImagesFolder+relativePatientFolder+idx+"_heatmap.png", heatmap_img)
 
+    ## TEMP:
+    cv2.imwrite(that.saveImagesFolder+relativePatientFolder+idx+"_label.png", labeled_image)
+
     tn, fn, fp, tp = {}, {}, {}, {}
     for classToEval in that.classes_to_evaluate:
         if classToEval=="penumbra": label=2
         elif classToEval=="core": label=3
         elif classToEval=="penumbracore": label=4
-
         tn[classToEval], fn[classToEval], fp[classToEval], tp[classToEval] = metrics.mappingPrediction(YTRUEToEvaluate, YPREDToEvaluate, label)
+        # print(classToEval)
+        # print("tn")
+        # print(tn)
+        # print("fn")
+        # print(fn)
+        # print("fp")
+        # print(fp)
+        # print("tp")
+        # print(tp)
 
     for func in that.statistics:
         for classToEval in that.classes_to_evaluate:
@@ -173,7 +183,6 @@ def predictImage(that, subfolder, p_id, patientFolder, relativePatientFolder):
             if classToEval not in stats[func.__name__].keys(): stats[func.__name__][classToEval] = []
 
             stats[func.__name__][classToEval].append(func(tn[classToEval], fn[classToEval], fp[classToEval], tp[classToEval]))
-            # stats[func.__name__].append(func(YTRUEToEvaluate, YPREDToEvaluate))
 
     end = time.time()
     if constants.getVerbose():

@@ -197,6 +197,10 @@ def accuracy_penumbracore(y_true, y_pred):
 # function to convert the prediction and the ground truth in a confusion matrix
 def mappingPrediction(y_true, y_pred, label):
     conf_matr = np.zeros(shape=(2,2))
+    tn, fp, fn, tp = 0,0,0,0
+
+    or_yt = y_true
+    or_yp = y_pred
 
     if label==2: # penumbra
         y_true, y_pred = thresholdingPenumbra(np.array(y_true), np.array(y_pred))
@@ -206,12 +210,21 @@ def mappingPrediction(y_true, y_pred, label):
         y_true, y_pred = thresholdingPenumbraCore(np.array(y_true), np.array(y_pred))
 
     for i,_ in enumerate(y_true):
-        conf_matr = conf_matr + confusion_matrix(y_true[i], y_pred[i], labels=[0,1])
-        # if label==3:
+        # tn1, fp1, fn1, tp1 = confusion_matrix(y_true[i], y_pred[i], labels=[0,1]).ravel()
+        # tn, fp, fn, tp = tn1+tn, fp1+fp, fn1+fn, tp1+tp
+
+        tmp_conf_matr = multilabel_confusion_matrix(y_true[i], y_pred[i], labels=[0,1])
+        # if 76 in or_yt[i] or 150 in or_yt[i]:
+        #     print(i)
+        #     print(or_yt[i])
         #     print(y_true[i])
+        #     print("------")
+        #     print(or_yp[i])
         #     print(y_pred[i])
+        #     print(tmp_conf_matr)
         #     print(conf_matr)
-            # if sum(y_true[i] > 0): time.sleep(10)
+        #     time.sleep(10)
+        conf_matr = tmp_conf_matr[1] + conf_matr
 
     tn = conf_matr[0][0]
     fn = conf_matr[0][1]
@@ -223,26 +236,39 @@ def mappingPrediction(y_true, y_pred, label):
 ################################################################################
 # function to map the y_true and y_pred
 def thresholdingPenumbra(y_true, y_pred):
-    thresPenumbra = constants.PIXELVALUES[2]/constants.PIXELVALUES[0] # = 0.298
-    thresCore = constants.PIXELVALUES[3]/constants.PIXELVALUES[0] # = 0.588
-    eps = 0.1 # abs((thresCore-thresPenumbra)/2) ~ 0.145
-    y_true = np.array(y_true>=thresPenumbra-eps, dtype="int32") * np.array(y_true<=thresPenumbra+eps, dtype="int32")
-    y_pred = np.array(y_pred>=thresPenumbra-eps, dtype="int32") * np.array(y_pred<=thresPenumbra+eps, dtype="int32")
-
+    # thresPenumbra = constants.PIXELVALUES[2]/constants.PIXELVALUES[0] # = 0.298
+    # thresCore = constants.PIXELVALUES[3]/constants.PIXELVALUES[0] # = 0.588
+    # eps = 0.1 # abs((thresCore-thresPenumbra)/2) ~ 0.145
+    #
+    thresPenumbra = constants.PIXELVALUES[2]
+    thresCore = constants.PIXELVALUES[3]
+    eps = 36
+    y_true = np.array(y_true>=(thresPenumbra-eps), dtype="int32") * np.array(y_true<=(thresPenumbra+eps), dtype="int32")
+    y_pred = np.array(y_pred>=(thresPenumbra-eps), dtype="int32") * np.array(y_pred<=(thresPenumbra+eps), dtype="int32")
     return (y_true, y_pred)
 
 def thresholdingCore(y_true, y_pred):
-    thresPenumbra = constants.PIXELVALUES[2]/constants.PIXELVALUES[0] # = 0.298
-    thresCore = constants.PIXELVALUES[3]/constants.PIXELVALUES[0] # = 0.588
-    eps = 0.1 # abs((thresCore-thresPenumbra)/2) ~ 0.145
-    y_true = np.array(y_true>=thresCore-eps, dtype="int32") * np.array(y_true<=thresCore+eps, dtype="int32")
-    y_pred = np.array(y_pred>=thresCore-eps, dtype="int32") * np.array(y_pred<=thresCore+eps, dtype="int32")
+    # thresPenumbra = constants.PIXELVALUES[2]/constants.PIXELVALUES[0] # = 0.298
+    # thresCore = constants.PIXELVALUES[3]/constants.PIXELVALUES[0] # = 0.588
+    # eps = 0.1 # abs((thresCore-thresPenumbra)/2) ~ 0.145
+    #
+    thresPenumbra = constants.PIXELVALUES[2]
+    thresCore = constants.PIXELVALUES[3]
+    eps = 36
+    eps_plus = 79 # for upper bounding ~229
+    y_true = np.array(y_true>=(thresCore-eps), dtype="int32") * np.array(y_true<=(thresCore+eps_plus), dtype="int32")
+    y_pred = np.array(y_pred>=(thresCore-eps), dtype="int32") * np.array(y_pred<=(thresCore+eps_plus), dtype="int32")
     return (y_true, y_pred)
 
 def thresholdingPenumbraCore(y_true, y_pred):
-    thresPenumbra = constants.PIXELVALUES[2]/constants.PIXELVALUES[0] # = 0.298
-    thresCore = constants.PIXELVALUES[3]/constants.PIXELVALUES[0] # = 0.588
-    eps =  0.1 # abs((thresCore-thresPenumbra)/2) ~ 0.145
-    y_true = np.array(y_true>=thresPenumbra-eps, dtype="int32") * np.array(y_true<=thresCore+eps, dtype="int32")
-    y_pred = np.array(y_pred>=thresPenumbra-eps, dtype="int32") * np.array(y_pred<=thresCore+eps, dtype="int32")
+    # thresPenumbra = constants.PIXELVALUES[2]/constants.PIXELVALUES[0] # = 0.298
+    # thresCore = constants.PIXELVALUES[3]/constants.PIXELVALUES[0] # = 0.588
+    # eps =  0.1 # abs((thresCore-thresPenumbra)/2) ~ 0.145
+    #
+    thresPenumbra = constants.PIXELVALUES[2]
+    thresCore = constants.PIXELVALUES[3]
+    eps = 36
+    eps_plus = 79 # for upper bounding ~229
+    y_true = np.array(y_true>=(thresPenumbra-eps), dtype="int32") * np.array(y_true<=(thresCore+eps_plus), dtype="int32")
+    y_pred = np.array(y_pred>=(thresPenumbra-eps), dtype="int32") * np.array(y_pred<=(thresCore+eps_plus), dtype="int32")
     return (y_true, y_pred)

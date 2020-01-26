@@ -253,7 +253,7 @@ class NeuralNetwork(object):
         suffix = general_utils.getSuffix()
         with open(general_utils.getFullDirectoryPath(self.saveTextFolder)+self.getNNID(p_id)+suffix+".txt", "a+") as text_file:
             for func in self.statistics:
-                for classToEval in that.classes_to_evaluate:
+                for classToEval in self.classes_to_evaluate:
                     meanV = np.mean(stats[func.__name__][classToEval])
                     stdV = np.std(stats[func.__name__][classToEval])
                     text_file.write("TEST MEAN %s %s: %.2f%% \n" % (func.__name__, classToEval, round(meanV,6)*100))

@@ -27,7 +27,7 @@
       "metrics": ["mod_dice_coef"],
       "epochs": 50,
       "classes_to_evaluate": ["penumbra", "core", "penumbracore"],
-      "statistics": ["sensitivity", "specificity", "precision", "f1", "accuracy", "jaccard_index"],
+      "statistics": ["sensitivity", "specificity", "precision", "f1", "accuracy", "jaccard_index", "mAP", "ROC_AUC"],
       "val":{
         "validation_perc": 5,
         "random_validation_selection": 0

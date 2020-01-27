@@ -212,8 +212,8 @@ class NeuralNetwork(object):
         sample_weights = self.train_df.label.map({
             constants.LABELS[0]:1,
             constants.LABELS[1]:1,
-            constants.LABELS[2]:1,
-            constants.LABELS[3]:1
+            constants.LABELS[2]:10,
+            constants.LABELS[3]:100
         })
 
         return sample_weights.values[self.dataset[flag]["indices"]]
@@ -257,7 +257,7 @@ class NeuralNetwork(object):
                     meanV = np.mean(stats[func.__name__][classToEval])
                     stdV = np.std(stats[func.__name__][classToEval])
                     text_file.write("TEST MEAN %s %s: %.2f%% \n" % (func.__name__, classToEval, round(meanV,6)*100))
-                    text_file.write("TEST STD %s %s: %.2f%% \n" % (func.__name__, classToEval, round(stdV,6)*100))
+                    text_file.write("TEST STD %s %s: %.2f \n" % (func.__name__, classToEval, round(stdV,6)))
                     text_file.write("+++++ \n")
                 text_file.write("----------------------------------------------------- \n")
 

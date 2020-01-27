@@ -1,14 +1,18 @@
 from Utils import metrics
 
+import tensorflow.keras.backend as K
+
 ################################################################################
-# Function that calculates the DICE coefficient loss. Util for the LOSS function during the training of the model (for image in input and output)!
+# Function that calculates the modified DICE coefficient loss. Util for the LOSS function during the training of the model (for image in input and output)!
 def mod_dice_coef_loss(y_true, y_pred):
-    return 1-metrics.dice_coef(y_true, y_pred)
-
-
-def dice_coef_loss(y_true, y_pred):
     return 1-metrics.mod_dice_coef(y_true, y_pred)
 
+################################################################################
+# Calculate the real value for the Dice coefficient, but it returns lower values than the other dice_coef + lower specificity and precision
+def dice_coef_loss(y_true, y_pred):
+    return 1-metrics.dice_coef(y_true, y_pred)
+
+################################################################################
 # Ref: salehi17, "Twersky loss function for image segmentation using 3D FCDN"
 # -> the score is computed for each class separately and then summed
 # alpha=beta=0.5 : dice coefficient
@@ -31,6 +35,7 @@ def tversky_loss(y_true, y_pred):
     T = K.sum(num/den) # when summing over classes, T has dynamic range [0 Ncl]
 
     Ncl = K.cast(K.shape(y_true)[-1], 'float32')
+
     return Ncl-T
 
 # TODO:

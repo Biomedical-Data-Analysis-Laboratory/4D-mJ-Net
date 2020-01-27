@@ -4,7 +4,7 @@ from Utils import general_utils, callback
 import numpy as np
 import tensorflow as tf
 import tensorflow.keras.backend as K
-from sklearn.metrics import roc_auc_score, confusion_matrix, multilabel_confusion_matrix
+from sklearn.metrics import roc_auc_score, average_precision_score, auc, multilabel_confusion_matrix
 
 import time
 
@@ -18,7 +18,8 @@ def mod_dice_coef(y_true, y_pred):
     """
 
     intersection = K.sum(K.abs(y_true * y_pred), axis=-1)
-    return (2. * intersection + 1) / (K.sum(K.square(y_true),-1) + K.sum(K.square(y_pred),-1) + 1)
+    denom = (K.sum(K.square(y_true),-1) + K.sum(K.square(y_pred),-1) + 1)
+    return (2. * intersection + 1) / denom
 
 ################################################################################
 # REAL Dice coefficient = (2*|X & Y|)/ (|X|+ |Y|)
@@ -28,38 +29,6 @@ def dice_coef(y_true, y_pred):
     intersection = K.sum(K.abs(y_true * y_pred), axis=-1)
     denom = (K.sum(K.abs(y_true) + K.abs(y_pred), axis=-1) + 1)
     return  (2. * intersection + 1) / denom
-
-# TODO:
-def generalized_dice_coeff(y_true, y_pred):
-    Ncl = y_pred.shape[-1]
-    w = K.zeros(shape=(Ncl,))
-    w = K.sum(y_true, axis=(0,1,2))
-    w = 1/(w**2+0.000001)
-    # Compute gen dice coef:
-    numerator = y_true*y_pred
-    numerator = w*K.sum(numerator,(0,1,2))
-    numerator = K.sum(numerator)
-
-    denominator = y_true+y_pred
-    denominator = w*K.sum(denominator,(0,1,2))
-    denominator = K.sum(denominator)
-
-    gen_dice_coef = 2*numerator/denominator
-
-    return gen_dice_coef
-
-# TODO:
-def dice_coef_binary(y_true, y_pred, smooth=1e-7):
-    '''
-    Dice coefficient for 2 categories. Ignores background pixel label 0
-    Pass to model as metric during compile statement
-    '''
-    y_true_f = K.flatten(K.one_hot(K.cast(y_true, 'int32'), num_classes=3)[...,1:])
-    y_pred_f = K.flatten(y_pred[...,1:])
-    intersect = K.sum(y_true_f * y_pred_f, axis=-1)
-    denom = K.sum(y_true_f + y_pred_f, axis=-1)
-    return K.mean((2. * intersect / (denom + smooth)))
-
 
 ################################################################################
 # Function to calculate the Jaccard similarity
@@ -79,56 +48,16 @@ def jaccard_index(tn, fn, fp, tp):
     f = f1(tn, fn, fp, tp)
     return (f+1e-07)/(2-f+1e-07)
 
-def jaccard_index_penumbra(y_true, y_pred):
-    tn, fn, fp, tp = mappingPrediction(y_true, y_pred, 2)
-    return jaccard_index(tn, fn, fp, tp)
-
-def jaccard_index_core(y_true, y_pred):
-    tn, fn, fp, tp = mappingPrediction(y_true, y_pred, 3)
-    print("jacc core", tn, fn, fp, tp)
-    return jaccard_index(tn, fn, fp, tp)
-
-def jaccard_index_penumbracore(y_true, y_pred):
-    tn, fn, fp, tp = mappingPrediction(y_true, y_pred, 4)
-    return jaccard_index(tn, fn, fp, tp)
-
 ################################################################################
 # Function that calculate the metrics for the SENSITIVITY
 # ALSO CALLED "RECALL"!
 def sensitivity(tn, fn, fp, tp):
     return (tp+1e-07) / (tp+fn+1e-07)
 
-def sensitivity_penumbra(y_true, y_pred):
-    tn, fn, fp, tp = mappingPrediction(y_true, y_pred, 2)
-    return sensitivity(tn, fn, fp, tp)
-
-def sensitivity_core(y_true, y_pred):
-    tn, fn, fp, tp = mappingPrediction(y_true, y_pred, 3)
-    print("sens core", tn, fn, fp, tp)
-    return sensitivity(tn, fn, fp, tp)
-
-def sensitivity_penumbracore(y_true, y_pred):
-    tn, fn, fp, tp = mappingPrediction(y_true, y_pred, 4)
-    return sensitivity(tn, fn, fp, tp)
-
-
 ################################################################################
 # Function that calculate the metrics for the SPECIFICITY
 def specificity(tn, fn, fp, tp):
     return (tn+1e-07) / (tn+fp+1e-07)
-
-def specificity_penumbra(y_true, y_pred):
-    tn, fn, fp, tp = mappingPrediction(y_true, y_pred, 2)
-    return specificity(tn, fn, fp, tp)
-
-def specificity_core(y_true, y_pred):
-    tn, fn, fp, tp = mappingPrediction(y_true, y_pred, 3)
-    print("spec core", tn, fn, fp, tp)
-    return specificity(tn, fn, fp, tp)
-
-def specificity_penumbracore(y_true, y_pred):
-    tn, fn, fp, tp = mappingPrediction(y_true, y_pred, 4)
-    return specificity(tn, fn, fp, tp)
 
 ################################################################################
 # Function that calculate the metrics for the PRECISION
@@ -143,19 +72,6 @@ def precision(tn, fn, fp, tp):
     precision = (tp+1e-07)/(tp+fp+1e-07)
     return precision
 
-def precision_penumbra(y_true, y_pred):
-    tn, fn, fp, tp = mappingPrediction(y_true, y_pred, 2)
-    return precision(tn, fn, fp, tp)
-
-def precision_core(y_true, y_pred):
-    tn, fn, fp, tp = mappingPrediction(y_true, y_pred, 3)
-    print("prec core", tn, fn, fp, tp)
-    return precision(tn, fn, fp, tp)
-
-def precision_penumbracore(y_true, y_pred):
-    tn, fn, fp, tp = mappingPrediction(y_true, y_pred, 4)
-    return precision(tn, fn, fp, tp)
-
 ################################################################################
 # Function that calculate the metrics for the F1 SCORE
 def f1(tn, fn, fp, tp):
@@ -163,35 +79,53 @@ def f1(tn, fn, fp, tp):
     recall = sensitivity(tn, fn, fp, tp)
     return 2*(((prec*recall)+1e-07)/(prec+recall+1e-07))
 
-def f1_penumbra(y_true, y_pred):
-    tn, fn, fp, tp = mappingPrediction(y_true, y_pred, 2)
-    return f1(tn, fn, fp, tp)
-
-def f1_core(y_true, y_pred):
-    tn, fn, fp, tp = mappingPrediction(y_true, y_pred, 3)
-    print("f1 core", tn, fn, fp, tp)
-    return f1(tn, fn, fp, tp)
-
-def f1_penumbracore(y_true, y_pred):
-    tn, fn, fp, tp = mappingPrediction(y_true, y_pred, 4)
-    return f1(tn, fn, fp, tp)
-
 ################################################################################
 # Function that calculate the metrics for the accuracy
 def accuracy(tn, fn, fp, tp):
     return (tp+tn+1e-07)/(tn+fn+tp+fn+1e-07)
 
-def accuracy_penumbra(y_true, y_pred):
-    tn, fn, fp, tp = mappingPrediction(y_true, y_pred, 2)
-    return accuracy(tn, fn, fp, tp)
+################################################################################
+# Function that calculate the metrics for the average precision
+def mAP(y_true, y_pred, label):
+    if label==2: # penumbra
+        y_true, y_pred = thresholdingPenumbra(np.array(y_true), np.array(y_pred))
+    elif label==3: # Core
+        y_true, y_pred = thresholdingCore(np.array(y_true), np.array(y_pred))
+    elif label==4: # Penumbra + Core
+        y_true, y_pred = thresholdingPenumbraCore(np.array(y_true), np.array(y_pred))
 
-def accuracy_core(y_true, y_pred):
-    tn, fn, fp, tp = mappingPrediction(y_true, y_pred, 3)
-    return accuracy(tn, fn, fp, tp)
+    return average_precision_score(y_true, y_pred)
 
-def accuracy_penumbracore(y_true, y_pred):
-    tn, fn, fp, tp = mappingPrediction(y_true, y_pred, 4)
-    return accuracy(tn, fn, fp, tp)
+# def AUC(y_true, y_pred, label):
+#     if label==2: # penumbra
+#         y_true, y_pred = thresholdingPenumbra(np.array(y_true), np.array(y_pred))
+#     elif label==3: # Core
+#         y_true, y_pred = thresholdingCore(np.array(y_true), np.array(y_pred))
+#     elif label==4: # Penumbra + Core
+#         y_true, y_pred = thresholdingPenumbraCore(np.array(y_true), np.array(y_pred))
+#
+#     print(y_true.shape)
+#     print(y_pred.shape)
+#
+#     print(y_pred.reshape(1, y_pred.shape[0]*y_pred.shape[1]).shape)
+#
+#     return auc(y_true, y_pred)
+
+def ROC_AUC(y_true, y_pred, label):
+    if label==2: # penumbra
+        y_true, y_pred = thresholdingPenumbra(np.array(y_true), np.array(y_pred))
+    elif label==3: # Core
+        y_true, y_pred = thresholdingCore(np.array(y_true), np.array(y_pred))
+    elif label==4: # Penumbra + Core
+        y_true, y_pred = thresholdingPenumbraCore(np.array(y_true), np.array(y_pred))
+
+    try:
+        return roc_auc_score(y_true, y_pred)
+    except:
+        return 0
+
+
+
 
 ################################################################################
 # function to convert the prediction and the ground truth in a confusion matrix
@@ -201,30 +135,23 @@ def mappingPrediction(y_true, y_pred, label):
 
     or_yt = y_true
     or_yp = y_pred
+    #
+    # if label==2: # penumbra
+    #     y_true, y_pred = thresholdingPenumbra(np.array(y_true), np.array(y_pred))
+    # elif label==3: # Core
+    #     y_true, y_pred = thresholdingCore(np.array(y_true), np.array(y_pred))
+    # elif label==4: # Penumbra + Core
+    #     y_true, y_pred = thresholdingPenumbraCore(np.array(y_true), np.array(y_pred))
 
-    if label==2: # penumbra
-        y_true, y_pred = thresholdingPenumbra(np.array(y_true), np.array(y_pred))
-    elif label==3: # Core
-        y_true, y_pred = thresholdingCore(np.array(y_true), np.array(y_pred))
-    elif label==4: # Penumbra + Core
-        y_true, y_pred = thresholdingPenumbraCore(np.array(y_true), np.array(y_pred))
+    y_true, y_pred = thresholding(np.array(y_true), np.array(y_pred))
 
     for i,_ in enumerate(y_true):
         # tn1, fp1, fn1, tp1 = confusion_matrix(y_true[i], y_pred[i], labels=[0,1]).ravel()
         # tn, fp, fn, tp = tn1+tn, fp1+fp, fn1+fn, tp1+tp
 
-        tmp_conf_matr = multilabel_confusion_matrix(y_true[i], y_pred[i], labels=[0,1])
-        # if 76 in or_yt[i] or 150 in or_yt[i]:
-        #     print(i)
-        #     print(or_yt[i])
-        #     print(y_true[i])
-        #     print("------")
-        #     print(or_yp[i])
-        #     print(y_pred[i])
-        #     print(tmp_conf_matr)
-        #     print(conf_matr)
-        #     time.sleep(10)
-        conf_matr = tmp_conf_matr[1] + conf_matr
+        tmp_conf_matr = multilabel_confusion_matrix(y_true[i], y_pred[i], labels=[0,1,2,3])
+        if label!=4: conf_matr = tmp_conf_matr[label] + conf_matr
+        else: conf_matr = tmp_conf_matr[2] + tmp_conf_matr[3] + conf_matr
 
     tn = conf_matr[0][0]
     fn = conf_matr[0][1]
@@ -232,6 +159,31 @@ def mappingPrediction(y_true, y_pred, label):
     tp = conf_matr[1][1]
 
     return tn, fn, fp, tp
+
+def thresholding(y_true, y_pred):
+    thresBack = constants.PIXELVALUES[0]
+    thresBrain = constants.PIXELVALUES[1]
+    thresPenumbra = constants.PIXELVALUES[2]
+    thresCore = constants.PIXELVALUES[3]
+    eps = (thresCore-thresPenumbra)/2
+    eps_plus = 79 # for upper bounding ~229
+
+    y_true_brain = np.array(y_true<=(thresBrain+eps), dtype="int32")
+    y_pred_brain = np.array(y_pred<=(thresBrain+eps), dtype="int32")
+    y_true_p = np.array(y_true>=(thresPenumbra-eps), dtype="int32") * np.array(y_true<(thresPenumbra+eps), dtype="int32")
+    y_pred_p = np.array(y_pred>=(thresPenumbra-eps), dtype="int32") * np.array(y_pred<(thresPenumbra+eps), dtype="int32")
+    y_true_c = np.array(y_true>=(thresCore-eps), dtype="int32") * np.array(y_true<=(thresCore+eps_plus), dtype="int32")
+    y_pred_c = np.array(y_pred>=(thresCore-eps), dtype="int32") * np.array(y_pred<=(thresCore+eps_plus), dtype="int32")
+
+    y_true_p = y_true_p * 2
+    y_pred_p = y_pred_p * 2
+    y_true_c = y_true_c * 3
+    y_pred_c = y_pred_c * 3
+
+    y_true = y_true_brain+y_true_p+y_true_c
+    y_pred = y_pred_brain+y_pred_p+y_pred_c
+
+    return (y_true, y_pred)
 
 ################################################################################
 # function to map the y_true and y_pred

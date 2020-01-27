@@ -53,8 +53,6 @@ def predictAndSaveImages(that, p_id, stats):
                 print("TEST MEAN %s %s: %.2f%% " % (func.__name__, classToEval, round(meanV,6)*100))
                 stats[func.__name__][classToEval].append(meanV)
             general_utils.printSeparation("+",20)
-            # print(func.__name__)
-            # print(stats[func.__name__])
 
     end = time.time()
     print("Total time: {0}s for patient {1}.".format(round(end-start, 3), p_id))
@@ -167,22 +165,21 @@ def predictImage(that, subfolder, p_id, patientFolder, relativePatientFolder):
         elif classToEval=="core": label=3
         elif classToEval=="penumbracore": label=4
         tn[classToEval], fn[classToEval], fp[classToEval], tp[classToEval] = metrics.mappingPrediction(YTRUEToEvaluate, YPREDToEvaluate, label)
-        # print(classToEval)
-        # print("tn")
-        # print(tn)
-        # print("fn")
-        # print(fn)
-        # print("fp")
-        # print(fp)
-        # print("tp")
-        # print(tp)
 
     for func in that.statistics:
         for classToEval in that.classes_to_evaluate:
+            if classToEval=="penumbra": label=2
+            elif classToEval=="core": label=3
+            elif classToEval=="penumbracore": label=4
             if func.__name__ not in stats.keys(): stats[func.__name__] = {}
             if classToEval not in stats[func.__name__].keys(): stats[func.__name__][classToEval] = []
 
-            stats[func.__name__][classToEval].append(func(tn[classToEval], fn[classToEval], fp[classToEval], tp[classToEval]))
+            if func.__name__ == "mAP" or func.__name__ == "AUC" or func.__name__ == "ROC_AUC":
+                res = func(YTRUEToEvaluate, YPREDToEvaluate, label)
+            else: res = func(tn[classToEval], fn[classToEval], fp[classToEval], tp[classToEval])
+
+            res = res if not np.isnan(res) else 0
+            stats[func.__name__][classToEval].append(res)
 
     end = time.time()
     if constants.getVerbose():

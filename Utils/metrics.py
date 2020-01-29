@@ -87,12 +87,23 @@ def accuracy(tn, fn, fp, tp):
 ################################################################################
 # Function that calculate the metrics for the average precision
 def mAP(y_true, y_pred, label):
-    if label==2: # penumbra
-        y_true, y_pred = thresholdingPenumbra(np.array(y_true), np.array(y_pred))
-    elif label==3: # Core
-        y_true, y_pred = thresholdingCore(np.array(y_true), np.array(y_pred))
-    elif label==4: # Penumbra + Core
-        y_true, y_pred = thresholdingPenumbraCore(np.array(y_true), np.array(y_pred))
+    # if label==2: # penumbra
+    #     y_true, y_pred = thresholdingPenumbra(np.array(y_true), np.array(y_pred))
+    # elif label==3: # Core
+    #     y_true, y_pred = thresholdingCore(np.array(y_true), np.array(y_pred))
+    # elif label==4: # Penumbra + Core
+    #     y_true, y_pred = thresholdingPenumbraCore(np.array(y_true), np.array(y_pred))
+    if label==4: label=None
+    y_true, y_pred = thresholding(np.array(y_true), np.array(y_pred), label)
+
+    if label==None:
+        y_true_p = np.array(y_true==2, dtype="int32")
+        y_true_c = np.array(y_true==3, dtype="int32")
+        y_true = y_true_p+y_true_c
+        y_pred_p = np.array(y_pred==2, dtype="int32")
+        y_pred_c = np.array(y_pred==3, dtype="int32")
+        y_pred = y_pred_p+y_pred_c
+
 
     return average_precision_score(y_true, y_pred)
 
@@ -112,20 +123,27 @@ def mAP(y_true, y_pred, label):
 #     return auc(y_true, y_pred)
 
 def ROC_AUC(y_true, y_pred, label):
-    if label==2: # penumbra
-        y_true, y_pred = thresholdingPenumbra(np.array(y_true), np.array(y_pred))
-    elif label==3: # Core
-        y_true, y_pred = thresholdingCore(np.array(y_true), np.array(y_pred))
-    elif label==4: # Penumbra + Core
-        y_true, y_pred = thresholdingPenumbraCore(np.array(y_true), np.array(y_pred))
+    # if label==2: # penumbra
+    #     y_true, y_pred = thresholdingPenumbra(np.array(y_true), np.array(y_pred))
+    # elif label==3: # Core
+    #     y_true, y_pred = thresholdingCore(np.array(y_true), np.array(y_pred))
+    # elif label==4: # Penumbra + Core
+    #     y_true, y_pred = thresholdingPenumbraCore(np.array(y_true), np.array(y_pred))
+    if label==4: label=None
+    y_true, y_pred = thresholding(np.array(y_true), np.array(y_pred), label)
+
+    if label==None:
+        y_true_p = np.array(y_true==2, dtype="int32")
+        y_true_c = np.array(y_true==3, dtype="int32")
+        y_true = y_true_p+y_true_c
+        y_pred_p = np.array(y_pred==2, dtype="int32")
+        y_pred_c = np.array(y_pred==3, dtype="int32")
+        y_pred = y_pred_p+y_pred_c
 
     try:
         return roc_auc_score(y_true, y_pred)
     except:
         return 0
-
-
-
 
 ################################################################################
 # function to convert the prediction and the ground truth in a confusion matrix
@@ -133,25 +151,11 @@ def mappingPrediction(y_true, y_pred, label):
     conf_matr = np.zeros(shape=(2,2))
     tn, fp, fn, tp = 0,0,0,0
 
-    or_yt = y_true
-    or_yp = y_pred
-    #
-    # if label==2: # penumbra
-    #     y_true, y_pred = thresholdingPenumbra(np.array(y_true), np.array(y_pred))
-    # elif label==3: # Core
-    #     y_true, y_pred = thresholdingCore(np.array(y_true), np.array(y_pred))
-    # elif label==4: # Penumbra + Core
-    #     y_true, y_pred = thresholdingPenumbraCore(np.array(y_true), np.array(y_pred))
-
     y_true, y_pred = thresholding(np.array(y_true), np.array(y_pred))
 
-    for i,_ in enumerate(y_true):
-        # tn1, fp1, fn1, tp1 = confusion_matrix(y_true[i], y_pred[i], labels=[0,1]).ravel()
-        # tn, fp, fn, tp = tn1+tn, fp1+fp, fn1+fn, tp1+tp
-
-        tmp_conf_matr = multilabel_confusion_matrix(y_true[i], y_pred[i], labels=[0,1,2,3])
-        if label!=4: conf_matr = tmp_conf_matr[label] + conf_matr
-        else: conf_matr = tmp_conf_matr[2] + tmp_conf_matr[3] + conf_matr
+    tmp_conf_matr = multilabel_confusion_matrix(y_true, y_pred, labels=[0,1,2,3])
+    if label!=4: conf_matr = tmp_conf_matr[label] + conf_matr
+    else: conf_matr = tmp_conf_matr[2] + tmp_conf_matr[3] + conf_matr
 
     tn = conf_matr[0][0]
     fn = conf_matr[0][1]
@@ -160,7 +164,9 @@ def mappingPrediction(y_true, y_pred, label):
 
     return tn, fn, fp, tp
 
-def thresholding(y_true, y_pred):
+################################################################################
+# function to map the y_true and y_pred
+def thresholding(y_true, y_pred, label=None):
     thresBack = constants.PIXELVALUES[0]
     thresBrain = constants.PIXELVALUES[1]
     thresPenumbra = constants.PIXELVALUES[2]
@@ -168,42 +174,64 @@ def thresholding(y_true, y_pred):
     eps = (thresCore-thresPenumbra)/2
     eps_plus = 79 # for upper bounding ~229
 
+    y_true_brain = np.zeros_like(y_true)
+    y_pred_brain = np.zeros_like(y_pred)
+    y_true_p = np.zeros_like(y_true)
+    y_pred_p = np.zeros_like(y_pred)
+    y_true_c = np.zeros_like(y_true)
+    y_pred_c = np.zeros_like(y_pred)
+
     y_true_brain = np.array(y_true<=(thresBrain+eps), dtype="int32")
     y_pred_brain = np.array(y_pred<=(thresBrain+eps), dtype="int32")
-    y_true_p = np.array(y_true>=(thresPenumbra-eps), dtype="int32") * np.array(y_true<(thresPenumbra+eps), dtype="int32")
-    y_pred_p = np.array(y_pred>=(thresPenumbra-eps), dtype="int32") * np.array(y_pred<(thresPenumbra+eps), dtype="int32")
-    y_true_c = np.array(y_true>=(thresCore-eps), dtype="int32") * np.array(y_true<=(thresCore+eps_plus), dtype="int32")
-    y_pred_c = np.array(y_pred>=(thresCore-eps), dtype="int32") * np.array(y_pred<=(thresCore+eps_plus), dtype="int32")
 
-    y_true_p = y_true_p * 2
-    y_pred_p = y_pred_p * 2
-    y_true_c = y_true_c * 3
-    y_pred_c = y_pred_c * 3
+    # if label==None it means that the y_true & y_pred are coming from the mappingPrediction in testing!
+    # or from label=4 in ROC and mAP ...
+    if label==None or label==2:
+        y_true_p = np.array(y_true>=(thresPenumbra-eps), dtype="int32") * np.array(y_true<(thresPenumbra+eps), dtype="int32")
+        y_pred_p = np.array(y_pred>=(thresPenumbra-eps), dtype="int32") * np.array(y_pred<(thresPenumbra+eps), dtype="int32")
+        y_true_p = y_true_p * 2
+        y_pred_p = y_pred_p * 2
+
+    if label==None or label==3:
+        y_true_c = np.array(y_true>=(thresCore-eps), dtype="int32") * np.array(y_true<=(thresCore+eps_plus), dtype="int32")
+        y_pred_c = np.array(y_pred>=(thresCore-eps), dtype="int32") * np.array(y_pred<=(thresCore+eps_plus), dtype="int32")
+        y_true_c = y_true_c * 3
+        y_pred_c = y_pred_c * 3
 
     y_true = y_true_brain+y_true_p+y_true_c
     y_pred = y_pred_brain+y_pred_p+y_pred_c
 
-    return (y_true, y_pred)
+    y_true_new = np.empty([0])
+    y_pred_new = np.empty_like(y_true_new)
+    ## REMOVE BACKGROUND FROM y_true & y_pred
+    for row in range(0,y_true.shape[0]):
+        index_back = np.where(y_true[row]==0)[0]
+        y_true_new = np.append(y_true_new, np.delete(y_true[row], index_back))
+        y_pred_new = np.append(y_pred_new, np.delete(y_pred[row], index_back))
+
+    return (y_true_new, y_pred_new)
 
 ################################################################################
-# function to map the y_true and y_pred
+# function to map the y_true and y_pred for penumbra
 def thresholdingPenumbra(y_true, y_pred):
-    # thresPenumbra = constants.PIXELVALUES[2]/constants.PIXELVALUES[0] # = 0.298
-    # thresCore = constants.PIXELVALUES[3]/constants.PIXELVALUES[0] # = 0.588
-    # eps = 0.1 # abs((thresCore-thresPenumbra)/2) ~ 0.145
-    #
     thresPenumbra = constants.PIXELVALUES[2]
     thresCore = constants.PIXELVALUES[3]
     eps = 36
-    y_true = np.array(y_true>=(thresPenumbra-eps), dtype="int32") * np.array(y_true<=(thresPenumbra+eps), dtype="int32")
-    y_pred = np.array(y_pred>=(thresPenumbra-eps), dtype="int32") * np.array(y_pred<=(thresPenumbra+eps), dtype="int32")
+
+    y_true_brain = np.array(y_true<=(thresBrain+eps), dtype="int32")
+    y_pred_brain = np.array(y_pred<=(thresBrain+eps), dtype="int32")
+    y_true_p = np.array(y_true>=(thresPenumbra-eps), dtype="int32") * np.array(y_true<=(thresPenumbra+eps), dtype="int32")
+    y_pred_p = np.array(y_pred>=(thresPenumbra-eps), dtype="int32") * np.array(y_pred<=(thresPenumbra+eps), dtype="int32")
+
+    y_true_p = y_true_p * 2
+    y_pred_p = y_pred_p * 2
+
+
     return (y_true, y_pred)
 
+################################################################################
+# function to map the y_true and y_pred for core
 def thresholdingCore(y_true, y_pred):
-    # thresPenumbra = constants.PIXELVALUES[2]/constants.PIXELVALUES[0] # = 0.298
-    # thresCore = constants.PIXELVALUES[3]/constants.PIXELVALUES[0] # = 0.588
-    # eps = 0.1 # abs((thresCore-thresPenumbra)/2) ~ 0.145
-    #
     thresPenumbra = constants.PIXELVALUES[2]
     thresCore = constants.PIXELVALUES[3]
     eps = 36
@@ -212,11 +240,9 @@ def thresholdingCore(y_true, y_pred):
     y_pred = np.array(y_pred>=(thresCore-eps), dtype="int32") * np.array(y_pred<=(thresCore+eps_plus), dtype="int32")
     return (y_true, y_pred)
 
+################################################################################
+# function to map the y_true and y_pred for penumbra & core
 def thresholdingPenumbraCore(y_true, y_pred):
-    # thresPenumbra = constants.PIXELVALUES[2]/constants.PIXELVALUES[0] # = 0.298
-    # thresCore = constants.PIXELVALUES[3]/constants.PIXELVALUES[0] # = 0.588
-    # eps =  0.1 # abs((thresCore-thresPenumbra)/2) ~ 0.145
-    #
     thresPenumbra = constants.PIXELVALUES[2]
     thresCore = constants.PIXELVALUES[3]
     eps = 36

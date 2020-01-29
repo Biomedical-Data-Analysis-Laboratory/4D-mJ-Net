@@ -43,6 +43,7 @@
       },
       "params":{
         "dropout":{
+          "0.1":0.3,
           "1":0.3,
           "2":0.3,
           "3":0.3,
@@ -52,9 +53,14 @@
       },
       "callbacks":{
         "ModelCheckpoint": {
-          "monitor": "mod_dice_coef",
+          "monitor": "val_mod_dice_coef",
           "mode": "max",
           "period": 1
+        },
+        "EarlyStopping": {
+          "monitor": "val_loss",
+          "min_delta": 0.0001,
+          "patience": 10
         },
         "ReduceLROnPlateau": {
           "monitor": "val_loss",
@@ -68,6 +74,8 @@
           "acc":"mod_dice_coef"
         }
       },
+      "save_images": 0,
+      "save_statistics":1,
       "data_augmentation": 1,
       "cross_validation": 1,
       "train_again": 0,

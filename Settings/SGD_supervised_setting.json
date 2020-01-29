@@ -1,7 +1,7 @@
 {
   "root_path": "/home/stud/lucat/PhD_Project/Stroke_segmentation/",
   "dataset_path": "/local/home/lucat/DATASET/",
-  "PATIENT_TO_TEST": [2,3,4,5,6,7,8,9,10,11],
+  "PATIENT_TO_TEST": [2,3,4,5,6],
   "OVERRIDE_MODELS_ID_PATH": "",
   "init": {
     "TF_CPP_MIN_LOG_LEVEL": "3",
@@ -25,7 +25,7 @@
       "name": "mJNet",
       "loss": "mod_dice_coef_loss",
       "metrics": ["mod_dice_coef"],
-      "epochs": 50,
+      "epochs": 100,
       "classes_to_evaluate": ["penumbra", "core", "penumbracore"],
       "statistics": ["sensitivity", "specificity", "precision", "f1", "accuracy", "jaccard_index", "mAP", "ROC_AUC"],
       "val":{

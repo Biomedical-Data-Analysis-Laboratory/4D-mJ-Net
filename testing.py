@@ -7,7 +7,6 @@ import multiprocessing
 import numpy as np
 import tensorflow.keras.backend as K
 
-
 def predictFromModel(nn, input):
     return nn.model.predict(
             x=input,
@@ -18,13 +17,9 @@ def predictFromModel(nn, input):
 
 ################################################################################
 # Generate the images for the patient and save the images
-def predictAndSaveImages(that, p_id, stats):
+def predictAndSaveImages(that, p_id):
     start = time.time()
-
-    for func in that.statistics:
-        for classToEval in that.classes_to_evaluate:
-            if func.__name__ not in stats.keys(): stats[func.__name__] = {}
-            if classToEval not in stats[func.__name__].keys(): stats[func.__name__][classToEval] = []
+    stats = {}
 
     relativePatientFolder = constants.PREFIX_IMAGES+p_id+"/"
     patientFolder = that.patientsFolder+relativePatientFolder
@@ -48,11 +43,14 @@ def predictAndSaveImages(that, p_id, stats):
     for subfolder in glob.glob(patientFolder+"*/"):
         tmpStats = predictImage(that, subfolder, p_id, patientFolder, that.getNNID(p_id)+general_utils.getSuffix()+"/"+relativePatientFolder)
         for func in that.statistics:
+            if func.__name__ not in stats.keys(): stats[func.__name__] = {}
             for classToEval in that.classes_to_evaluate:
-                meanV = np.mean(tmpStats[func.__name__][classToEval])
-                print("TEST MEAN %s %s: %.2f%% " % (func.__name__, classToEval, round(meanV,6)*100))
-                stats[func.__name__][classToEval].append(meanV)
-            general_utils.printSeparation("+",20)
+                if classToEval not in stats[func.__name__].keys(): stats[func.__name__][classToEval] = []
+                # meanV = np.mean(tmpStats[func.__name__][classToEval])
+                # print("TEST MEAN %s %s: %.2f%% " % (func.__name__, classToEval, round(meanV,6)*100))
+                # stats[func.__name__][classToEval].append(meanV)
+                stats[func.__name__][classToEval].append(tmpStats[func.__name__][classToEval])
+            # general_utils.printSeparation("+",20)
 
     end = time.time()
     print("Total time: {0}s for patient {1}.".format(round(end-start, 3), p_id))
@@ -93,6 +91,7 @@ def predictImage(that, subfolder, p_id, patientFolder, relativePatientFolder):
                 imagesDict[filename] = image
 
     # Generate the predicted image
+    s1 = time.time()
     while True:
         pixels = np.zeros(shape=(constants.NUMBER_OF_IMAGE_PER_SECTION,constants.getM(),constants.getN()))
         count = 0
@@ -113,31 +112,28 @@ def predictImage(that, subfolder, p_id, patientFolder, relativePatientFolder):
 
         pixels = pixels.reshape(1, pixels.shape[0], pixels.shape[1], pixels.shape[2], 1)
 
-        ### MODEL PREDICT
+        ### MODEL PREDICT (image & statistics)
         y_true = general_utils.getSlicingWindow(labeled_image, startingX, startingY, constants.getM(), constants.getN())
         # slicingWindowPredicted contain only the prediction for the last step
         slicingWindowPredicted = predictFromModel(that, pixels)[that.test_steps-1]
 
-        YTRUEToEvaluate.extend(y_true)
-        YPREDToEvaluate.extend(slicingWindowPredicted*255)
+        if that.save_statistics:
+            YTRUEToEvaluate.extend(y_true)
+            YPREDToEvaluate.extend(slicingWindowPredicted*255)
 
-        # Transform the slicingWindowPredicted into a touple of three dimension!
-        threeDimensionSlicingWindow = np.zeros(shape=(slicingWindowPredicted.shape[0],slicingWindowPredicted.shape[1], 3), dtype=np.uint8)
+        # Transform the slicingWindowPredicted into a tuple of three dimension!
+        if that.save_images:
+            threeDimensionSlicingWindow = np.zeros(shape=(slicingWindowPredicted.shape[0],slicingWindowPredicted.shape[1], 3), dtype=np.uint8)
 
-        # with open(logsName, "a+") as img_file:
-        #     img_file.write(np.array2string(slicingWindowPredicted))
+            # with open(logsName, "a+") as img_file:
+            #     img_file.write(np.array2string(slicingWindowPredicted))
 
-        for r, _ in enumerate(slicingWindowPredicted):
-            # if the tile is very similar to the one in the top left corner (=background tile)
-            # then set everything to white ==>(255,255,255)
-            # if np.array_equal(backgroundTile, slicingWindowPredicted[r]):
-            #     slicingWindowPredicted[r] = np.ones_like(slicingWindowPredicted[r])
-            for c, pixel in enumerate(slicingWindowPredicted[r]):
-                if pixel >= 0.90: pixel = 1
-                threeDimensionSlicingWindow[r][c] = (pixel*255,)*3
-
-        # Create the image
-        imagePredicted[startingX:startingX+constants.getM(), startingY:startingY+constants.getN()] = threeDimensionSlicingWindow
+            for r, _ in enumerate(slicingWindowPredicted):
+                for c, pixel in enumerate(slicingWindowPredicted[r]):
+                    if pixel >= 0.90: pixel = 1
+                    threeDimensionSlicingWindow[r][c] = (pixel*255,)*3
+            # Create the image
+            imagePredicted[startingX:startingX+constants.getM(), startingY:startingY+constants.getN()] = threeDimensionSlicingWindow
 
         # if we reach the end of the image, break the while loop.
         if startingX>=constants.IMAGE_WIDTH-constants.getM() and startingY>=constants.IMAGE_HEIGHT-constants.getN():
@@ -149,38 +145,45 @@ def predictImage(that, subfolder, p_id, patientFolder, relativePatientFolder):
                 startingY=0
                 startingX+=constants.getM()
 
-    # save the image predicted in the specific folder
-    cv2.imwrite(that.saveImagesFolder+relativePatientFolder+idx+".png", imagePredicted)
-
-    # HEATMAP
-    heatmap_img = cv2.applyColorMap(~imagePredicted, cv2.COLORMAP_JET)
-    cv2.imwrite(that.saveImagesFolder+relativePatientFolder+idx+"_heatmap.png", heatmap_img)
-
-    ## TEMP:
-    cv2.imwrite(that.saveImagesFolder+relativePatientFolder+idx+"_label.png", labeled_image)
-
-    tn, fn, fp, tp = {}, {}, {}, {}
-    for classToEval in that.classes_to_evaluate:
-        if classToEval=="penumbra": label=2
-        elif classToEval=="core": label=3
-        elif classToEval=="penumbracore": label=4
-        tn[classToEval], fn[classToEval], fp[classToEval], tp[classToEval] = metrics.mappingPrediction(YTRUEToEvaluate, YPREDToEvaluate, label)
-
-    for func in that.statistics:
+    s2 = time.time()
+    print("image time: {}".format(round(s2-s1, 3)))
+    if that.save_images:
+        s1 = time.time()
+        # save the image predicted in the specific folder
+        cv2.imwrite(that.saveImagesFolder+relativePatientFolder+idx+".png", imagePredicted)
+        # HEATMAP
+        heatmap_img = cv2.applyColorMap(~imagePredicted, cv2.COLORMAP_JET)
+        cv2.imwrite(that.saveImagesFolder+relativePatientFolder+idx+"_heatmap.png", heatmap_img)
+        s2 = time.time()
+        print("save time: {}".format(round(s2-s1, 3)))
+    if that.save_statistics:
+        s1 = time.time()
+        tn, fn, fp, tp = {}, {}, {}, {}
         for classToEval in that.classes_to_evaluate:
             if classToEval=="penumbra": label=2
             elif classToEval=="core": label=3
             elif classToEval=="penumbracore": label=4
+            tn[classToEval], fn[classToEval], fp[classToEval], tp[classToEval] = metrics.mappingPrediction(YTRUEToEvaluate, YPREDToEvaluate, label)
+
+        for func in that.statistics:
             if func.__name__ not in stats.keys(): stats[func.__name__] = {}
-            if classToEval not in stats[func.__name__].keys(): stats[func.__name__][classToEval] = []
+            for classToEval in that.classes_to_evaluate:
+                if classToEval=="penumbra": label=2
+                elif classToEval=="core": label=3
+                elif classToEval=="penumbracore": label=4
+                if classToEval not in stats[func.__name__].keys(): stats[func.__name__][classToEval] = []
 
-            if func.__name__ == "mAP" or func.__name__ == "AUC" or func.__name__ == "ROC_AUC":
-                res = func(YTRUEToEvaluate, YPREDToEvaluate, label)
-            else: res = func(tn[classToEval], fn[classToEval], fp[classToEval], tp[classToEval])
+                if func.__name__ == "mAP" or func.__name__ == "AUC" or func.__name__ == "ROC_AUC":
+                    res = func(YTRUEToEvaluate, YPREDToEvaluate, label)
+                    res = res if not np.isnan(res) else 0
+                else:
+                    # res = func(tn[classToEval], fn[classToEval], fp[classToEval], tp[classToEval])
+                    res = (tn[classToEval], fn[classToEval], fp[classToEval], tp[classToEval])
 
-            res = res if not np.isnan(res) else 0
-            stats[func.__name__][classToEval].append(res)
-
+                # stats[func.__name__][classToEval].append(res)
+                stats[func.__name__][classToEval] = res
+        s2 = time.time()
+        print("stats time: {}".format(round(s2-s1, 3)))
     end = time.time()
     if constants.getVerbose():
         print("Time: {0}s for image {1}.".format(round(end-start, 3), idx))

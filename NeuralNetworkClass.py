@@ -36,6 +36,7 @@ class NeuralNetwork(object):
             "test": {}
             }
 
+        # get parameter for the model
         self.optimizerInfo = info["optimizer"]
         self.params = info["params"]
         self.loss = general_utils.getLoss(info["loss"])
@@ -43,11 +44,15 @@ class NeuralNetwork(object):
         self.metricFuncs = general_utils.getStatisticFunctions(info["metrics"])
         self.statistics = general_utils.getStatisticFunctions(info["statistics"])
 
+        # flags for the model
+        self.save_images = True if info["save_images"]==1 else False
+        self.save_statistics = True if info["save_statistics"]==1 else False
         self.da = True if info["data_augmentation"]==1 else False
         self.train_again = True if info["train_again"]==1 else False
         self.cross_validation = True if info["cross_validation"]==1 else False
         self.supervised = True if info["supervised"]==1 else False
 
+        # paths
         self.rootPath = setting["root_path"]
         self.datasetFolder = setting["dataset_path"]
         self.patientsFolder = setting["relative_paths"]["patients"]
@@ -238,12 +243,12 @@ class NeuralNetwork(object):
 
 ################################################################################
 # Call the function located in testing for predicting and saved the images
-    def predictAndSaveImages(self, p_id, stats):
+    def predictAndSaveImages(self, p_id):
         if self.getVerbose():
             general_utils.printSeparation("+", 50)
             print("Predicting and saving the images for patient {}".format(p_id))
 
-        stats = testing.predictAndSaveImages(self, p_id, stats)
+        stats = testing.predictAndSaveImages(self, p_id)
         self.saveStats(stats, p_id)
         return stats
 
@@ -251,15 +256,42 @@ class NeuralNetwork(object):
 # Function to save in a file the statistic for the test patients
     def saveStats(self, stats, p_id):
         suffix = general_utils.getSuffix()
-        with open(general_utils.getFullDirectoryPath(self.saveTextFolder)+self.getNNID(p_id)+suffix+".txt", "a+") as text_file:
+        if p_id == "PATIENT_TO_TEST":
+            with open(general_utils.getFullDirectoryPath(self.saveTextFolder)+self.getNNID(p_id)+suffix+".txt", "a+") as text_file:
+                text_file.write("====================================================\n")
+                text_file.write("====================================================\n")
+                for func in self.statistics:
+                    for classToEval in self.classes_to_evaluate:
+
+                        if func.__name__ == "mAP" or func.__name__ == "AUC" or func.__name__ == "ROC_AUC":
+                            res = np.mean(stats[func.__name__][classToEval])
+                        else:
+                            tn = sum(cm[0] for cm in stats[func.__name__][classToEval])
+                            fn = sum(cm[1] for cm in stats[func.__name__][classToEval])
+                            fp = sum(cm[2] for cm in stats[func.__name__][classToEval])
+                            tp = sum(cm[3] for cm in stats[func.__name__][classToEval])
+
+                            res = func(tn,fn,fp,tp)
+                        # meanV = np.mean(stats[func.__name__][classToEval])
+                        # stdV = np.std(stats[func.__name__][classToEval])
+                        text_file.write("TEST {0} {1}: {2} \n".format(func.__name__, classToEval, round(float(res), 3)))
+                        # text_file.write("TEST MEAN %s %s: %.2f%% \n" % (func.__name__, classToEval, round(meanV,6)*100))
+                        # text_file.write("TEST STD %s %s: %.2f \n" % (func.__name__, classToEval, round(stdV,6)))
+                        text_file.write("+++++ \n")
+                    text_file.write("----------------------------------------------------- \n")
+        else:
             for func in self.statistics:
                 for classToEval in self.classes_to_evaluate:
-                    meanV = np.mean(stats[func.__name__][classToEval])
-                    stdV = np.std(stats[func.__name__][classToEval])
-                    text_file.write("TEST MEAN %s %s: %.2f%% \n" % (func.__name__, classToEval, round(meanV,6)*100))
-                    text_file.write("TEST STD %s %s: %.2f \n" % (func.__name__, classToEval, round(stdV,6)))
-                    text_file.write("+++++ \n")
-                text_file.write("----------------------------------------------------- \n")
+                    if func.__name__ == "mAP" or func.__name__ == "AUC" or func.__name__ == "ROC_AUC":
+                        res = np.mean(stats[func.__name__][classToEval])
+                    else:
+                        tn = sum(cm[0] for cm in stats[func.__name__][classToEval])
+                        fn = sum(cm[1] for cm in stats[func.__name__][classToEval])
+                        fp = sum(cm[2] for cm in stats[func.__name__][classToEval])
+                        tp = sum(cm[3] for cm in stats[func.__name__][classToEval])
+
+                        res = func(tn,fn,fp,tp)
+                    print("TEST {0} {1}: {2}".format(func.__name__, classToEval, round(float(res), 3)))
 
 ################################################################################
 # Test the model with the selected patient

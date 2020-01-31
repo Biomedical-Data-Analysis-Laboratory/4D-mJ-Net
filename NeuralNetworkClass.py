@@ -47,10 +47,12 @@ class NeuralNetwork(object):
         # flags for the model
         self.save_images = True if info["save_images"]==1 else False
         self.save_statistics = True if info["save_statistics"]==1 else False
+        self.use_background_in_statistics = True if info["use_background_in_statistics"]==1 else False
         self.da = True if info["data_augmentation"]==1 else False
         self.train_again = True if info["train_again"]==1 else False
         self.cross_validation = True if info["cross_validation"]==1 else False
         self.supervised = True if info["supervised"]==1 else False
+
 
         # paths
         self.rootPath = setting["root_path"]
@@ -277,7 +279,6 @@ class NeuralNetwork(object):
                         text_file.write("TEST {0} {1}: {2} \n".format(func.__name__, classToEval, round(float(res), 3)))
                         # text_file.write("TEST MEAN %s %s: %.2f%% \n" % (func.__name__, classToEval, round(meanV,6)*100))
                         # text_file.write("TEST STD %s %s: %.2f \n" % (func.__name__, classToEval, round(stdV,6)))
-                        text_file.write("+++++ \n")
                     text_file.write("----------------------------------------------------- \n")
         else:
             for func in self.statistics:

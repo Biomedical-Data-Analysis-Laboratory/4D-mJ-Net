@@ -27,7 +27,7 @@
       "metrics": ["mod_dice_coef"],
       "epochs": 5,
       "classes_to_evaluate": ["penumbra", "core", "penumbracore"],
-      "statistics": ["sensitivity", "specificity", "precision", "f1", "accuracy", "jaccard_index"],
+      "statistics": ["sensitivity", "specificity", "precision", "f1", "accuracy", "jaccard_index", "mAP", "ROC_AUC"],
       "val":{
         "validation_perc": 5,
         "random_validation_selection": 0
@@ -52,7 +52,7 @@
       },
       "callbacks":{
         "ModelCheckpoint": {
-          "monitor": "mod_dice_coef",
+          "monitor": "val_mod_dice_coef",
           "mode": "max",
           "period": 1
         },
@@ -73,6 +73,8 @@
           "acc":"mod_dice_coef"
         }
       },
+      "save_images": 1,
+      "save_statistics":1,
       "data_augmentation": 1,
       "cross_validation": 1,
       "train_again": 0,

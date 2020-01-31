@@ -163,7 +163,7 @@ def predictImage(that, subfolder, p_id, patientFolder, relativePatientFolder):
             if classToEval=="penumbra": label=2
             elif classToEval=="core": label=3
             elif classToEval=="penumbracore": label=4
-            tn[classToEval], fn[classToEval], fp[classToEval], tp[classToEval] = metrics.mappingPrediction(YTRUEToEvaluate, YPREDToEvaluate, label)
+            tn[classToEval], fn[classToEval], fp[classToEval], tp[classToEval] = metrics.mappingPrediction(YTRUEToEvaluate, YPREDToEvaluate, that.use_background_in_statistics, label)
 
         for func in that.statistics:
             if func.__name__ not in stats.keys(): stats[func.__name__] = {}
@@ -174,7 +174,7 @@ def predictImage(that, subfolder, p_id, patientFolder, relativePatientFolder):
                 if classToEval not in stats[func.__name__].keys(): stats[func.__name__][classToEval] = []
 
                 if func.__name__ == "mAP" or func.__name__ == "AUC" or func.__name__ == "ROC_AUC":
-                    res = func(YTRUEToEvaluate, YPREDToEvaluate, label)
+                    res = func(YTRUEToEvaluate, YPREDToEvaluate, that.use_background_in_statistics, label)
                     res = res if not np.isnan(res) else 0
                 else:
                     # res = func(tn[classToEval], fn[classToEval], fp[classToEval], tp[classToEval])

@@ -67,11 +67,10 @@ def main():
             for func in nn.statistics:
                 for classToEval in nn.classes_to_evaluate:
                     if func.__name__ not in stats.keys(): stats[func.__name__] = {}
-                    if classToEval not in stats[func.__name__].keys(): stats[func.__name__][classToEval] = []
-
-                    # meanV = np.mean(tmpStats[func.__name__][classToEval])
-                    # stats[func.__name__][classToEval].append(meanV)
-                    stats[func.__name__][classToEval].extend(tmpStats[func.__name__][classToEval])
+                    if classToEval not in stats[func.__name__].keys(): stats[func.__name__][classToEval] = {}
+                    for idxE, _ in enumerate(nn.epsiloList):
+                        if idxE not in stats[func.__name__][classToEval].keys(): stats[func.__name__][classToEval][idxE] = []
+                        stats[func.__name__][classToEval][idxE].extend(tmpStats[func.__name__][classToEval][idxE])
         nn.saveStats(stats, "PATIENT_TO_TEST")
 
 ################################################################################

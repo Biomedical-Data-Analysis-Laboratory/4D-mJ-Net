@@ -148,32 +148,35 @@ def ROC_AUC(y_true, y_pred, use_background_in_statistics, label):
 
 ################################################################################
 # function to convert the prediction and the ground truth in a confusion matrix
-def mappingPrediction(y_true, y_pred, use_background_in_statistics, label):
+def mappingPrediction(y_true, y_pred, use_background_in_statistics, epsilons, percEps, label):
     conf_matr = np.zeros(shape=(2,2))
     tn, fp, fn, tp = 0,0,0,0
 
-    y_true, y_pred = thresholding(np.array(y_true), np.array(y_pred), use_background_in_statistics)
+    y_true, y_pred = thresholding(np.array(y_true), np.array(y_pred), use_background_in_statistics, epsilons, percEps, label)
 
     tmp_conf_matr = multilabel_confusion_matrix(y_true, y_pred, labels=[0,1,2,3])
     if label!=4: conf_matr = tmp_conf_matr[label] + conf_matr
     else: conf_matr = tmp_conf_matr[2] + tmp_conf_matr[3] + conf_matr
 
     tn = conf_matr[0][0]
-    fn = conf_matr[0][1]
-    fp = conf_matr[1][0]
+    fn = conf_matr[1][0]
+    fp = conf_matr[0][1]
     tp = conf_matr[1][1]
 
     return tn, fn, fp, tp
 
 ################################################################################
 # function to map the y_true and y_pred
-def thresholding(y_true, y_pred, use_background_in_statistics, label=None):
+def thresholding(y_true, y_pred, use_background_in_statistics, epsilons, percEps, label=None):
     thresBack = constants.PIXELVALUES[0]
-    thresBrain = constants.PIXELVALUES[1]
+    thresBrain = constants.PIXELVALUES[1]-1
     thresPenumbra = constants.PIXELVALUES[2]
     thresCore = constants.PIXELVALUES[3]
-    eps = (thresCore-thresPenumbra)/2
-    eps_plus = 79 # for upper bounding ~229
+
+    eps1, eps2, eps3 = epsilons[0]
+
+    # eps = (thresCore-thresPenumbra)/2
+    # eps_plus = 79 # for upper bounding ~229
 
     y_true_brain = np.zeros_like(y_true)
     y_pred_brain = np.zeros_like(y_pred)
@@ -182,22 +185,46 @@ def thresholding(y_true, y_pred, use_background_in_statistics, label=None):
     y_true_c = np.zeros_like(y_true)
     y_pred_c = np.zeros_like(y_pred)
 
-    y_true_brain = np.array(y_true<=(thresBrain+eps), dtype="int32")
-    y_pred_brain = np.array(y_pred<=(thresBrain+eps), dtype="int32")
+    y_true_brain = np.array(y_true<=(thresBrain+eps1), dtype="int32")
+    y_pred_brain = np.array(y_pred<=(thresBrain+eps1), dtype="int32")
 
-    # if label==None it means that the y_true & y_pred are coming from the mappingPrediction in testing!
-    # or from label=4 in ROC and mAP ...
-    if label==None or label==2:
-        y_true_p = np.array(y_true>=(thresPenumbra-eps), dtype="int32") * np.array(y_true<(thresPenumbra+eps), dtype="int32")
-        y_pred_p = np.array(y_pred>=(thresPenumbra-eps), dtype="int32") * np.array(y_pred<(thresPenumbra+eps), dtype="int32")
-        y_true_p = y_true_p * 2
-        y_pred_p = y_pred_p * 2
+    # if label==None it means that the y_true & y_pred are coming from label=4 in ROC and mAP ...
+    #if label==None or label==2:
+    if percEps==None: # no need to calculate the ROC with thresholding
+        y_true_p = np.array(y_true>(thresBrain+eps1), dtype="int32") * np.array(y_true<=(thresPenumbra+eps2), dtype="int32")
+        y_pred_p = np.array(y_pred>(thresBrain+eps1), dtype="int32") * np.array(y_pred<=(thresPenumbra+eps2), dtype="int32")
+    else:
+        if label==2: # penumbra 
+            upperBound = ((thresBack-thresPenumbra)*percEps)/100
+            lowerBound = ((thresPenumbra-thresBrain)*percEps)/100
+            y_true_brain = np.array(y_true<=(thresPenumbra-lowerBound), dtype="int32")
+            y_pred_brain = np.array(y_pred<=(thresPenumbra-lowerBound), dtype="int32")
 
-    if label==None or label==3:
-        y_true_c = np.array(y_true>=(thresCore-eps), dtype="int32") * np.array(y_true<=(thresCore+eps_plus), dtype="int32")
-        y_pred_c = np.array(y_pred>=(thresCore-eps), dtype="int32") * np.array(y_pred<=(thresCore+eps_plus), dtype="int32")
-        y_true_c = y_true_c * 3
-        y_pred_c = y_pred_c * 3
+            y_true_p = np.array(y_true>(thresPenumbra-lowerBound), dtype="int32") * np.array(y_true<=(thresPenumbra+upperBound), dtype="int32")
+            y_pred_p = np.array(y_pred>(thresPenumbra-lowerBound), dtype="int32") * np.array(y_pred<=(thresPenumbra+upperBound), dtype="int32")
+
+            y_true_c = np.array(y_true>(thresPenumbra+upperBound), dtype="int32")
+            y_pred_c = np.array(y_pred>(thresPenumbra+upperBound), dtype="int32")
+
+    #if label==None or label==3:
+    if percEps==None: # no need to calculate the ROC with thresholding
+        y_true_c = np.array(y_true>(thresPenumbra+eps2), dtype="int32") * np.array(y_true<=(thresCore+eps3), dtype="int32")
+        y_pred_c = np.array(y_pred>(thresPenumbra+eps2), dtype="int32") * np.array(y_pred<=(thresCore+eps3), dtype="int32")
+    else:
+        if label==3: # core
+            upperBound = ((thresBack-thresCore)*percEps)/100
+            lowerBound = ((thresCore-thresBrain)*percEps)/100
+            y_true_brain = np.array(y_true<=(thresCore-lowerBound), dtype="int32")
+            y_pred_brain = np.array(y_pred<=(thresCore-lowerBound), dtype="int32")
+
+            y_true_c = np.array(y_true>(thresCore-lowerBound), dtype="int32") * np.array(y_pred<=(thresCore+upperBound), dtype="int32")
+            y_pred_c = np.array(y_pred>(thresCore-lowerBound), dtype="int32") * np.array(y_pred<=(thresCore+upperBound), dtype="int32")
+
+
+    y_true_p = y_true_p * 2
+    y_pred_p = y_pred_p * 2
+    y_true_c = y_true_c * 3
+    y_pred_c = y_pred_c * 3
 
     y_true = y_true_brain+y_true_p+y_true_c
     y_pred = y_pred_brain+y_pred_p+y_pred_c

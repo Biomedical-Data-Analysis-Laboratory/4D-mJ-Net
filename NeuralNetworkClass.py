@@ -48,11 +48,11 @@ class NeuralNetwork(object):
         self.save_images = True if info["save_images"]==1 else False
         self.save_statistics = True if info["save_statistics"]==1 else False
         self.use_background_in_statistics = True if info["use_background_in_statistics"]==1 else False
+        self.calculate_ROC = True if info["calculate_ROC"]==1 else False
         self.da = True if info["data_augmentation"]==1 else False
         self.train_again = True if info["train_again"]==1 else False
         self.cross_validation = True if info["cross_validation"]==1 else False
         self.supervised = True if info["supervised"]==1 else False
-
 
         # paths
         self.rootPath = setting["root_path"]
@@ -66,6 +66,16 @@ class NeuralNetwork(object):
         self.saveTextFolder = "SAVE/"+setting["relative_paths"]["save"]["text"]
 
         self.infoCallbacks = info["callbacks"]
+
+        # epsilons = [(37.5,37,52.5)]
+        # self.epsilons = [((constants.PIXELVALUES[2]-constants.PIXELVALUES[1])/2, (constants.PIXELVALUES[3]-constants.PIXELVALUES[2])/2, (constants.PIXELVALUES[0]-constants.PIXELVALUES[3])/2)]
+
+        # best epsilons for F1 score (BUT THEY ARE BASED ON TESTING IMAGES)!
+        # self.epsilons = [(60, 59.2, 84)]
+        self.epsilons = [(63.75-constants.PIXELVALUES[1]-1, 127.5-constants.PIXELVALUES[2], 191.25-constants.PIXELVALUES[3])]
+
+        # epsiloList is the same list of epsilons multiply for the percentage (thresholding) involved to calculate ROC
+        self.epsiloList = list(range(0,110, 10)) if self.calculate_ROC else [(None)]
 
 ################################################################################
 # Initialize the callbacks
@@ -265,34 +275,40 @@ class NeuralNetwork(object):
                 for func in self.statistics:
                     for classToEval in self.classes_to_evaluate:
 
-                        if func.__name__ == "mAP" or func.__name__ == "AUC" or func.__name__ == "ROC_AUC":
-                            res = np.mean(stats[func.__name__][classToEval])
-                        else:
-                            tn = sum(cm[0] for cm in stats[func.__name__][classToEval])
-                            fn = sum(cm[1] for cm in stats[func.__name__][classToEval])
-                            fp = sum(cm[2] for cm in stats[func.__name__][classToEval])
-                            tp = sum(cm[3] for cm in stats[func.__name__][classToEval])
-
+                        # if func.__name__ == "mAP" or func.__name__ == "AUC" or func.__name__ == "ROC_AUC":
+                        #     res = np.mean(stats[func.__name__][classToEval])
+                        #     standard_dev = np.std(stats[func.__name__][classToEval])
+                        # else:
+                        for idxE, epsilons in enumerate(self.epsiloList):
+                            tn = sum(cm[0] for cm in stats[func.__name__][classToEval][idxE])
+                            fn = sum(cm[1] for cm in stats[func.__name__][classToEval][idxE])
+                            fp = sum(cm[2] for cm in stats[func.__name__][classToEval][idxE])
+                            tp = sum(cm[3] for cm in stats[func.__name__][classToEval][idxE])
                             res = func(tn,fn,fp,tp)
-                        # meanV = np.mean(stats[func.__name__][classToEval])
-                        # stdV = np.std(stats[func.__name__][classToEval])
-                        text_file.write("TEST {0} {1}: {2} \n".format(func.__name__, classToEval, round(float(res), 3)))
+                            standard_dev = 0
+                            # meanV = np.mean(stats[func.__name__][classToEval])
+                            # stdV = np.std(stats[func.__name__][classToEval])
+                            #text_file.write("\n\n EPSILONS: *{0} **{1} ***{2} ... {3} idx  \n".format(epsilons[0], epsilons[1], epsilons[2], idxE))
+                            text_file.write("TEST MEAN {0} {1}: {2} \n".format(func.__name__, classToEval, round(float(res), 3)))
+                            text_file.write("TEST STD {0} {1}: {2} \n".format(func.__name__, classToEval, round(float(standard_dev), 3)))
                         # text_file.write("TEST MEAN %s %s: %.2f%% \n" % (func.__name__, classToEval, round(meanV,6)*100))
                         # text_file.write("TEST STD %s %s: %.2f \n" % (func.__name__, classToEval, round(stdV,6)))
                     text_file.write("----------------------------------------------------- \n")
         else:
             for func in self.statistics:
                 for classToEval in self.classes_to_evaluate:
-                    if func.__name__ == "mAP" or func.__name__ == "AUC" or func.__name__ == "ROC_AUC":
-                        res = np.mean(stats[func.__name__][classToEval])
-                    else:
-                        tn = sum(cm[0] for cm in stats[func.__name__][classToEval])
-                        fn = sum(cm[1] for cm in stats[func.__name__][classToEval])
-                        fp = sum(cm[2] for cm in stats[func.__name__][classToEval])
-                        tp = sum(cm[3] for cm in stats[func.__name__][classToEval])
+                    # if func.__name__ == "mAP" or func.__name__ == "AUC" or func.__name__ == "ROC_AUC":
+                    #     res = np.mean(stats[func.__name__][classToEval])
+                    # else:
+                    for idxE, epsilons in enumerate(self.epsiloList):
+                        tn = sum(cm[0] for cm in stats[func.__name__][classToEval][idxE])
+                        fn = sum(cm[1] for cm in stats[func.__name__][classToEval][idxE])
+                        fp = sum(cm[2] for cm in stats[func.__name__][classToEval][idxE])
+                        tp = sum(cm[3] for cm in stats[func.__name__][classToEval][idxE])
 
                         res = func(tn,fn,fp,tp)
-                    print("TEST {0} {1}: {2}".format(func.__name__, classToEval, round(float(res), 3)))
+                        #print("EPSILONS: *{0} **{1} ***{2} ... {3}\%  \n".format(epsilons[0], epsilons[1], epsilons[2], idxE))
+                        print("TEST {0} {1}: {2}".format(func.__name__, classToEval, round(float(res), 3)))
 
 ################################################################################
 # Test the model with the selected patient

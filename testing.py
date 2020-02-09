@@ -45,11 +45,10 @@ def predictAndSaveImages(that, p_id):
         for func in that.statistics:
             if func.__name__ not in stats.keys(): stats[func.__name__] = {}
             for classToEval in that.classes_to_evaluate:
-                if classToEval not in stats[func.__name__].keys(): stats[func.__name__][classToEval] = []
-                # meanV = np.mean(tmpStats[func.__name__][classToEval])
-                # print("TEST MEAN %s %s: %.2f%% " % (func.__name__, classToEval, round(meanV,6)*100))
-                # stats[func.__name__][classToEval].append(meanV)
-                stats[func.__name__][classToEval].append(tmpStats[func.__name__][classToEval])
+                if classToEval not in stats[func.__name__].keys(): stats[func.__name__][classToEval] = {}
+                for idxE, _ in enumerate(that.epsiloList):
+                    if idxE not in stats[func.__name__][classToEval].keys(): stats[func.__name__][classToEval][idxE] = []
+                    stats[func.__name__][classToEval][idxE].append(tmpStats[func.__name__][classToEval][idxE])
             # general_utils.printSeparation("+",20)
 
     end = time.time()
@@ -128,10 +127,22 @@ def predictImage(that, subfolder, p_id, patientFolder, relativePatientFolder):
             # with open(logsName, "a+") as img_file:
             #     img_file.write(np.array2string(slicingWindowPredicted))
 
+            thresBack = constants.PIXELVALUES[0]
+            thresBrain = constants.PIXELVALUES[1]
+            thresPenumbra = constants.PIXELVALUES[2]
+            thresCore = constants.PIXELVALUES[3]
+            eps1, eps2, eps3 = that.epsilons[0]
+
+            #slicingWindowPredicted = slicingWindowPredicted*255
+
             for r, _ in enumerate(slicingWindowPredicted):
                 for c, pixel in enumerate(slicingWindowPredicted[r]):
-                    if pixel >= 0.90: pixel = 1
-                    threeDimensionSlicingWindow[r][c] = (pixel*255,)*3
+                    # if pixel<=(thresBrain+eps1): pixel = thresBrain
+                    # elif pixel>(thresBrain+eps1) and pixel<=(thresPenumbra+eps2): pixel = thresPenumbra
+                    # elif pixel>(thresPenumbra+eps2) and pixel<=(thresCore+eps3): pixel = thresCore
+                    # else: pixel = thresBack
+
+                    threeDimensionSlicingWindow[r][c] = (pixel,)*3
             # Create the image
             imagePredicted[startingX:startingX+constants.getM(), startingY:startingY+constants.getN()] = threeDimensionSlicingWindow
 
@@ -163,7 +174,15 @@ def predictImage(that, subfolder, p_id, patientFolder, relativePatientFolder):
             if classToEval=="penumbra": label=2
             elif classToEval=="core": label=3
             elif classToEval=="penumbracore": label=4
-            tn[classToEval], fn[classToEval], fp[classToEval], tp[classToEval] = metrics.mappingPrediction(YTRUEToEvaluate, YPREDToEvaluate, that.use_background_in_statistics, label)
+
+            if classToEval not in tn.keys(): tn[classToEval] = {}
+            if classToEval not in fn.keys(): fn[classToEval] = {}
+            if classToEval not in fp.keys(): fp[classToEval] = {}
+            if classToEval not in tp.keys(): tp[classToEval] = {}
+
+            for  idxE,percEps in enumerate(that.epsiloList):
+                # loop over the various epsilon
+                tn[classToEval][idxE], fn[classToEval][idxE], fp[classToEval][idxE], tp[classToEval][idxE] = metrics.mappingPrediction(YTRUEToEvaluate, YPREDToEvaluate, that.use_background_in_statistics, that.epsilons, percEps, label)
 
         for func in that.statistics:
             if func.__name__ not in stats.keys(): stats[func.__name__] = {}
@@ -171,17 +190,17 @@ def predictImage(that, subfolder, p_id, patientFolder, relativePatientFolder):
                 if classToEval=="penumbra": label=2
                 elif classToEval=="core": label=3
                 elif classToEval=="penumbracore": label=4
-                if classToEval not in stats[func.__name__].keys(): stats[func.__name__][classToEval] = []
+                if classToEval not in stats[func.__name__].keys(): stats[func.__name__][classToEval] = {}
 
-                if func.__name__ == "mAP" or func.__name__ == "AUC" or func.__name__ == "ROC_AUC":
-                    res = func(YTRUEToEvaluate, YPREDToEvaluate, that.use_background_in_statistics, label)
-                    res = res if not np.isnan(res) else 0
-                else:
-                    # res = func(tn[classToEval], fn[classToEval], fp[classToEval], tp[classToEval])
-                    res = (tn[classToEval], fn[classToEval], fp[classToEval], tp[classToEval])
+                # if func.__name__ == "mAP" or func.__name__ == "AUC" or func.__name__ == "ROC_AUC":
+                #     res = func(YTRUEToEvaluate, YPREDToEvaluate, that.use_background_in_statistics, label)
+                #     res = res if not np.isnan(res) else 0
+                # else:
+                #     # res = func(tn[classToEval], fn[classToEval], fp[classToEval], tp[classToEval])
+                #     res = (tn[classToEval], fn[classToEval], fp[classToEval], tp[classToEval])
 
-                # stats[func.__name__][classToEval].append(res)
-                stats[func.__name__][classToEval] = res
+                for  idxE, _ in enumerate(that.epsiloList):
+                    stats[func.__name__][classToEval][idxE] = (tn[classToEval][idxE], fn[classToEval][idxE], fp[classToEval][idxE], tp[classToEval][idxE])
         s2 = time.time()
         print("stats time: {}".format(round(s2-s1, 3)))
     end = time.time()

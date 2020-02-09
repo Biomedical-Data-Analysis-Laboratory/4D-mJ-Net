@@ -1,7 +1,7 @@
 {
   "root_path": "/home/stud/lucat/PhD_Project/Stroke_segmentation/",
   "dataset_path": "/local/home/lucat/DATASET/",
-  "PATIENT_TO_TEST": [6,7,8,9,10,11],
+  "PATIENT_TO_TEST": [2,3,4,5,6,7,8,9,10,11],
   "OVERRIDE_MODELS_ID_PATH": "",
   "init": {
     "TF_CPP_MIN_LOG_LEVEL": "3",
@@ -27,7 +27,7 @@
       "metrics": ["mod_dice_coef"],
       "epochs": 100,
       "classes_to_evaluate": ["penumbra", "core", "penumbracore"],
-      "statistics": ["sensitivity", "specificity", "precision", "f1", "accuracy", "jaccard_index", "ROC_AUC"],
+      "statistics": ["sensitivity", "specificity", "precision", "f1", "accuracy", "jaccard_index"],
       "val":{
         "validation_perc": 5,
         "random_validation_selection": 0
@@ -52,19 +52,19 @@
       },
       "callbacks":{
         "ModelCheckpoint": {
-          "monitor": "val_mod_dice_coef",
+          "monitor": "mod_dice_coef",
           "mode": "max",
           "period": 1
         },
         "EarlyStopping": {
-          "monitor": "val_loss",
-          "min_delta": 0.0001,
+          "monitor": "loss",
+          "min_delta": 0.001,
           "patience": 12
         },
         "ReduceLROnPlateau": {
           "monitor": "val_loss",
-          "factor": 0.1,
-          "patience": 3,
+          "factor": 0.01,
+          "patience": 5,
           "min_delta": 1e-4,
           "cooldown": 1,
           "min_lr": 0
@@ -73,9 +73,10 @@
           "acc":"mod_dice_coef"
         }
       },
-      "save_images": 1,
+      "save_images": 0,
       "save_statistics":1,
-      "use_background_in_statistics":1,
+      "use_background_in_statistics":0,
+      "calculate_ROC":1,
       "data_augmentation": 1,
       "cross_validation": 1,
       "train_again": 0,

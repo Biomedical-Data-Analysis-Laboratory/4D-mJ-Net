@@ -6,7 +6,7 @@ import glob
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras.models import model_from_json
-from tensorflow.keras.utils import to_categorical, multi_gpu_model
+from tensorflow.keras.utils import to_categorical, multi_gpu_model, plot_model
 
 
 ################################################################################
@@ -194,6 +194,7 @@ class NeuralNetwork(object):
 
         if self.getVerbose() and self.summaryFlag==0:
             print(self.model.summary())
+            plot_model(self.model, to_file=general_utils.getFullDirectoryPath(self.savedModelFolder)+self.getNNID(p_id)+"_model.png", show_shapes=True)
             self.summaryFlag+=1
 
         # check if the model has some saved weights to load...

@@ -25,11 +25,11 @@ import hickle as hkl # Price et al., (2018). Hickle: A HDF5-based python pickle 
 
 ROOT_PATH = "/home/stud/lucat/PhD_Project/Stroke_segmentation/"
 #ROOT_PATH = "/Users/lucatomasetti/Desktop/uni-stavanger/MASTER_THESIS/"
-SCRIPT_PATH = "/local/home/lucat/DATASET/oldPatients/"
+SCRIPT_PATH = "/local/home/lucat/DATASET/" # "/local/home/lucat/DATASET/oldPatients/"
 
 
-LABELLED_IMAGES_FOLDER_LOCATION = ROOT_PATH + "Manual_annotations/" #  COMBINED_GRAYAREA_2.0
-SAVE_REGISTERED_FOLDER = ROOT_PATH + "OLDPREPROC_PATIENTS/" # "Registered_images_2.0/"
+LABELLED_IMAGES_FOLDER_LOCATION = ROOT_PATH + "Manual_annotations/"
+SAVE_REGISTERED_FOLDER = ROOT_PATH + "PATIENTS/" # "OLDPREPROC_PATIENTS/"
 
 NUMBER_OF_IMAGE_PER_SECTION = 30 # number of image (divided by time) for each section of the brain
 IMAGE_WIDTH, IMAGE_HEIGHT = 512, 512
@@ -47,9 +47,9 @@ DATA_AUGMENTATION = True
 # In[4]:
 
 
-M, N = int(IMAGE_WIDTH/32), int(IMAGE_HEIGHT/32)  # 32, 32
-SLICING_PIXELS = int(M/4) # 8
-# MAX_NUM_BACKGROUND_IMAGES = 600
+M, N = int(IMAGE_WIDTH/16), int(IMAGE_HEIGHT/16)
+SLICING_PIXELS = int(M/4)
+
 PERCENTAGE_BACKGROUND_IMAGES = 20
 
 
@@ -164,6 +164,9 @@ def fillDataset(train_df, relativePath, patientIndex, timeFolder):
         # the max of these values is the class to set for the binary class (Y)
         classToSet = max(valueClasses.items(), key=operator.itemgetter(1))[0]
 
+        # set the window with just the four classes
+        realLabelledWindow = (binaryBackgroundMatrix*255)+(binaryCoreNoSkull*150)+(binaryPenumbraNoSkull*76)+(binaryBrainMatrixNoBackground*0)
+
         numReplication = 1
         if classToSet==LABELS[0]: numBack+=1
         elif classToSet==LABELS[1]: numBrain+=1
@@ -277,6 +280,7 @@ def initializeDataset():
         filename_train = SCRIPT_PATH+"patient"+str(patientIndex)+suffix_filename+".hkl"
         subfolders = glob.glob(patientFolder+"*/")
 
+        ## only patients from 2 to 11 (the one with annotations)
         if int(patientIndex)>1 and int(patientIndex)<=11:
             print("\t Analyzing {0}/{1}; patient folder: {2}...".format(numFold+1, len(patientFolders), relativePath))
             for count, timeFolder in enumerate(subfolders): # for each slicing time

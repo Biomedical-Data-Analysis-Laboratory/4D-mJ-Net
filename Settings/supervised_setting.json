@@ -25,6 +25,7 @@
       "name": "mJNet",
       "loss": "mod_dice_coef_loss",
       "metrics": ["mod_dice_coef"],
+      "REAL_LABELS":0,
       "epochs": 50,
       "classes_to_evaluate": ["penumbra", "core", "penumbracore"],
       "statistics": ["sensitivity", "specificity", "precision", "f1", "accuracy", "jaccard_index"],

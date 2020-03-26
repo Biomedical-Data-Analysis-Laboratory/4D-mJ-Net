@@ -250,7 +250,7 @@ def evaluateModelAlreadySaved(nn, p_id):
 #    filename_train = nn.datasetFolder+"trainComplete"+str(p_id)+".h5"
 #   nn.train_df = dataset_utils.readFromHDF(filename_train, "")
     nn.dataset = dataset_utils.getTestDataset(nn.dataset, nn.train_df, p_id, nn.mp)
-    nn.dataset["test"]["labels"] = dataset_utils.getLabelsFromIndex(train_df=nn.train_df, indices=nn.dataset["test"]["indices"])
+    nn.dataset["test"]["labels"] = dataset_utils.getLabelsFromIndex(train_df=nn.train_df, indices=nn.dataset["test"]["indices"], real_labels=nn.REAL_LABELS)
 
     nn.compileModel() # compile the model and then evaluate
     sample_weights = nn.getSampleWeights("test")

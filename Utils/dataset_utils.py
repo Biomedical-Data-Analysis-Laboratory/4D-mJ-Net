@@ -189,13 +189,14 @@ def getSingleDataFromIndex(singledata):
 
 ################################################################################
 # Return the labels ginve the indices
-def getLabelsFromIndex(train_df, indices):
+def getLabelsFromIndex(train_df, indices, real_labels):
     labels = np.array([np.array(a).reshape(constants.getM(),constants.getN()) for a in train_df.ground_truth.values[indices]])
 
-    # if SIGMOID_ACT: ??
-    # convert the label in [0, 1] values
+
     labels = labels.astype("float32")
-    labels /= 255
+    if not real_labels:
+        # convert the label in [0, 1] values
+        labels /= 255
 
     return labels
 

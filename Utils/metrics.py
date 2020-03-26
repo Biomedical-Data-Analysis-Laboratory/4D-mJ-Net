@@ -3,10 +3,10 @@ from Utils import general_utils, callback
 
 import numpy as np
 import tensorflow as tf
+from tensorflow.keras import metrics
 import tensorflow.keras.backend as K
 from sklearn.metrics import roc_auc_score, average_precision_score, auc, multilabel_confusion_matrix
 
-import time
 
 ################################################################################
 # Funtion that calculates the DICE coefficient. Important when calculates the different of two images
@@ -47,6 +47,23 @@ def jaccard_distance(y_true, y_pred, smooth=1):
 def jaccard_index(tn, fn, fp, tp):
     f = f1(tn, fn, fp, tp)
     return (f+1e-07)/(2-f+1e-07)
+
+################################################################################
+# Function that calculate the metrics for the CATEGORICAL CROSS ENTROPY
+def categorical_crossentropy(y_true, y_pred):
+    return metrics.categorical_accuracy(y_true, y_pred)
+
+################################################################################
+# Function that calculate the metrics for the WEIGHTED CATEGORICAL CROSS ENTROPY
+def weighted_categorical_cross_entropy(y_true, y_pred):
+    lambda_0 = 1
+    lambda_1 = 1e-6
+    lambda_2 = 1e-5
+
+    cce = categorical_crossentropy(y_true, y_pred)
+    l1_norm =  K.sum(K.abs(y_true - y_pred))
+    l2_norm =  K.sum(K.square(y_true - y_pred))
+    return ((lambda_0*cce) + (lambda_1*l1_norm) + (lambda_2*l2_norm))
 
 ################################################################################
 # Function that calculate the metrics for the SENSITIVITY

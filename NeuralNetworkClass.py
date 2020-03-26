@@ -45,6 +45,7 @@ class NeuralNetwork(object):
         self.statistics = general_utils.getStatisticFunctions(info["statistics"])
 
         # flags for the model
+        self.REAL_LABELS = True if info["REAL_LABELS"]==1 else False
         self.save_images = True if info["save_images"]==1 else False
         self.save_statistics = True if info["save_statistics"]==1 else False
         self.use_background_in_statistics = True if info["use_background_in_statistics"]==1 else False
@@ -174,9 +175,9 @@ class NeuralNetwork(object):
 ################################################################################
 # Run the training over the dataset based on the model
     def runTraining(self, p_id, n_gpu):
-        self.dataset["train"]["labels"] = dataset_utils.getLabelsFromIndex(train_df=self.train_df, indices=self.dataset["train"]["indices"])
-        self.dataset["val"]["labels"] = None if self.val["validation_perc"]==0 else dataset_utils.getLabelsFromIndex(train_df=self.train_df, indices=self.dataset["val"]["indices"])
-        if self.supervised: self.dataset["test"]["labels"] = dataset_utils.getLabelsFromIndex(train_df=self.train_df, indices=self.dataset["test"]["indices"])
+        self.dataset["train"]["labels"] = dataset_utils.getLabelsFromIndex(train_df=self.train_df, indices=self.dataset["train"]["indices"], real_labels=self.REAL_LABELS)
+        self.dataset["val"]["labels"] = None if self.val["validation_perc"]==0 else dataset_utils.getLabelsFromIndex(train_df=self.train_df, indices=self.dataset["val"]["indices"], real_labels=self.REAL_LABELS)
+        if self.supervised: self.dataset["test"]["labels"] = dataset_utils.getLabelsFromIndex(train_df=self.train_df, indices=self.dataset["test"]["indices"], real_labels=self.REAL_LABELS)
 
         if self.getVerbose():
             general_utils.printSeparation("-", 50)
@@ -226,12 +227,19 @@ class NeuralNetwork(object):
 ################################################################################
 # Get the sample weight from the dataset
     def getSampleWeights(self, flag):
+        background_weight = 1-((self.N_BACKGROUND)/self.N_TOT)
+        brain_weight = 1-((self.N_BRAIN)/self.N_TOT)
+        penumbra_weight = 1-((self.N_PENUMBRA)/self.N_TOT)
+        core_weight = 1-((self.N_CORE)/self.N_TOT)
 
+        min_weight = min([background_weight,brain_weight,penumbra_weight,core_weight])
+        max_weight = max([background_weight,brain_weight,penumbra_weight,core_weight])
+        
         sample_weights = self.train_df.label.map({
-            constants.LABELS[0]:1,
-            constants.LABELS[1]:1,
-            constants.LABELS[2]:10,
-            constants.LABELS[3]:100
+            constants.LABELS[0]:((background_weight-min_weight)/(max_weight-min_weight)),
+            constants.LABELS[1]:((brain_weight-min_weight)/(max_weight-min_weight)),
+            constants.LABELS[2]:((penumbra_weight-min_weight)/(max_weight-min_weight)),
+            constants.LABELS[3]:((core_weight-min_weight)/(max_weight-min_weight))
         })
 
         return sample_weights.values[self.dataset[flag]["indices"]]

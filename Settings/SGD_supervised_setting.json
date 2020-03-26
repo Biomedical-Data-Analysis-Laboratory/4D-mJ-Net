@@ -5,7 +5,7 @@
   "OVERRIDE_MODELS_ID_PATH": "",
   "init": {
     "TF_CPP_MIN_LOG_LEVEL": "3",
-    "per_process_gpu_memory_fraction": 1,
+    "per_process_gpu_memory_fraction": 0.5,
     "allow_growth": 1,
     "MULTIPROCESSING": 0
   },
@@ -25,7 +25,8 @@
       "name": "mJNet_v2",
       "loss": "mod_dice_coef_loss",
       "metrics": ["mod_dice_coef"],
-      "epochs": 100,
+      "REAL_LABELS":0,
+      "epochs": 10,
       "classes_to_evaluate": ["penumbra", "core", "penumbracore"],
       "statistics": ["sensitivity", "specificity", "precision", "f1", "accuracy", "jaccard_index"],
       "val":{
@@ -67,8 +68,8 @@
         },
         "ReduceLROnPlateau": {
           "monitor": "val_loss",
-          "factor": 0.01,
-          "patience": 5,
+          "factor": 0.1,
+          "patience": 2,
           "min_delta": 1e-4,
           "cooldown": 1,
           "min_lr": 0

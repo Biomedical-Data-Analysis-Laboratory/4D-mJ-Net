@@ -25,7 +25,7 @@
       "name": "mJNet_LongJ",
       "loss": "dice_coef_loss",
       "metrics": ["dice_coef", "jaccard_distance", "sensitivity", "specificity", "precision", "f1"],
-      "REAL_LABELS":0,
+      "to_categ":0,
       "epochs": 300,
       "val":{
         "validation_perc": 5,

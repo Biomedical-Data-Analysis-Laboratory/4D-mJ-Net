@@ -6,6 +6,7 @@ import sys, argparse, os, json, time
 import numpy as np
 import pandas as pd
 import tensorflow as tf
+import tensorflow.keras.backend as K
 
 ################################################################################
 ######################## UTILS FUNCTIONS #######################################
@@ -95,6 +96,12 @@ def getSlicingWindow(img, startX, startY, M, N):
 def getEpochFromPartialWeightFilename(partialWeightsPath):
     return int(partialWeightsPath[partialWeightsPath.index(constants.suffix_partial_weights)+len(constants.suffix_partial_weights):partialWeightsPath.index(".h5")])
 
+def mapSoftmaxOutputToGroundTruth(x):
+    index = K.eval(x)
+    return constants.PIXELVALUES[index]
+
+
+
 ################################################################################
 # Get the loss defined in the settings
 def getLoss(name):
@@ -102,25 +109,6 @@ def getLoss(name):
 
     loss["loss"] = getattr(losses, name)
     loss["name"] = name
-
-    # if name=="dice_coef_loss":
-    #     loss["loss"] = losses.dice_coef_loss
-    #     loss["name"] = "dice_coef"
-    # elif name=="jaccard_index_loss":
-    #     loss["loss"] = losses.jaccard_index_loss
-    #     loss["name"] = "jaccard_distance"
-    # elif name=="mod_dice_coef_loss":
-    #     loss["loss"] = losses.mod_dice_coef_loss
-    #     loss["name"] = "mod_dice_coef"
-    # elif name=="dice_coef_binary_loss":
-    #     loss["loss"] = losses.dice_coef_binary_loss
-    #     loss["name"] = "dice_coef_binary"
-    # elif name=="generalized_dice_loss":
-    #     loss["loss"] = losses.generalized_dice_loss
-    #     loss["name"] = "generalized_dice_coeff"
-    # elif name=="tversky_loss":
-    #     loss["loss"] = losses.tversky_loss
-    #     loss["name"] = "tversky_loss"
 
     return loss
 
@@ -131,29 +119,6 @@ def getStatisticFunctions(listStats):
 
     for m in listStats:
         statisticFuncs.append(getattr(metrics, m))
-        
-        # if m=="dice_coef":
-        #     statisticFuncs.append(getattr(metrics,"dice_coef"))
-        # elif m=="jaccard_distance":
-        #     statisticFuncs.append(getattr(metrics,"jaccard_distance"))
-        # elif m=="sensitivity" or m=="recall":
-        #     statisticFuncs.append(getattr(metrics,"sensitivity"))
-        # elif m=="specificity":
-        #     statisticFuncs.append(getattr(metrics,"specificity"))
-        # elif m=="accuracy":
-        #     statisticFuncs.append(getattr(metrics,"accuracy"))
-        # elif m=="precision":
-        #     statisticFuncs.append(getattr(metrics,"precision"))
-        # elif m=="f1":
-        #     statisticFuncs.append(getattr(metrics,"f1"))
-        # elif m=="jaccard_index":
-        #     statisticFuncs.append(getattr(metrics,"jaccard_index"))
-        # elif m=="mod_dice_coef":
-        #     statisticFuncs.append(getattr(metrics,"mod_dice_coef"))
-        # elif m=="dice_coef_binary":
-        #     statisticFuncs.append(getattr(metrics,"dice_coef_binary"))
-        # elif m=="generalized_dice_coeff":
-        #     statisticFuncs.append(getattr(metrics,"generalized_dice_coeff"))
 
     return statisticFuncs
 

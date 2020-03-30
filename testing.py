@@ -49,7 +49,6 @@ def predictAndSaveImages(that, p_id):
                 for idxE, _ in enumerate(that.epsiloList):
                     if idxE not in stats[func.__name__][classToEval].keys(): stats[func.__name__][classToEval][idxE] = []
                     stats[func.__name__][classToEval][idxE].append(tmpStats[func.__name__][classToEval][idxE])
-            # general_utils.printSeparation("+",20)
 
     end = time.time()
     print("Total time: {0}s for patient {1}.".format(round(end-start, 3), p_id))
@@ -115,25 +114,25 @@ def predictImage(that, subfolder, p_id, patientFolder, relativePatientFolder):
         y_true = general_utils.getSlicingWindow(labeled_image, startingX, startingY, constants.getM(), constants.getN())
         # slicingWindowPredicted contain only the prediction for the last step
         slicingWindowPredicted = predictFromModel(that, pixels)[that.test_steps-1]
+        multiplier = 255
+
+        if that.to_categ:
+            slicingWindowPredicted = K.eval((K.argmax(slicingWindowPredicted)*256)/len(constants.LABELS))
+            multiplier = 1
 
         if that.save_statistics:
             YTRUEToEvaluate.extend(y_true)
-            YPREDToEvaluate.extend(slicingWindowPredicted*255)
+            YPREDToEvaluate.extend(slicingWindowPredicted*multiplier)
 
         # Transform the slicingWindowPredicted into a tuple of three dimension!
         if that.save_images:
             threeDimensionSlicingWindow = np.zeros(shape=(slicingWindowPredicted.shape[0],slicingWindowPredicted.shape[1], 3), dtype=np.uint8)
-
-            # with open(logsName, "a+") as img_file:
-            #     img_file.write(np.array2string(slicingWindowPredicted))
 
             thresBack = constants.PIXELVALUES[0]
             thresBrain = constants.PIXELVALUES[1]
             thresPenumbra = constants.PIXELVALUES[2]
             thresCore = constants.PIXELVALUES[3]
             eps1, eps2, eps3 = that.epsilons[0]
-
-            #slicingWindowPredicted = slicingWindowPredicted*255
 
             for r, _ in enumerate(slicingWindowPredicted):
                 for c, pixel in enumerate(slicingWindowPredicted[r]):
@@ -192,13 +191,6 @@ def predictImage(that, subfolder, p_id, patientFolder, relativePatientFolder):
                 elif classToEval=="penumbracore": label=4
                 if classToEval not in stats[func.__name__].keys(): stats[func.__name__][classToEval] = {}
 
-                # if func.__name__ == "mAP" or func.__name__ == "AUC" or func.__name__ == "ROC_AUC":
-                #     res = func(YTRUEToEvaluate, YPREDToEvaluate, that.use_background_in_statistics, label)
-                #     res = res if not np.isnan(res) else 0
-                # else:
-                #     # res = func(tn[classToEval], fn[classToEval], fp[classToEval], tp[classToEval])
-                #     res = (tn[classToEval], fn[classToEval], fp[classToEval], tp[classToEval])
-
                 for  idxE, _ in enumerate(that.epsiloList):
                     stats[func.__name__][classToEval][idxE] = (tn[classToEval][idxE], fn[classToEval][idxE], fp[classToEval][idxE], tp[classToEval][idxE])
         s2 = time.time()
@@ -250,7 +242,7 @@ def evaluateModelAlreadySaved(nn, p_id):
 #    filename_train = nn.datasetFolder+"trainComplete"+str(p_id)+".h5"
 #   nn.train_df = dataset_utils.readFromHDF(filename_train, "")
     nn.dataset = dataset_utils.getTestDataset(nn.dataset, nn.train_df, p_id, nn.mp)
-    nn.dataset["test"]["labels"] = dataset_utils.getLabelsFromIndex(train_df=nn.train_df, indices=nn.dataset["test"]["indices"], real_labels=nn.REAL_LABELS)
+    nn.dataset["test"]["labels"] = dataset_utils.getLabelsFromIndex(train_df=nn.train_df, indices=nn.dataset["test"]["indices"], to_categ=nn.to_categ)
 
     nn.compileModel() # compile the model and then evaluate
     sample_weights = nn.getSampleWeights("test")

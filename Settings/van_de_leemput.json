@@ -24,8 +24,8 @@
      {
       "name": "van_De_Leemput",
       "loss": "weighted_categorical_cross_entropy_loss",
-      "metrics": ["weighted_categorical_cross_entropy", "mod_dice_coef"],
-      "REAL_LABELS":1,
+      "metrics": ["weighted_categorical_cross_entropy", "mod_dice_coef", "dice_coef"],
+      "to_categ":1,
       "epochs": 10,
       "classes_to_evaluate": ["penumbra", "core", "penumbracore"],
       "statistics": ["sensitivity", "specificity", "precision", "f1", "accuracy", "jaccard_index"],

@@ -1,4 +1,5 @@
 import constants
+from Utils import general_utils
 
 from tensorflow.keras import layers, models, regularizers, initializers
 import tensorflow.keras.backend as K
@@ -6,12 +7,12 @@ import tensorflow.keras.backend as K
 
 ################################################################################
 # mJ-Net model
-def mJNet(X, params, drop=False, longJ=False, v2=False):
+def mJNet(X, params, to_categ, drop=False, longJ=False, v2=False):
     # from (30,M,N) to (1,M,N)
 
     activ_func = 'relu'
     l1_l2_reg = None
-    channels = [16,32,16,32,16,32,16,32,64,64,128,128,256,-1,-1,-1,-1,128,128,64,32,16]
+    channels = [16,32,16,32,16,32,16,32,64,64,128,128,256,-1,-1,-1,-1,128,128,64,64,32,16]
 
     if v2: # version 2
         activ_func = None
@@ -187,37 +188,45 @@ def mJNet(X, params, drop=False, longJ=False, v2=False):
         print(K.int_shape(pool_drop_5)) # (None, 1, M, N, 16)
         if drop: pool_drop_5 = layers.Dropout(params["dropout"]["5"])(pool_drop_5)
 
+    act_name = "sigmoid"
+    n_chann = 1
+    shape_output = (constants.getM(),constants.getN())
+    if to_categ:
+        act_name = "softmax"
+        n_chann = len(constants.LABELS)
+        shape_output = (constants.getM(),constants.getN(),n_chann)
+        
     # last convolutional layer; plus reshape from (1,M,N) to (M,N)
-    conv_7 = layers.Conv3D(1, (1,1,1), activation="sigmoid", padding='same', kernel_regularizer=l1_l2_reg)(pool_drop_5)
+    conv_7 = layers.Conv3D(n_chann, (1,1,1), activation=act_name, padding='same', kernel_regularizer=l1_l2_reg)(pool_drop_5)
     print(K.int_shape(conv_7)) # (None, 1, M, N, 1)
-    y = layers.Reshape((constants.getM(),constants.getN()))(conv_7)
+    y = layers.Reshape(shape_output)(conv_7)
     print(K.int_shape(y))
     model = models.Model(inputs=input_x, outputs=y)
     return model
 
 ################################################################################
 # Function to call the mJ-net with dropout
-def mJNet_Drop(X, params):
-    return mJNet(X, params, drop=True)
+def mJNet_Drop(X, params, to_categ):
+    return mJNet(X, params, to_categ, drop=True)
 
 ################################################################################
 # Function to call the mJ-net with dropout and a long "J"
-def mJNet_LongJ_Drop(X, params):
-    return mJNet(X, params, drop=True, longJ=True)
+def mJNet_LongJ_Drop(X, params, to_categ):
+    return mJNet(X, params, to_categ, drop=True, longJ=True)
 
 ################################################################################
 # Function to call the mJ-net with a long "J"
-def mJNet_LongJ(X, params):
-    return mJNet(X, params, longJ=True)
+def mJNet_LongJ(X, params, to_categ):
+    return mJNet(X, params, to_categ, longJ=True)
 
 ################################################################################
 # mJ-Net model version 2
-def mJNet_v2(X, params):
-    return mJNet(X, params, drop=True, longJ=True, v2=True)
+def mJNet_v2(X, params, to_categ):
+    return mJNet(X, params, to_categ, drop=True, longJ=True, v2=True)
 
 ################################################################################
 # Model from Van De Leemput (https://doi.org/10.1109/ACCESS.2019.2910348)
-def van_De_Leemput(X, params):
+def van_De_Leemput(X, params, to_categ):
     l1_l2_reg = None # regularizers.l1_l2(l1=1e-6, l2=1e-5)
     # Hu initializer = [0, sqrt(9/5*fan_in)]
     hu_init = initializers.VarianceScaling(scale=(9/5), mode='fan_in', distribution='normal', seed=None)
@@ -348,16 +357,17 @@ def van_De_Leemput(X, params):
     add_7 = layers.add([conc_3, addconv_14])
     print(K.int_shape(add_7)) # (None, 1, 16, 16, 2048)
 
-    conv_15 = layers.Conv3D(1, (1,1,1), activation="sigmoid", padding='same', kernel_regularizer=l1_l2_reg, kernel_initializer=hu_init)(add_7)
+    conv_15 = layers.Conv3D(len(constants.LABELS), (1,1,1), activation="softmax", padding='same', kernel_regularizer=l1_l2_reg, kernel_initializer=hu_init)(add_7)
     print(K.int_shape(conv_15)) # (None, 1, 16, 16, 4)
-    y = layers.Reshape((constants.getM(),constants.getN()))(conv_15)
+
+    y = layers.Reshape((constants.getM(),constants.getN(),4))(conv_15)
     print(K.int_shape(y))
     model = models.Model(inputs=input_x, outputs=y)
     return model
 
 ################################################################################
 # Model from Ronneberger (original paper of U-Net) (https://doi.org/10.1007/978-3-319-24574-4_28)
-def Ronneberger_UNET(X, params):
+def Ronneberger_UNET(X, params, to_categ):
     # Hu initializer = [0, sqrt(2/fan_in)]
     hu_init = initializers.he_normal(seed=None)
 
@@ -396,21 +406,21 @@ def Ronneberger_UNET(X, params):
     conv_10 = layers.Conv3D(1024, kernel_size=(3,3,3), activation='relu', padding='same', kernel_initializer=hu_init)(conv_9)
     print(K.int_shape(conv_10)) # (None, 1, 1, 1, 1024)
 
-    up_1 = layers.Conv3DTranspose(512, kernel_size=(1,2,2), strides=(1,2,2), activation='relu', padding='same', kernel_initializer=hu_init)(conv_10)
-    # up_1 = layers.UpSampling3D(size=(1,2,2))(conv_10)
+    # up_1 = layers.Conv3DTranspose(512, kernel_size=(1,2,2), strides=(1,2,2), activation='relu', padding='same', kernel_initializer=hu_init)(conv_10)
+    up_1 = layers.UpSampling3D(size=(1,2,2))(conv_10)
     print(K.int_shape(up_1)) # (None, 1, 2, 2, 1024)
-    # addconv_8 = layers.concatenate([conv_8, conv_8])
-    # print(K.int_shape(addconv_8)) # (None, 1, 2, 2, 1024)
-    # conc_1 = layers.concatenate([up_1, addconv_8], axis=-1)
-    conc_1 = layers.concatenate([up_1, conv_8], axis=-1)
+    addconv_8 = layers.concatenate([conv_8, conv_8])
+    print(K.int_shape(addconv_8)) # (None, 1, 2, 2, 1024)
+    conc_1 = layers.concatenate([up_1, addconv_8], axis=-1)
+    # conc_1 = layers.concatenate([up_1, conv_8], axis=-1)
     print(K.int_shape(conc_1)) # (None, 1, 2, 2, 1024)
     conv_11 = layers.Conv3D(512, kernel_size=(3,3,3), activation='relu', padding='same', kernel_initializer=hu_init)(conc_1)
     print(K.int_shape(conv_11)) # (None, 1, 2, 2, 512)
     conv_12 = layers.Conv3D(256, kernel_size=(3,3,3), activation='relu', padding='same', kernel_initializer=hu_init)(conv_11)
     print(K.int_shape(conv_12)) # (None, 1, 2, 2, 256)
 
-    up_2 = layers.Conv3DTranspose(256, kernel_size=(1,2,2), strides=(1,2,2), activation='relu', padding='same', kernel_initializer=hu_init)(conv_12)
-    # up_2 = layers.UpSampling3D(size=(1,2,2))(conv_12)
+    # up_2 = layers.Conv3DTranspose(256, kernel_size=(1,2,2), strides=(1,2,2), activation='relu', padding='same', kernel_initializer=hu_init)(conv_12)
+    up_2 = layers.UpSampling3D(size=(1,2,2))(conv_12)
     print(K.int_shape(up_1)) # (None, 1, 4, 4, 256)
     conc_2 = layers.concatenate([up_2, conv_6], axis=-1)
     print(K.int_shape(conc_2)) # (None, 1, 4, 4, 256)
@@ -419,24 +429,24 @@ def Ronneberger_UNET(X, params):
     conv_14 = layers.Conv3D(256, kernel_size=(3,3,3), activation='relu', padding='same', kernel_initializer=hu_init)(conv_13)
     print(K.int_shape(conv_14)) # (None, 1, 4, 4, 256)
 
-    up_3 = layers.Conv3DTranspose(128, kernel_size=(1,2,2), strides=(1,2,2), activation='relu', padding='same', kernel_initializer=hu_init)(conv_14)
-    # up_3 = layers.UpSampling3D(size=(1,2,2))(conv_14)
+    # up_3 = layers.Conv3DTranspose(128, kernel_size=(1,2,2), strides=(1,2,2), activation='relu', padding='same', kernel_initializer=hu_init)(conv_14)
+    up_3 = layers.UpSampling3D(size=(1,2,2))(conv_14)
     print(K.int_shape(up_3)) # (None, 1, 8, 8, 256)
-    # addconv_4 = layers.concatenate([conv_4, conv_4])
-    # print(K.int_shape(addconv_4)) # (None, 1, 8, 8, 256)
-    # conc_3 = layers.concatenate([up_3, addconv_4], axis=-1)
-    conc_3 = layers.concatenate([up_3, conv_4], axis=-1)
+    addconv_4 = layers.concatenate([conv_4, conv_4])
+    print(K.int_shape(addconv_4)) # (None, 1, 8, 8, 256)
+    conc_3 = layers.concatenate([up_3, addconv_4], axis=-1)
+    # conc_3 = layers.concatenate([up_3, conv_4], axis=-1)
     print(K.int_shape(conc_3)) # (None, 1, 8, 8, 256)
     conv_15 = layers.Conv3D(256, kernel_size=(3,3,3), activation='relu', padding='same', kernel_initializer=hu_init)(conc_3)
     print(K.int_shape(conv_15)) # (None, 1, 8, 8, 256)
     conv_16 = layers.Conv3D(128, kernel_size=(3,3,3), activation='relu', padding='same', kernel_initializer=hu_init)(conv_15)
     print(K.int_shape(conv_16)) # (None, 1, 8, 8, 128)
 
-    up_4 = layers.Conv3DTranspose(64, kernel_size=(1,2,2), strides=(1,2,2), activation='relu', padding='same', kernel_initializer=hu_init)(conv_16)
-    # up_4 = layers.UpSampling3D(size=(1,2,2))(conv_16)
+    # up_4 = layers.Conv3DTranspose(64, kernel_size=(1,2,2), strides=(1,2,2), activation='relu', padding='same', kernel_initializer=hu_init)(conv_16)
+    up_4 = layers.UpSampling3D(size=(1,2,2))(conv_16)
     print(K.int_shape(up_4)) # (None, 1, 16, 16, 128)
     convpool_2 = layers.MaxPooling3D((constants.NUMBER_OF_IMAGE_PER_SECTION,1,1))(conv_2)
-    # convpool_2 = layers.concatenate([convpool_2,convpool_2])
+    convpool_2 = layers.concatenate([convpool_2,convpool_2])
     conc_4 = layers.concatenate([up_4, convpool_2], axis=-1)
     print(K.int_shape(conc_4)) # (None, 1, 16, 16, 128)
     conv_17 = layers.Conv3D(128, kernel_size=(3,3,3), activation='relu', padding='same', kernel_initializer=hu_init)(conc_4)
@@ -446,9 +456,10 @@ def Ronneberger_UNET(X, params):
     conv_19 = layers.Conv3D(64, kernel_size=(3,3,3), activation='relu', padding='same', kernel_initializer=hu_init)(conv_18)
     print(K.int_shape(conv_19)) # (None, 1, 16, 16, 64)
 
-    conv_20 = layers.Conv3D(1, (1,1,1), activation="sigmoid", padding='same', kernel_initializer=hu_init)(conv_19)
-    print(K.int_shape(conv_20)) # (None, 1, 16, 16, 1)
-    y = layers.Reshape((constants.getM(),constants.getN()))(conv_20)
+    conv_20 = layers.Conv3D(4, (1,1,1), activation="softmax", padding='same', kernel_initializer=hu_init)(conv_19)
+    print(K.int_shape(conv_20)) # (None, 1, 16, 16, 4)
+
+    y = layers.Reshape((constants.getM(),constants.getN(),4))(conv_20)
     print(K.int_shape(y))
     model = models.Model(inputs=input_x, outputs=y)
     return model

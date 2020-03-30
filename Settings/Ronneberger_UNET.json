@@ -24,8 +24,8 @@
      {
       "name": "Ronneberger_UNET",
       "loss": "categorical_crossentropy_loss",
-      "metrics": ["categorical_crossentropy", "mod_dice_coef"],
-      "REAL_LABELS":1,
+      "metrics": ["categorical_crossentropy", "mod_dice_coef", "dice_coef"],
+      "to_categ":1,
       "epochs": 10,
       "classes_to_evaluate": ["penumbra", "core", "penumbracore"],
       "statistics": ["sensitivity", "specificity", "precision", "f1", "accuracy", "jaccard_index"],

@@ -6,7 +6,7 @@ import multiprocessing
 import pandas as pd
 import numpy as np
 import hickle as hkl # Price et al., (2018). Hickle: A HDF5-based python pickle replacement. Journal of Open Source Software, 3(32), 1115, https://doi.org/10.21105/joss.01115
-
+from tensorflow.keras import utils
 
 ################################################################################
 # Function to test the model `NOT USED OTHERWISE`
@@ -34,7 +34,7 @@ def initTestingDataFrame():
 
 ################################################################################
 # Function to load the saved dataframe
-def loadTrainingDataframe(net, testing_id=None):
+def loadTrainingDataframe(nn, testing_id=None):
     cpu_count = multiprocessing.cpu_count()
     # columns : ['patient_id', 'label', 'pixels', 'ground_truth', "label_code"]
     train_df = pd.DataFrame(columns=constants.dataFrameColumns)
@@ -42,14 +42,14 @@ def loadTrainingDataframe(net, testing_id=None):
     suffix = general_utils.getSuffix()
 
     frames = [train_df]
-    if not net.mp: # (SINGLE PROCESSING VERSION)
-        for filename_train in glob.glob(net.datasetFolder+"*"+suffix+".hkl"):
-            tmp_df = loadSingleTrainingData(net.da, filename_train, testing_id)
+    if not nn.mp: # (SINGLE PROCESSING VERSION)
+        for filename_train in glob.glob(nn.datasetFolder+"*"+suffix+".hkl"):
+            tmp_df = loadSingleTrainingData(nn.da, filename_train, testing_id)
             frames.append(tmp_df)
     else: # MMULTI PROCESSING VERSION)
         input = []
-        for filename_train in glob.glob(net.datasetFolder+"*"+suffix+".hkl"):
-            input.append((net.da, filename_train, testing_id))
+        for filename_train in glob.glob(nn.datasetFolder+"*"+suffix+".hkl"):
+            input.append((nn.da, filename_train, testing_id))
 
         with multiprocessing.Pool(processes=cpu_count) as pool: # auto closing workers
             frames = pool.starmap(loadSingleTrainingData, input)
@@ -94,22 +94,22 @@ def readFromHDF(filename_train, suffix):
 
 ################################################################################
 # Return the dataset based on the patient id
-def getDataset(net, p_id=None):
+def getDataset(nn, p_id=None):
     start = time.time()
     train_df = pd.DataFrame(columns=['patient_id', 'label', 'pixels', 'ground_truth', "label_code"])
 
     if constants.getVerbose():
         general_utils.printSeparation("-",50)
-        if net.mp: print("Loading Dataset using MULTIprocessing...")
+        if nn.mp: print("Loading Dataset using MULTIprocessing...")
         else: print("Loading Dataset using SINGLEprocessing...")
 
     if constants.getDEBUG(): train_df = initTestingDataFrame()
     else:
         # no debugging and no data augmentation
-        if net.da:
+        if nn.da:
             print("Data augmented training/testing... load the dataset differently for each patient")
-            train_df = loadTrainingDataframe(net, testing_id=p_id)
-        else: train_df = loadTrainingDataframe(net)
+            train_df = loadTrainingDataframe(nn, testing_id=p_id)
+        else: train_df = loadTrainingDataframe(nn)
 
     end = time.time()
     print("Total time to load the Dataset: {0}s".format(round(end-start, 3)))
@@ -189,12 +189,15 @@ def getSingleDataFromIndex(singledata):
 
 ################################################################################
 # Return the labels ginve the indices
-def getLabelsFromIndex(train_df, indices, real_labels):
-    labels = np.array([np.array(a).reshape(constants.getM(),constants.getN()) for a in train_df.ground_truth.values[indices]])
+def getLabelsFromIndex(train_df, indices, to_categ):
+    labels = None
+    print(len(indices))
 
-
-    labels = labels.astype("float32")
-    if not real_labels:
+    if to_categ:
+        labels = np.array([np.array(utils.to_categorical(np.trunc(np.array((a/256)*len(constants.LABELS), dtype="float32")), num_classes=len(constants.LABELS))) for a in train_df.ground_truth.values[indices]])
+    else:
+        labels = np.array([np.array(a).reshape(constants.getM(),constants.getN()) for a in train_df.ground_truth.values[indices]])
+        labels = labels.astype("float32")
         # convert the label in [0, 1] values
         labels /= 255
 

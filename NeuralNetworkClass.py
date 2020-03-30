@@ -6,7 +6,7 @@ import glob
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras.models import model_from_json
-from tensorflow.keras.utils import to_categorical, multi_gpu_model, plot_model
+from tensorflow.keras.utils import multi_gpu_model, plot_model
 
 
 ################################################################################
@@ -45,7 +45,7 @@ class NeuralNetwork(object):
         self.statistics = general_utils.getStatisticFunctions(info["statistics"])
 
         # flags for the model
-        self.REAL_LABELS = True if info["REAL_LABELS"]==1 else False
+        self.to_categ = True if info["to_categ"]==1 else False
         self.save_images = True if info["save_images"]==1 else False
         self.save_statistics = True if info["save_statistics"]==1 else False
         self.use_background_in_statistics = True if info["use_background_in_statistics"]==1 else False
@@ -175,9 +175,9 @@ class NeuralNetwork(object):
 ################################################################################
 # Run the training over the dataset based on the model
     def runTraining(self, p_id, n_gpu):
-        self.dataset["train"]["labels"] = dataset_utils.getLabelsFromIndex(train_df=self.train_df, indices=self.dataset["train"]["indices"], real_labels=self.REAL_LABELS)
-        self.dataset["val"]["labels"] = None if self.val["validation_perc"]==0 else dataset_utils.getLabelsFromIndex(train_df=self.train_df, indices=self.dataset["val"]["indices"], real_labels=self.REAL_LABELS)
-        if self.supervised: self.dataset["test"]["labels"] = dataset_utils.getLabelsFromIndex(train_df=self.train_df, indices=self.dataset["test"]["indices"], real_labels=self.REAL_LABELS)
+        self.dataset["train"]["labels"] = dataset_utils.getLabelsFromIndex(train_df=self.train_df, indices=self.dataset["train"]["indices"], to_categ=self.to_categ)
+        self.dataset["val"]["labels"] = None if self.val["validation_perc"]==0 else dataset_utils.getLabelsFromIndex(train_df=self.train_df, indices=self.dataset["val"]["indices"], to_categ=self.to_categ)
+        if self.supervised: self.dataset["test"]["labels"] = dataset_utils.getLabelsFromIndex(train_df=self.train_df, indices=self.dataset["test"]["indices"], to_categ=self.to_categ)
 
         if self.getVerbose():
             general_utils.printSeparation("-", 50)
@@ -186,16 +186,16 @@ class NeuralNetwork(object):
         # based on the number of GPUs availables
         # call the function called self.name in models.py
         if n_gpu==1:
-            self.model = getattr(models, self.name)(self.dataset["train"]["data"], params=self.params)
+            self.model = getattr(models, self.name)(self.dataset["train"]["data"], params=self.params, to_categ=self.to_categ)
         else:
             # TODO: problems during the load of the model (?)
             with tf.device('/cpu:0'):
-                self.model = getattr(models, self.name)(self.dataset["train"]["data"], params=self.params)
+                self.model = getattr(models, self.name)(self.dataset["train"]["data"], params=self.params, to_categ=self.to_categ)
             self.model = multi_gpu_model(self.model, gpus=n_gpu)
 
         if self.getVerbose() and self.summaryFlag==0:
             print(self.model.summary())
-            plot_model(self.model, to_file=general_utils.getFullDirectoryPath(self.savedModelFolder)+self.getNNID(p_id)+"_model.png", show_shapes=True)
+            plot_model(self.model, to_file=general_utils.getFullDirectoryPath(self.savedModelFolder)+self.getNNID("model")+".png", show_shapes=True)
             self.summaryFlag+=1
 
         # check if the model has some saved weights to load...
@@ -227,19 +227,19 @@ class NeuralNetwork(object):
 ################################################################################
 # Get the sample weight from the dataset
     def getSampleWeights(self, flag):
-        background_weight = 1-((self.N_BACKGROUND)/self.N_TOT)
-        brain_weight = 1-((self.N_BRAIN)/self.N_TOT)
-        penumbra_weight = 1-((self.N_PENUMBRA)/self.N_TOT)
-        core_weight = 1-((self.N_CORE)/self.N_TOT)
+        # background_weight = 1-((self.N_BACKGROUND)/self.N_TOT)
+        # brain_weight = 1-((self.N_BRAIN)/self.N_TOT)
+        # penumbra_weight = 1-((self.N_PENUMBRA)/self.N_TOT)
+        # core_weight = 1-((self.N_CORE)/self.N_TOT)
+        #
+        # min_weight = min([background_weight,brain_weight,penumbra_weight,core_weight])
+        # max_weight = max([background_weight,brain_weight,penumbra_weight,core_weight])
 
-        min_weight = min([background_weight,brain_weight,penumbra_weight,core_weight])
-        max_weight = max([background_weight,brain_weight,penumbra_weight,core_weight])
-        
         sample_weights = self.train_df.label.map({
-            constants.LABELS[0]:((background_weight-min_weight)/(max_weight-min_weight)),
-            constants.LABELS[1]:((brain_weight-min_weight)/(max_weight-min_weight)),
-            constants.LABELS[2]:((penumbra_weight-min_weight)/(max_weight-min_weight)),
-            constants.LABELS[3]:((core_weight-min_weight)/(max_weight-min_weight))
+            constants.LABELS[0]:1, #0.1, #((background_weight-min_weight)/(max_weight-min_weight)),
+            constants.LABELS[1]:1, #1, #((brain_weight-min_weight)/(max_weight-min_weight)),
+            constants.LABELS[2]:50, #((penumbra_weight-min_weight)/(max_weight-min_weight))*100,
+            constants.LABELS[3]:100 #((core_weight-min_weight)/(max_weight-min_weight))*100
         })
 
         return sample_weights.values[self.dataset[flag]["indices"]]
@@ -368,6 +368,8 @@ class NeuralNetwork(object):
 
             id += ("_VAL"+str(self.val["validation_perc"]))
             if self.val["random_validation_selection"]: id += ("_RANDOM")
+
+            if self.to_categ: id += ("_SOFTMAX") # differenciate between softmax and sigmoid last activation layer
 
             # if there is cross validation, add the PATIENT_ID to differenciate the models
             if self.cross_validation:

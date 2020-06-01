@@ -15,21 +15,20 @@ import os
 import operator
 import random
 import hickle as hkl # Price et al., (2018). Hickle: A HDF5-based python pickle replacement. Journal of Open Source Software, 3(32), 1115, https://doi.org/10.21105/joss.01115
-
+from scipy import ndimage
 
 
 # #### CONSTANTS
 
 # In[2]:
 
+DATASET_NAME = "Master2019" # ISLES2018
 
-ROOT_PATH = "/home/stud/lucat/PhD_Project/Stroke_segmentation/"
-#ROOT_PATH = "/Users/lucatomasetti/Desktop/uni-stavanger/MASTER_THESIS/"
-SCRIPT_PATH = "/local/home/lucat/DATASET/" # "/local/home/lucat/DATASET/oldPatients/"
+ROOT_PATH = "/home/stud/lucat/PhD_Project/Stroke_segmentation/PATIENTS/"+DATASET_NAME+"/Training/"
+SCRIPT_PATH = "/local/home/lucat/DATASET/"+DATASET_NAME+"/"
 
-
+SAVE_REGISTERED_FOLDER = ROOT_PATH + "Patients/" # "OLDPREPROC_PATIENTS/"
 LABELLED_IMAGES_FOLDER_LOCATION = ROOT_PATH + "Manual_annotations/"
-SAVE_REGISTERED_FOLDER = ROOT_PATH + "PATIENTS/" # "OLDPREPROC_PATIENTS/"
 
 NUMBER_OF_IMAGE_PER_SECTION = 30 # number of image (divided by time) for each section of the brain
 IMAGE_WIDTH, IMAGE_HEIGHT = 512, 512
@@ -42,13 +41,13 @@ dataset, listPatientsDataset, trainDatasetList = {}, {}, list()
 
 
 DATA_AUGMENTATION = True
-
+ENTIRE_IMAGE = False # set to false if the tile are NOT the entire image
 
 # In[4]:
 
 
-M, N = int(IMAGE_WIDTH/16), int(IMAGE_HEIGHT/16)
-SLICING_PIXELS = int(M/4)
+M, N = int(IMAGE_WIDTH/8), int(IMAGE_HEIGHT/8)
+SLICING_PIXELS = int(M/8)
 
 PERCENTAGE_BACKGROUND_IMAGES = 20
 
@@ -90,7 +89,8 @@ def initializeLabels(patientIndex):
 
 
 def getLabelledAreas(patientIndex, timeIndex):
-    return cv2.imread(LABELLED_IMAGES_FOLDER_LOCATION+"Patient"+patientIndex+"/"+patientIndex+timeIndex+".png", 0)
+    print(LABELLED_IMAGES_FOLDER_LOCATION+"PA"+patientIndex+"/"+timeIndex+".png")
+    return cv2.imread(LABELLED_IMAGES_FOLDER_LOCATION+"PA"+patientIndex+"/"+timeIndex+".png", 0)
 
 
 # Function that return the slicing window from `img`, starting at pixels `startX` and `startY` with a width of `M` and height of `N`.
@@ -116,7 +116,7 @@ def fillDataset(train_df, relativePath, patientIndex, timeFolder):
     labelledMatrix = getLabelledAreas(patientIndex, timeIndex)
 
     numBack, numBrain, numPenumbra, numCore = 0, 0, 0, 0
-    startingX, startingY = 0, 0
+    startingX, startingY, count = 0, 0, 0
     tmpListPixels, tmpListClasses, tmpListGroundTruth = list(), list(), list()
     backgroundPixelList, backgroundGroundTruthList = list(), list()
 
@@ -138,8 +138,13 @@ def fillDataset(train_df, relativePath, patientIndex, timeFolder):
         otherInforList.append(dict())
 
     while True:
-        if startingX>=IMAGE_WIDTH-M and startingY>=IMAGE_HEIGHT-N: # if we reach the end of the image, break the while loop.
-            break
+        if ENTIRE_IMAGE:
+            count += 1
+            if count > 1:
+                break
+        else:
+            if startingX>=IMAGE_WIDTH-M and startingY>=IMAGE_HEIGHT-N: # if we reach the end of the image, break the while loop.
+                break
 
         realLabelledWindow = getSlicingWindow(labelledMatrix, startingX, startingY, M, N)
         binaryBackgroundMatrix = realLabelledWindow>=250
@@ -178,10 +183,10 @@ def fillDataset(train_df, relativePath, patientIndex, timeFolder):
         for data_aug_idx in range(numReplication):
             # tmparray = []
 
-            for imagename in np.sort(glob.glob(timeFolder+"*.png")): # sort the images !
+            for image_idx, imagename in enumerate(np.sort(glob.glob(timeFolder+"*.png"))): # sort the images !
                 if str(startingX) not in pixelsList[data_aug_idx].keys(): pixelsList[data_aug_idx][str(startingX)] = dict()
                 if str(startingX) not in otherInforList[data_aug_idx].keys(): otherInforList[data_aug_idx][str(startingX)] = dict()
-                if str(startingY) not in pixelsList[data_aug_idx][str(startingX)].keys(): pixelsList[data_aug_idx][str(startingX)][str(startingY)] = list()
+                if str(startingY) not in pixelsList[data_aug_idx][str(startingX)].keys(): pixelsList[data_aug_idx][str(startingX)][str(startingY)] = dict() #list()
                 if str(startingY) not in otherInforList[data_aug_idx][str(startingX)].keys(): otherInforList[data_aug_idx][str(startingX)][str(startingY)] = dict()
 
                 filename = imagename.replace(timeFolder, '')
@@ -199,7 +204,9 @@ def fillDataset(train_df, relativePath, patientIndex, timeFolder):
 
                 # tmparray.extend(slicingWindow)
 
-                pixelsList[data_aug_idx][str(startingX)][str(startingY)].extend(slicingWindow)
+                # pixelsList[data_aug_idx][str(startingX)][str(startingY)].extend(slicingWindow)
+                if image_idx not in pixelsList[data_aug_idx][str(startingX)][str(startingY)].keys(): pixelsList[data_aug_idx][str(startingX)][str(startingY)][image_idx] = list()
+                pixelsList[data_aug_idx][str(startingX)][str(startingY)][image_idx] = slicingWindow
 
             otherInforList[data_aug_idx][str(startingX)][str(startingY)]["ground_truth"] = realLabelledWindow
             otherInforList[data_aug_idx][str(startingX)][str(startingY)]["label_class"] = classToSet
@@ -226,12 +233,36 @@ def fillDataset(train_df, relativePath, patientIndex, timeFolder):
     print("+++++++++++++++++++++++++++++++++++++++++++++++++++++")
 
     print(train_df.shape)
-
     backElem = 0
     for d in range(0, len(pixelsList)):
         for x in pixelsList[d].keys():
             for y in pixelsList[d][x].keys():
-                pixels = np.array(pixelsList[d][x][y]).reshape(NUMBER_OF_IMAGE_PER_SECTION,M,N)
+                arrayOfVolumeImages = []
+                for z in sorted(pixelsList[d][x][y].keys()):
+                    tmp_pix = np.array(pixelsList[d][x][y][z])
+                    arrayOfVolumeImages.append(tmp_pix)
+
+                totalVol = np.array(arrayOfVolumeImages)
+                # # print(np.array(pixelsList[d][x][y]).shape)
+                #
+                # # pixels = np.array(pixelsList[d][x][y]).reshape(NUMBER_OF_IMAGE_PER_SECTION,M,N)
+                #
+                # tmp_pix = np.array(pixelsList[d][x][y][z])
+                # pixels = tmp_pix.reshape(M,N,int(tmp_pix.shape[0]/M))
+
+                # convert the pixels in a (M,N,30) shape
+                zoom_val = NUMBER_OF_IMAGE_PER_SECTION/totalVol.shape[0]
+                if totalVol.shape[0] < NUMBER_OF_IMAGE_PER_SECTION:
+                    zoom_val = totalVol.shape[0]/NUMBER_OF_IMAGE_PER_SECTION
+
+                pixels_zoom = ndimage.zoom(totalVol,[zoom_val,1,1])
+
+                # print(pixels_zoom.shape)
+                # for z in range(0,pixels_zoom.shape[0]):
+                #     print(ROOT_PATH+"Test/img_{0}_{1}_{2}_{3}.png".format(d,x,y,z))
+                #     cv2.imwrite(ROOT_PATH+"Test/origimg_{0}_{1}_{2}_{3}.png".format(d,x,y,z), totalVol[z,:,:])
+                #     cv2.imwrite(ROOT_PATH+"Test/img_{0}_{1}_{2}_{3}.png".format(d,x,y,z), pixels_zoom[z,:,:])
+
                 label = otherInforList[d][x][y]["label_class"]
                 gt = otherInforList[d][x][y]["ground_truth"]
 
@@ -241,7 +272,8 @@ def fillDataset(train_df, relativePath, patientIndex, timeFolder):
                         continue
                     else:
                         backElem+=1
-                tmp_df = pd.DataFrame(np.array([[patientIndex, label, pixels, gt]]), columns=['patient_id', 'label', 'pixels', 'ground_truth'])
+
+                tmp_df = pd.DataFrame(np.array([[patientIndex, label, pixels_zoom, gt]]), columns=['patient_id', 'label', 'pixels', 'ground_truth'])
                 tmp_df['label_code'] = tmp_df.label.map({LABELS[0]:0, LABELS[1]:1, LABELS[2]:2, LABELS[3]:3})
                 train_df = train_df.append(tmp_df, ignore_index=True)
 
@@ -281,56 +313,68 @@ def initializeDataset():
         subfolders = glob.glob(patientFolder+"*/")
 
         ## only patients from 2 to 11 (the one with annotations)
-        if int(patientIndex)>1 and int(patientIndex)<=11:
-            print("\t Analyzing {0}/{1}; patient folder: {2}...".format(numFold+1, len(patientFolders), relativePath))
-            for count, timeFolder in enumerate(subfolders): # for each slicing time
-                initializeLabels(patientIndex)
-                print("\t\t Analyzing subfolder {0}".format(timeFolder.replace(SAVE_REGISTERED_FOLDER, '').replace(relativePath, '')))
-                start = time.time()
+        # if int(patientIndex)>1 and int(patientIndex)<=11:
+        print("\t Analyzing {0}/{1}; patient folder: {2}...".format(numFold+1, len(patientFolders), relativePath))
+        for count, timeFolder in enumerate(subfolders): # for each slicing time
+            initializeLabels(patientIndex)
+            print("\t\t Analyzing subfolder {0}".format(timeFolder.replace(SAVE_REGISTERED_FOLDER, '').replace(relativePath, '')))
+            start = time.time()
 
-                train_df = fillDataset(train_df, relativePath, patientIndex, timeFolder) # insert the data inside the dataset dictionary
-                # print("\t\t Details:", [(key, len(subdataset)) for key, subdataset in dataset[patientIndex].items()])
-                print("+++++++++++++++++++++++++++++++++++++++++++++++++++++")
-                print("\t\t Background: {0}".format(str(sum(train_df.label==LABELS[0]))))
-                print("\t\t Brain: {0}".format(str(sum(train_df.label==LABELS[1]))))
-                print("\t\t Penumbra: {0}".format(str(sum(train_df.label==LABELS[2]))))
-                print("\t\t Core: {0}".format(str(sum(train_df.label==LABELS[3]))))
-                print("+++++++++++++++++++++++++++++++++++++++++++++++++++++")
+            train_df = fillDataset(train_df, relativePath, patientIndex, timeFolder) # insert the data inside the dataset dictionary
+            # print("\t\t Details:", [(key, len(subdataset)) for key, subdataset in dataset[patientIndex].items()])
+            print("+++++++++++++++++++++++++++++++++++++++++++++++++++++")
+            print("\t\t Background: {0}".format(str(sum(train_df.label==LABELS[0]))))
+            print("\t\t Brain: {0}".format(str(sum(train_df.label==LABELS[1]))))
+            print("\t\t Penumbra: {0}".format(str(sum(train_df.label==LABELS[2]))))
+            print("\t\t Core: {0}".format(str(sum(train_df.label==LABELS[3]))))
+            print("+++++++++++++++++++++++++++++++++++++++++++++++++++++")
 
-                end = time.time()
-                print("\t\t Processed {0}/{1} subfolders in {2}s.".format(count+1, len(subfolders), round(end-start, 3)))
+            end = time.time()
+            print("\t\t Processed {0}/{1} subfolders in {2}s.".format(count+1, len(subfolders), round(end-start, 3)))
 
-                # start = time.time()
-                # convertDatasetInList()
-                # print("Preparing partial TRAIN dataframe...")
-                # tmp = prepareTraining()
-                # end = time.time()
-                # append the new rows in the dataframe
-                # for index in range(0, tmp.shape[0]): train_df = train_df.append( tmp.iloc[index] )
-                # print("Time: {0}".format(round(end-start, 3)))
-                print("Train shape: ", train_df.shape)
-            print("Saving TRAIN dataframe for patient {1} in {0}...".format(filename_train, str(patientIndex)))
-            #suffix = "_DATA_AUGMENTATION" if DATA_AUGMENTATION else ""
-            #train_df.to_hdf(filename_train, key="X_"+str(M)+"x"+str(N)+"_"+str(SLICING_PIXELS) + suffix)
-            hkl.dump(train_df, filename_train, mode='w')
+            # start = time.time()
+            # convertDatasetInList()
+            # print("Preparing partial TRAIN dataframe...")
+            # tmp = prepareTraining()
+            # end = time.time()
+            # append the new rows in the dataframe
+            # for index in range(0, tmp.shape[0]): train_df = train_df.append( tmp.iloc[index] )
+            # print("Time: {0}".format(round(end-start, 3)))
+            print("Train shape: ", train_df.shape)
+        print("Saving TRAIN dataframe for patient {1} in {0}...".format(filename_train, str(patientIndex)))
+        #suffix = "_DATA_AUGMENTATION" if DATA_AUGMENTATION else ""
+        #train_df.to_hdf(filename_train, key="X_"+str(M)+"x"+str(N)+"_"+str(SLICING_PIXELS) + suffix)
+        hkl.dump(train_df, filename_train, mode='w')
 
 
 
 # In[11]:
 
 
-def convertDatasetInList():
-    global listPatientsDataset, dataset
-    listPatientsDataset = {} # reset the list
-
-    for patient_id in dataset.keys():
-        listPatientsDataset[patient_id] = []
-        for idx, pixels in enumerate(dataset[patient_id]["data"]):
-            # print(np.array(pixels).shape)
-            pixels = np.array(pixels).reshape(NUMBER_OF_IMAGE_PER_SECTION,M,N)
-            ground_truth = dataset[patient_id]["ground_truth"][idx]
-            label = dataset[patient_id]["label_class"][idx]
-            listPatientsDataset[patient_id].append((patient_id, label, pixels, ground_truth))
+# def convertDatasetInList():
+#     global listPatientsDataset, dataset
+#     listPatientsDataset = {} # reset the list
+#
+#     for patient_id in dataset.keys():
+#         listPatientsDataset[patient_id] = []
+#         for idx, pixels in enumerate(dataset[patient_id]["data"]):
+#
+#
+#             # pixels = np.array(pixels).reshape(NUMBER_OF_IMAGE_PER_SECTION,M,N)
+#
+#             tmp_pix = np.array(pixels)
+#             pixels = tmp_pix.reshape(M,N,int(tmp_pix.shape[0]/M))
+#
+#             # convert the pixels in a (M,N,30) shape
+#             zoom_val = NUMBER_OF_IMAGE_PER_SECTION/pixels.shape[2]
+#             if pixels.shape[2] < NUMBER_OF_IMAGE_PER_SECTION:
+#                 zoom_val = pixels.shape[2]/NUMBER_OF_IMAGE_PER_SECTION
+#
+#             pixels_zoom = ndimage.zoom(pixels,[1,1,zoom_val])
+#
+#             ground_truth = dataset[patient_id]["ground_truth"][idx]
+#             label = dataset[patient_id]["label_class"][idx]
+#             listPatientsDataset[patient_id].append((patient_id, label, pixels_zoom, ground_truth))
 
 
 # In[12]:

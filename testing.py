@@ -73,7 +73,9 @@ def predictImage(that, subfolder, p_id, patientFolder, relativePatientFolder):
     if constants.getVerbose():
         print("Analyzing Patient {0}, image {1}...".format(p_id, idx))
 
-    labeled_image = cv2.imread(that.labeledImagesFolder+"Patient"+p_id+"/"+p_id+idx+".png", 0)
+    if that.labeledImagesFolder!="": # get the label image only if the path is set
+        labeled_image = cv2.imread(that.labeledImagesFolder+"PA"+p_id+"/"+p_id+idx+".png", 0)
+
     startingX, startingY = 0, 0
     imagePredicted = np.zeros(shape=(constants.IMAGE_WIDTH, constants.IMAGE_HEIGHT, 3), dtype=np.uint8)
 
@@ -111,7 +113,9 @@ def predictImage(that, subfolder, p_id, patientFolder, relativePatientFolder):
         pixels = pixels.reshape(1, pixels.shape[0], pixels.shape[1], pixels.shape[2], 1)
 
         ### MODEL PREDICT (image & statistics)
-        y_true = general_utils.getSlicingWindow(labeled_image, startingX, startingY, constants.getM(), constants.getN())
+        if that.labeledImagesFolder!="":
+            y_true = general_utils.getSlicingWindow(labeled_image, startingX, startingY, constants.getM(), constants.getN())
+
         # slicingWindowPredicted contain only the prediction for the last step
         slicingWindowPredicted = predictFromModel(that, pixels)[that.test_steps-1]
         multiplier = 255
@@ -120,7 +124,7 @@ def predictImage(that, subfolder, p_id, patientFolder, relativePatientFolder):
             slicingWindowPredicted = K.eval((K.argmax(slicingWindowPredicted)*256)/len(constants.LABELS))
             multiplier = 1
 
-        if that.save_statistics:
+        if that.save_statistics and that.labeledImagesFolder!="":
             YTRUEToEvaluate.extend(y_true)
             YPREDToEvaluate.extend(slicingWindowPredicted*multiplier)
 
@@ -148,6 +152,7 @@ def predictImage(that, subfolder, p_id, patientFolder, relativePatientFolder):
         # if we reach the end of the image, break the while loop.
         if startingX>=constants.IMAGE_WIDTH-constants.getM() and startingY>=constants.IMAGE_HEIGHT-constants.getN():
             break
+
         # going to the next slicingWindow
         if startingY<constants.IMAGE_HEIGHT-constants.getN(): startingY+=constants.getN()
         else:
@@ -238,7 +243,7 @@ def evaluateModelAlreadySaved(nn, p_id):
     suffix = general_utils.getSuffix()
 
     filename_train = nn.datasetFolder+"patient"+str(p_id)+suffix+".hkl"
-    nn.train_df = dataset_utils.readFromHickle(filename_train, "")
+    nn.train_df = dataset_utils.readFromHickle(filename_train)
 #    filename_train = nn.datasetFolder+"trainComplete"+str(p_id)+".h5"
 #   nn.train_df = dataset_utils.readFromHDF(filename_train, "")
     nn.dataset = dataset_utils.getTestDataset(nn.dataset, nn.train_df, p_id, nn.mp)

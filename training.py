@@ -63,7 +63,7 @@ def fitModel(model, dataset, epochs, listOfCallbacks, sample_weights, initial_ep
     validation_data = None
     if dataset["val"]["data"] is not None and dataset["val"]["labels"] is not None: validation_data = (dataset["val"]["data"], dataset["val"]["labels"])
 
-    training = model.fit(dataset["train"]["data"],
+    training = model.fit(np.array(dataset["train"]["data"]),
                 dataset["train"]["labels"],
                 epochs=epochs,
                 callbacks=listOfCallbacks,

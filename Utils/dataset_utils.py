@@ -1,7 +1,7 @@
 import constants
 from Utils import general_utils
 
-import os, glob, random, time, random
+import os, glob, random, time
 import multiprocessing
 import pandas as pd
 import numpy as np
@@ -11,15 +11,16 @@ from tensorflow.keras import utils
 ################################################################################
 # Function to test the model `NOT USED OTHERWISE`
 def initTestingDataFrame():
-    patientList = ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11"]
+    patientList = ["02", "03", "04", "05", "06", "07", "08", "09", "10", "11"]
     testingList = []
     for sample in range(0, constants.SAMPLES*2):
         if sample<constants.SAMPLES:
-            rand_pixels = np.random.randint(low=0, high=50, size=(constants.NUMBER_OF_IMAGE_PER_SECTION, constants.getM(), constants.getN()))
+            # rand_pixels = np.random.randint(low=0, high=50, size=(constants.NUMBER_OF_IMAGE_PER_SECTION, constants.getM(), constants.getN()))
+            rand_pixels = np.random.randint(low=0, high=50, size=(constants.getM(), constants.getN(), random.randrange(1,70)))
             label = constants.LABELS[0]
             ground_truth = np.zeros(shape=(constants.getM(), constants.getN()))
         else:
-            rand_pixels = np.random.randint(low=180, high=255, size=(constants.NUMBER_OF_IMAGE_PER_SECTION, constants.getM(), constants.getN()))
+            rand_pixels = np.random.randint(low=180, high=255, size=(constants.getM(), constants.getN(), random.randrange(1,70)))
             label = constants.LABELS[1]
             ground_truth = np.ones(shape=(constants.getM(), constants.getN()))*255
 
@@ -36,17 +37,16 @@ def initTestingDataFrame():
 # Function to load the saved dataframe
 def loadTrainingDataframe(nn, testing_id=None):
     cpu_count = multiprocessing.cpu_count()
-    # columns : ['patient_id', 'label', 'pixels', 'ground_truth', "label_code"]
-    train_df = pd.DataFrame(columns=constants.dataFrameColumns)
+    train_df = pd.DataFrame(columns=constants.dataFrameColumns) # columns : ['patient_id', 'label', 'pixels', 'ground_truth', "label_code"]
 
-    suffix = general_utils.getSuffix()
+    suffix = general_utils.getSuffix() # es == "_4_16x16"
 
     frames = [train_df]
     if not nn.mp: # (SINGLE PROCESSING VERSION)
         for filename_train in glob.glob(nn.datasetFolder+"*"+suffix+".hkl"):
             tmp_df = loadSingleTrainingData(nn.da, filename_train, testing_id)
             frames.append(tmp_df)
-    else: # MMULTI PROCESSING VERSION)
+    else: # (MULTI PROCESSING VERSION)
         input = []
         for filename_train in glob.glob(nn.datasetFolder+"*"+suffix+".hkl"):
             input.append((nn.da, filename_train, testing_id))
@@ -65,8 +65,7 @@ def loadTrainingDataframe(nn, testing_id=None):
 
 ################################################################################
 # Function to load a single dataframe from a patient index
-def loadSingleTrainingData(da, filename_train, testing_id):
-    #filename_train = SCRIPT_PATH+"trainComplete"+p_id+".h5"
+def loadSingleTrainingData(da, filename_train, testing_id):"
     index = filename_train[-5:-3]
     p_id = general_utils.getStringPatientIndex(index)
 
@@ -78,13 +77,13 @@ def loadSingleTrainingData(da, filename_train, testing_id):
         suffix= ""
 
     #tmp_df = readFromHDF(filename_train, suffix)
-    tmp_df = readFromHickle(filename_train, suffix) # Faster and less space consuming!
+    tmp_df = readFromHickle(filename_train) # Faster and less space consuming!
 
     return tmp_df
 
 ################################################################################
 # Return the elements in the filename saved as a hickle
-def readFromHickle(filename, suffix):
+def readFromHickle(filename):
     return hkl.load(filename)
 
 ################################################################################
@@ -94,6 +93,7 @@ def readFromHDF(filename_train, suffix):
 
 ################################################################################
 # Return the dataset based on the patient id
+# First function that is been called to create the train_df
 def getDataset(nn, p_id=None):
     start = time.time()
     train_df = pd.DataFrame(columns=['patient_id', 'label', 'pixels', 'ground_truth', "label_code"])
@@ -168,30 +168,29 @@ def getDataFromIndex(train_df, indices, mp):
     start = time.time()
 
     if not mp: # (SINGLE PROCESSING VERSION)
-        data = np.array([np.array(a).reshape(constants.NUMBER_OF_IMAGE_PER_SECTION,constants.getM(),constants.getN(),1) for a in train_df.pixels.values[indices]])
+        # data = np.array([np.array(a).reshape(constants.NUMBER_OF_IMAGE_PER_SECTION,constants.getM(),constants.getN(),1) for a in train_df.pixels.values[indices]])
+        data = [np.array(a, dtype=object).reshape(np.array(a).shape + (1,)) for a in train_df.pixels.values[indices]]
     else: # (MULTI PROCESSING VERSION)
         cpu_count = multiprocessing.cpu_count()
         input = [a for a in train_df.pixels.values[indices]]
         with multiprocessing.Pool(processes=cpu_count) as pool: # auto closing workers
             data = pool.map(getSingleDataFromIndex, input)
-            data = np.array(data)
 
     end = time.time()
 
-    # data = data.reshape((data.shape[0], data.shape[1], data.shape[2], data.shape[3], 1))
     print("*getDataFromIndex* Time: {}s".format(round(end-start, 3)))
-    return data
+    return np.array(data)
 
 ################################################################################
 
 def getSingleDataFromIndex(singledata):
-    return np.array(singledata).reshape(constants.NUMBER_OF_IMAGE_PER_SECTION,constants.getM(),constants.getN(),1)
+    # return np.array(singledata).reshape(constants.NUMBER_OF_IMAGE_PER_SECTION,constants.getM(),constants.getN(),1)
+    return np.array(singledata, dtype=object).reshape(np.array(a).shape + (1,))
 
 ################################################################################
 # Return the labels ginve the indices
 def getLabelsFromIndex(train_df, indices, to_categ):
     labels = None
-    print(len(indices))
 
     if to_categ:
         labels = np.array([np.array(utils.to_categorical(np.trunc(np.array((a/256)*len(constants.LABELS), dtype="float32")), num_classes=len(constants.LABELS))) for a in train_df.ground_truth.values[indices]])

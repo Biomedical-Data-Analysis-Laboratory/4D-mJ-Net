@@ -32,13 +32,18 @@ def main():
 
     for nn in networks:
         stats = {}
-        for testPatient in setting["PATIENT_TO_TEST"]:
+
+        listOfPatientsToTest = setting["PATIENT_TO_TEST"]
+        if listOfPatientsToTest[0] == "ALL": # flag that states: runn the test on all the patients in the "patient" folder
+            mainPatsFodler = os.path.join(constants.getRootPath(),nn.patientsFolder)
+            listOfPatientsToTest = [int(d[len(constants.PREFIX_IMAGES):]) for d in os.listdir(mainPatsFodler) if os.path.isdir(os.path.join(mainPatsFodler, d))]
+
+        for testPatient in listOfPatientsToTest:
             p_id = general_utils.getStringPatientIndex(testPatient)
             isAlreadySaved = False
 
             # set the multi/single PROCESSING
             nn.setProcessingEnv(setting["init"]["MULTIPROCESSING"])
-
 
             # Check if the model was already trained and saved
             if nn.isModelSaved(p_id):
@@ -64,6 +69,7 @@ def main():
                 nn.evaluateModelWithCategorics(p_id, isAlreadySaved)
             # predict and save the images
             tmpStats = nn.predictAndSaveImages(p_id)
+            
             for func in nn.statistics:
                 for classToEval in nn.classes_to_evaluate:
                     if func.__name__ not in stats.keys(): stats[func.__name__] = {}

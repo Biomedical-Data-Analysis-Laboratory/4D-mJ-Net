@@ -53,7 +53,9 @@ def getSettingFile(filename):
 ################################################################################
 # setup the global environment
 def setupEnvironment(args, setting):
+    # important: set up the root path for later uses
     constants.setRootPath(setting["root_path"])
+
     N_GPU = setupEnvironmentForGPUs(args, setting)
 
     for key, rel_path in setting["relative_paths"].items():
@@ -95,12 +97,6 @@ def getSlicingWindow(img, startX, startY, M, N):
 # Get the epoch number from the partial weight filename
 def getEpochFromPartialWeightFilename(partialWeightsPath):
     return int(partialWeightsPath[partialWeightsPath.index(constants.suffix_partial_weights)+len(constants.suffix_partial_weights):partialWeightsPath.index(".h5")])
-
-def mapSoftmaxOutputToGroundTruth(x):
-    index = K.eval(x)
-    return constants.PIXELVALUES[index]
-
-
 
 ################################################################################
 # Get the loss defined in the settings

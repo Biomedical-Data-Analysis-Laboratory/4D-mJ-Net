@@ -132,11 +132,6 @@ def mAP(y_true, y_pred, use_background_in_statistics, label):
 #     elif label==4: # Penumbra + Core
 #         y_true, y_pred = thresholdingPenumbraCore(np.array(y_true), np.array(y_pred))
 #
-#     print(y_true.shape)
-#     print(y_pred.shape)
-#
-#     print(y_pred.reshape(1, y_pred.shape[0]*y_pred.shape[1]).shape)
-#
 #     return auc(y_true, y_pred)
 
 def ROC_AUC(y_true, y_pred, use_background_in_statistics, label):

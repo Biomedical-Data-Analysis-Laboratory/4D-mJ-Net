@@ -1,7 +1,7 @@
 #!/usr/bin/python
 
 import sys
-
+import os
 from Utils import general_utils, dataset_utils
 import constants
 from NeuralNetworkClass import NeuralNetwork
@@ -35,8 +35,8 @@ def main():
 
         listOfPatientsToTest = setting["PATIENT_TO_TEST"]
         if listOfPatientsToTest[0] == "ALL": # flag that states: runn the test on all the patients in the "patient" folder
-            mainPatsFodler = os.path.join(constants.getRootPath(),nn.patientsFolder)
-            listOfPatientsToTest = [int(d[len(constants.PREFIX_IMAGES):]) for d in os.listdir(mainPatsFodler) if os.path.isdir(os.path.join(mainPatsFodler, d))]
+            mainPatsFolder = os.path.join(constants.getRootPath(),nn.patientsFolder)
+            listOfPatientsToTest = [int(d[len(constants.PREFIX_IMAGES):]) for d in os.listdir(mainPatsFolder) if os.path.isdir(os.path.join(mainPatsFolder, d))]
 
         for testPatient in listOfPatientsToTest:
             p_id = general_utils.getStringPatientIndex(testPatient)
@@ -69,7 +69,7 @@ def main():
                 nn.evaluateModelWithCategorics(p_id, isAlreadySaved)
             # predict and save the images
             tmpStats = nn.predictAndSaveImages(p_id)
-            
+
             for func in nn.statistics:
                 for classToEval in nn.classes_to_evaluate:
                     if func.__name__ not in stats.keys(): stats[func.__name__] = {}
@@ -82,4 +82,19 @@ def main():
 ################################################################################
 ################################################################################
 if __name__ == '__main__':
+    """
+    Usage: python main.py [-h] [-v] [-d] [-s SNAME] [-t TILE] gpu
+
+    positional arguments:
+      gpu                   Give the id of gpu (or a list of the gpus) to use
+
+    optional arguments:
+      -h, --help            show this help message and exit
+      -v, --verbose         Increase output verbosity
+      -d, --debug           DEBUG mode
+      -s SNAME, --sname SNAME
+                            Pass the setting filename
+      -t TILE, --tile TILE  Set the tile pixels dimension (MxM)
+
+    """
     main()

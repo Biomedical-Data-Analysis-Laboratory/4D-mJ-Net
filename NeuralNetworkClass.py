@@ -24,6 +24,8 @@ class NeuralNetwork(object):
 
         self.name = info["name"]
         self.epochs = info["epochs"]
+        self.batch_size = info["batch_size"] if "batch_size" in info.keys() else 32
+
         self.val = {
             "validation_perc": info["val"]["validation_perc"],
             "random_validation_selection": info["val"]["random_validation_selection"]
@@ -58,13 +60,15 @@ class NeuralNetwork(object):
         # paths
         self.rootPath = setting["root_path"]
         self.datasetFolder = setting["dataset_path"]
-        self.patientsFolder = setting["relative_paths"]["patients"]
         self.labeledImagesFolder = setting["relative_paths"]["labeled_images"]
-        self.savedModelFolder = "SAVE/"+setting["relative_paths"]["save"]["model"]
-        self.savePartialModelFolder = "SAVE/"+setting["relative_paths"]["save"]["partial_model"]
-        self.saveImagesFolder = "SAVE/"+setting["relative_paths"]["save"]["images"]
-        self.savePlotFolder = "SAVE/"+setting["relative_paths"]["save"]["plot"]
-        self.saveTextFolder = "SAVE/"+setting["relative_paths"]["save"]["text"]
+        self.patientsFolder = setting["relative_paths"]["patients"]
+        self.experimentID = "EXP"+general_utils.convertExperimentNumberToString(setting["EXPERIMENT"])
+        self.experimentFolder = "SAVE/" + self.experimentID + "/"
+        self.savedModelFolder = self.experimentFolder+setting["relative_paths"]["save"]["model"]
+        self.savePartialModelFolder = self.experimentFolder+setting["relative_paths"]["save"]["partial_model"]
+        self.saveImagesFolder = self.experimentFolder+setting["relative_paths"]["save"]["images"]
+        self.savePlotFolder = self.experimentFolder+setting["relative_paths"]["save"]["plot"]
+        self.saveTextFolder = self.experimentFolder+setting["relative_paths"]["save"]["text"]
 
         self.infoCallbacks = info["callbacks"]
 
@@ -175,6 +179,10 @@ class NeuralNetwork(object):
 ################################################################################
 # Run the training over the dataset based on the model
     def runTraining(self, p_id, n_gpu):
+        if self.getVerbose():
+            general_utils.printSeparation("*", 50)
+            print("[INFO] - Start runTraining function.")
+
         self.dataset["train"]["labels"] = dataset_utils.getLabelsFromIndex(train_df=self.train_df, indices=self.dataset["train"]["indices"], to_categ=self.to_categ)
         self.dataset["val"]["labels"] = None if self.val["validation_perc"]==0 else dataset_utils.getLabelsFromIndex(train_df=self.train_df, indices=self.dataset["val"]["indices"], to_categ=self.to_categ)
         if self.supervised: self.dataset["test"]["labels"] = dataset_utils.getLabelsFromIndex(train_df=self.train_df, indices=self.dataset["test"]["indices"], to_categ=self.to_categ)
@@ -215,6 +223,7 @@ class NeuralNetwork(object):
         self.train = training.fitModel(
                 model=self.model,
                 dataset=self.dataset,
+                batch_size=self.batch_size,
                 epochs=self.epochs,
                 listOfCallbacks=self.callbacks,
                 sample_weights=sample_weights,

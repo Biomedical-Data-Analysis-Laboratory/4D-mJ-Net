@@ -55,16 +55,18 @@ def getSettingFile(filename):
 def setupEnvironment(args, setting):
     # important: set up the root path for later uses
     constants.setRootPath(setting["root_path"])
-
+    experimentFolder = "EXP"+convertExperimentNumberToString(setting["EXPERIMENT"])+"/"
     N_GPU = setupEnvironmentForGPUs(args, setting)
 
     for key, rel_path in setting["relative_paths"].items():
         if isinstance(rel_path, dict):
-            createDir(key.upper()+"/")
+            prefix = key.upper()+"/"
+            createDir(prefix)
+            createDir(prefix+experimentFolder)
             for sub_path in setting["relative_paths"][key].values():
-                createDir(key.upper()+"/"+sub_path)
+                createDir(prefix+experimentFolder+sub_path)
         else:
-            createDir(rel_path)
+            if rel_path!="": createDir(rel_path)
 
     return N_GPU
 
@@ -148,9 +150,26 @@ def getFullDirectoryPath(path):
 ################################################################################
 # Generate a directory in dir_path
 def createDir(dir_path):
-    if not os.path.isdir(dir_path): os.makedirs(dir_path)
+    if not os.path.isdir(dir_path):
+        if constants.getVerbose():
+            print("Creating folder: " + dir_path)
+        os.makedirs(dir_path)
 
 ################################################################################
 # print a separation
 def printSeparation(what, howmuch):
     print(what*howmuch)
+
+################################################################################
+# Convert the experiment number to a string of 3 letters
+def convertExperimentNumberToString(expnum):
+    exp = str(expnum)
+    while len(exp)<3:
+        exp = "0"+exp
+
+    return exp
+
+################################################################################
+# Print the shaoe of the layer if we are in debug mode
+def print_int_shape(layer):
+    if constants.getDEBUG(): print(K.int_shape(layer))

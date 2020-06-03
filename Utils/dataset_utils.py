@@ -7,6 +7,7 @@ import pandas as pd
 import numpy as np
 import hickle as hkl # Price et al., (2018). Hickle: A HDF5-based python pickle replacement. Journal of Open Source Software, 3(32), 1115, https://doi.org/10.21105/joss.01115
 from tensorflow.keras import utils
+import tensorflow as tf
 
 ################################################################################
 # Function to test the model `NOT USED OTHERWISE`
@@ -15,12 +16,13 @@ def initTestingDataFrame():
     testingList = []
     for sample in range(0, constants.SAMPLES*2):
         if sample<constants.SAMPLES:
-            # rand_pixels = np.random.randint(low=0, high=50, size=(constants.NUMBER_OF_IMAGE_PER_SECTION, constants.getM(), constants.getN()))
-            rand_pixels = np.random.randint(low=0, high=50, size=(constants.getM(), constants.getN(), random.randrange(1,70)))
+            rand_pixels = np.random.randint(low=0, high=50, size=(constants.NUMBER_OF_IMAGE_PER_SECTION, constants.getM(), constants.getN()))
+            # rand_pixels = np.random.randint(low=0, high=50, size=(constants.getM(), constants.getN(), random.randrange(1,70)))
             label = constants.LABELS[0]
             ground_truth = np.zeros(shape=(constants.getM(), constants.getN()))
         else:
-            rand_pixels = np.random.randint(low=180, high=255, size=(constants.getM(), constants.getN(), random.randrange(1,70)))
+            rand_pixels = np.random.randint(low=180, high=255, size=(constants.NUMBER_OF_IMAGE_PER_SECTION, constants.getM(), constants.getN()))
+            # rand_pixels = np.random.randint(low=180, high=255, size=(constants.getM(), constants.getN(), random.randrange(1,70)))
             label = constants.LABELS[1]
             ground_truth = np.ones(shape=(constants.getM(), constants.getN()))*255
 
@@ -65,7 +67,7 @@ def loadTrainingDataframe(nn, testing_id=None):
 
 ################################################################################
 # Function to load a single dataframe from a patient index
-def loadSingleTrainingData(da, filename_train, testing_id):"
+def loadSingleTrainingData(da, filename_train, testing_id):
     index = filename_train[-5:-3]
     p_id = general_utils.getStringPatientIndex(index)
 
@@ -155,9 +157,8 @@ def prepareDataset(nn, p_id):
     return nn.dataset
 
 ################################################################################
-# Get the test dataset
+# Get the test dataset, where the test indices are == p_id
 def getTestDataset(dataset, train_df, p_id, mp):
-    # test indices are = p_id
     dataset["test"]["indices"] = np.nonzero((train_df.patient_id.values == p_id))[0]
     dataset["test"]["data"] = getDataFromIndex(train_df, dataset["test"]["indices"], mp)
     return dataset
@@ -169,27 +170,30 @@ def getDataFromIndex(train_df, indices, mp):
 
     if not mp: # (SINGLE PROCESSING VERSION)
         # data = np.array([np.array(a).reshape(constants.NUMBER_OF_IMAGE_PER_SECTION,constants.getM(),constants.getN(),1) for a in train_df.pixels.values[indices]])
-        data = [np.array(a, dtype=object).reshape(np.array(a).shape + (1,)) for a in train_df.pixels.values[indices]]
+        data = [a.reshape(a.shape + (1,)) for a in np.array(train_df.pixels.values[indices], dtype=object)]
     else: # (MULTI PROCESSING VERSION)
         cpu_count = multiprocessing.cpu_count()
-        input = [a for a in train_df.pixels.values[indices]]
+        input = [a for a in np.array(train_df.pixels.values[indices], dtype=object)]
         with multiprocessing.Pool(processes=cpu_count) as pool: # auto closing workers
             data = pool.map(getSingleDataFromIndex, input)
 
-    end = time.time()
+    if type(data) is not np.array: data = np.array(data)
 
+    end = time.time()
     print("*getDataFromIndex* Time: {}s".format(round(end-start, 3)))
-    return np.array(data)
+
+    return data
 
 ################################################################################
 
 def getSingleDataFromIndex(singledata):
     # return np.array(singledata).reshape(constants.NUMBER_OF_IMAGE_PER_SECTION,constants.getM(),constants.getN(),1)
-    return np.array(singledata, dtype=object).reshape(np.array(a).shape + (1,))
+    return singledata.reshape(singledata.shape + (1,))
 
 ################################################################################
 # Return the labels ginve the indices
 def getLabelsFromIndex(train_df, indices, to_categ):
+    start = time.time()
     labels = None
 
     if to_categ:
@@ -199,6 +203,9 @@ def getLabelsFromIndex(train_df, indices, to_categ):
         labels = labels.astype("float32")
         # convert the label in [0, 1] values
         labels /= 255
+
+    end = time.time()
+    print("*getLabelsFromIndex* Time: {}s".format(round(end-start, 3)))
 
     return labels
 

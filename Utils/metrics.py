@@ -3,7 +3,7 @@ from Utils import general_utils, callback
 
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras import metrics
+from tensorflow.keras import metrics, utils
 import tensorflow.keras.backend as K
 from sklearn.metrics import roc_auc_score, average_precision_score, auc, multilabel_confusion_matrix
 
@@ -59,11 +59,15 @@ def weighted_categorical_cross_entropy(y_true, y_pred):
     lambda_0 = 1
     lambda_1 = 1e-6
     lambda_2 = 1e-5
+    class_weights = tf.constant(constants.HOT_ONE_WEIGHTS)
 
     cce = categorical_crossentropy(y_true, y_pred)
+    weights = K.cast(tf.reduce_sum(class_weights*y_true),'float32')
+    wcce = (weights * cce)/weights
     l1_norm =  K.sum(K.abs(y_true - y_pred))
     l2_norm =  K.sum(K.square(y_true - y_pred))
-    return ((lambda_0*cce) + (lambda_1*l1_norm) + (lambda_2*l2_norm))
+
+    return ((lambda_0*wcce) + (lambda_1*l1_norm) + (lambda_2*l2_norm))
 
 ################################################################################
 # Function that calculate the metrics for the SENSITIVITY

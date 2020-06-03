@@ -7,9 +7,11 @@ M, N = 16, 16
 SLICING_PIXELS = int(M/4)
 IMAGE_WIDTH, IMAGE_HEIGHT = 512, 512
 NUMBER_OF_IMAGE_PER_SECTION = 30 # number of image (divided by time) for each section of the brain
-SAMPLES = 50
+SAMPLES = 500
 LABELS = ["background", "brain", "penumbra", "core"] # background:255, brain:0, penumbra:~76, core:~150
 PIXELVALUES = [255, 1, 76, 150]
+# weights for the categorical cross entropy: 1) position: brain, 2) penumbra, 3) core, 4) background
+HOT_ONE_WEIGHTS = [[0.2, 1.0, 1.0, 0.1]]
 PREFIX_IMAGES = "PA"
 suffix_partial_weights = "__"
 

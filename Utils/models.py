@@ -30,7 +30,7 @@ def mJNet_LongJ(X, params, to_categ):
 ################################################################################
 # mJ-Net model version 2
 def mJNet_v2(X, params, to_categ):
-    return arch_mJNet.mJNet(X, params, to_categ, drop=True, longJ=False, v2=True)
+    return arch_mJNet.mJNet(X, params, to_categ, drop=True, longJ=True, v2=True)
 
 ################################################################################
 # Model from Van De Leemput

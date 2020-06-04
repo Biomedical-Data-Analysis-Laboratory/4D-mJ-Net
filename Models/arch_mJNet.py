@@ -21,8 +21,10 @@ def mJNet(X, params, to_categ, drop=False, longJ=False, v2=False):
         activ_func = None
         l1_l2_reg = regularizers.l1_l2(l1=1e-6, l2=1e-5)
         channels = [16,32,32,64,64,128,128,32,64,128,256,512,1024,512,1024,512,1024,-1,512,256,-1,128,64]
+        channels = [int(ch/4) for ch in channels] # implemented due to memory issues
+
         # input_shape = (None,constants.getM(),constants.getN(),1)
-        input_shape = (constants.NUMBER_OF_IMAGE_PER_SECTION,None,None,1)
+        ## TODO: input_shape = (constants.NUMBER_OF_IMAGE_PER_SECTION,None,None,1)
 
     input_x = layers.Input(shape=input_shape, sparse=False)
     general_utils.print_int_shape(input_x) # (None, 30, M, N, 1)
@@ -37,7 +39,7 @@ def mJNet(X, params, to_categ, drop=False, longJ=False, v2=False):
         conv_01 = layers.BatchNormalization()(conv_01)
         general_utils.print_int_shape(conv_01) # (None, 30, M, N, 32)
 
-        pool_drop_01 = layers.MaxPooling3D((2,1,1))(conv_01)
+        pool_drop_01 = layers.MaxPooling3D((params["max_pool"]["long.1"],1,1))(conv_01)
         general_utils.print_int_shape(pool_drop_01) # (None, 15, M, N, 32)
         conv_02 = layers.Conv3D(channels[2], kernel_size=(3,3,3), activation=activ_func, padding='same', kernel_regularizer=l1_l2_reg)(pool_drop_01)
         if v2: conv_02 = layers.LeakyReLU(alpha=0.33)(conv_02)
@@ -48,7 +50,7 @@ def mJNet(X, params, to_categ, drop=False, longJ=False, v2=False):
         conv_02 = layers.BatchNormalization()(conv_02)
         general_utils.print_int_shape(conv_02) # (None, 15, M, N, 64)
 
-        pool_drop_02 = layers.MaxPooling3D((3,1,1))(conv_02)
+        pool_drop_02 = layers.MaxPooling3D((params["max_pool"]["long.2"],1,1))(conv_02)
         general_utils.print_int_shape(pool_drop_02) # (None, 5, M, N, 64)
         conv_03 = layers.Conv3D(channels[4], kernel_size=(3,3,3), activation=activ_func, padding='same', kernel_regularizer=l1_l2_reg)(pool_drop_02)
         if v2: conv_03 = layers.LeakyReLU(alpha=0.33)(conv_03)
@@ -58,9 +60,9 @@ def mJNet(X, params, to_categ, drop=False, longJ=False, v2=False):
         if v2: conv_03 = layers.LeakyReLU(alpha=0.33)(conv_03)
         conv_03 = layers.BatchNormalization()(conv_03)
         general_utils.print_int_shape(conv_03) # (None, 5, M, N, 128)
-        pool_drop_1 = layers.MaxPooling3D((5,1,1))(conv_03)
+        pool_drop_1 = layers.MaxPooling3D((params["max_pool"]["long.3"],1,1))(conv_03)
         general_utils.print_int_shape(pool_drop_1) # (None, 1, M, N, 128)
-        if drop: pool_drop_1 = layers.Dropout(params["dropout"]["0.1"])(pool_drop_1)
+        if drop: pool_drop_1 = layers.Dropout(params["dropout"]["long.1"])(pool_drop_1)
     else:
         # conv_1 = layers.Conv3D(channels[6], kernel_size=(constants.NUMBER_OF_IMAGE_PER_SECTION,3,3), activation=activ_func, padding='same', kernel_regularizer=l1_l2_reg)(input_x)
         conv_1 = layers.Conv3D(channels[6], kernel_size=(3,3,3), activation=activ_func, padding='same', kernel_regularizer=l1_l2_reg)(input_x)

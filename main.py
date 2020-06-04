@@ -70,14 +70,16 @@ def main():
             # predict and save the images
             tmpStats = nn.predictAndSaveImages(p_id)
 
-            for func in nn.statistics:
-                for classToEval in nn.classes_to_evaluate:
-                    if func.__name__ not in stats.keys(): stats[func.__name__] = {}
-                    if classToEval not in stats[func.__name__].keys(): stats[func.__name__][classToEval] = {}
-                    for idxE, _ in enumerate(nn.epsiloList):
-                        if idxE not in stats[func.__name__][classToEval].keys(): stats[func.__name__][classToEval][idxE] = []
-                        stats[func.__name__][classToEval][idxE].extend(tmpStats[func.__name__][classToEval][idxE])
-        nn.saveStats(stats, "PATIENT_TO_TEST")
+            if nn.save_statistics:
+                for func in nn.statistics:
+                    for classToEval in nn.classes_to_evaluate:
+                        if func.__name__ not in stats.keys(): stats[func.__name__] = {}
+                        if classToEval not in stats[func.__name__].keys(): stats[func.__name__][classToEval] = {}
+                        for idxE, _ in enumerate(nn.epsiloList):
+                            if idxE not in stats[func.__name__][classToEval].keys(): stats[func.__name__][classToEval][idxE] = []
+                            stats[func.__name__][classToEval][idxE].extend(tmpStats[func.__name__][classToEval][idxE])
+
+        if nn.save_statistics: nn.saveStats(stats, "PATIENT_TO_TEST")
 
 ################################################################################
 ################################################################################

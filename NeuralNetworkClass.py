@@ -69,6 +69,7 @@ class NeuralNetwork(object):
         self.saveImagesFolder = self.experimentFolder+setting["relative_paths"]["save"]["images"]
         self.savePlotFolder = self.experimentFolder+setting["relative_paths"]["save"]["plot"]
         self.saveTextFolder = self.experimentFolder+setting["relative_paths"]["save"]["text"]
+        self.intermediateActivationFolder = self.experimentFolder+setting["relative_paths"]["save"]["intermediate_activation"] if "intermediate_activation" in setting["relative_paths"]["save"].keys() else None
 
         self.infoCallbacks = info["callbacks"]
 
@@ -228,6 +229,7 @@ class NeuralNetwork(object):
                 listOfCallbacks=self.callbacks,
                 sample_weights=sample_weights,
                 initial_epoch=self.initial_epoch,
+                intermediate_activation_path=self.intermediateActivationFolder,
                 use_multiprocessing=self.mp)
 
         # plot the loss and accuracy of the training
@@ -279,7 +281,8 @@ class NeuralNetwork(object):
             print("Predicting and saving the images for patient {}".format(p_id))
 
         stats = testing.predictAndSaveImages(self, p_id)
-        self.saveStats(stats, p_id)
+        if self.save_statistics: self.saveStats(stats, p_id)
+        
         return stats
 
 ################################################################################

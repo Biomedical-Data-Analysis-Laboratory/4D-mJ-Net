@@ -41,14 +41,20 @@ def predictAndSaveImages(that, p_id):
 
 
     for subfolder in glob.glob(patientFolder+"*/"):
-        tmpStats = predictImage(that, subfolder, p_id, patientFolder, that.getNNID(p_id)+general_utils.getSuffix()+"/"+relativePatientFolder)
-        for func in that.statistics:
-            if func.__name__ not in stats.keys(): stats[func.__name__] = {}
-            for classToEval in that.classes_to_evaluate:
-                if classToEval not in stats[func.__name__].keys(): stats[func.__name__][classToEval] = {}
-                for idxE, _ in enumerate(that.epsiloList):
-                    if idxE not in stats[func.__name__][classToEval].keys(): stats[func.__name__][classToEval][idxE] = []
-                    stats[func.__name__][classToEval][idxE].append(tmpStats[func.__name__][classToEval][idxE])
+        try:
+            tmpStats = predictImage(that, subfolder, p_id, patientFolder, that.getNNID(p_id)+general_utils.getSuffix()+"/"+relativePatientFolder)
+        except Exception as e:
+            print(e)
+            continue
+
+        if that.save_statistics:
+            for func in that.statistics:
+                if func.__name__ not in stats.keys(): stats[func.__name__] = {}
+                for classToEval in that.classes_to_evaluate:
+                    if classToEval not in stats[func.__name__].keys(): stats[func.__name__][classToEval] = {}
+                    for idxE, _ in enumerate(that.epsiloList):
+                        if idxE not in stats[func.__name__][classToEval].keys(): stats[func.__name__][classToEval][idxE] = []
+                        stats[func.__name__][classToEval][idxE].append(tmpStats[func.__name__][classToEval][idxE])
 
     end = time.time()
     print("Total time: {0}s for patient {1}.".format(round(end-start, 3), p_id))
@@ -74,7 +80,14 @@ def predictImage(that, subfolder, p_id, patientFolder, relativePatientFolder):
         print("Analyzing Patient {0}, image {1}...".format(p_id, idx))
 
     if that.labeledImagesFolder!="": # get the label image only if the path is set
-        labeled_image = cv2.imread(that.labeledImagesFolder+"PA"+p_id+"/"+p_id+idx+".png", 0)
+        filename = that.labeledImagesFolder+"PA"+p_id+"/"+idx+".png"
+        if not os.path.exists(filename):
+            print("[WARNING] - {0} does NOT exists, try another...".format(filename))
+            filename = that.labeledImagesFolder+"PA"+p_id+"/"+p_id+idx+".png"
+            if not os.path.exists(filename):
+                raise Exception("[ERROR] - {0} does NOT exist".format(filename))
+
+        labeled_image = cv2.imread(filename, 0)
 
     startingX, startingY = 0, 0
     imagePredicted = np.zeros(shape=(constants.IMAGE_WIDTH, constants.IMAGE_HEIGHT, 3), dtype=np.uint8)
@@ -144,8 +157,7 @@ def predictImage(that, subfolder, p_id, patientFolder, relativePatientFolder):
                     # elif pixel>(thresBrain+eps1) and pixel<=(thresPenumbra+eps2): pixel = thresPenumbra
                     # elif pixel>(thresPenumbra+eps2) and pixel<=(thresCore+eps3): pixel = thresCore
                     # else: pixel = thresBack
-
-                    threeDimensionSlicingWindow[r][c] = (pixel,)*3
+                    threeDimensionSlicingWindow[r][c] = (pixel*multiplier,)*3
             # Create the image
             imagePredicted[startingX:startingX+constants.getM(), startingY:startingY+constants.getN()] = threeDimensionSlicingWindow
 
@@ -164,6 +176,10 @@ def predictImage(that, subfolder, p_id, patientFolder, relativePatientFolder):
     print("image time: {}".format(round(s2-s1, 3)))
     if that.save_images:
         s1 = time.time()
+
+        # rotate the predictions foor the ISLES2018 dataset
+        if "ISLES2018" in that.datasetFolder: imagePredicted = np.rot90(imagePredicted,1)
+
         # save the image predicted in the specific folder
         cv2.imwrite(that.saveImagesFolder+relativePatientFolder+idx+".png", imagePredicted)
         # HEATMAP
@@ -171,6 +187,8 @@ def predictImage(that, subfolder, p_id, patientFolder, relativePatientFolder):
         cv2.imwrite(that.saveImagesFolder+relativePatientFolder+idx+"_heatmap.png", heatmap_img)
         s2 = time.time()
         print("save time: {}".format(round(s2-s1, 3)))
+
+
     if that.save_statistics:
         s1 = time.time()
         tn, fn, fp, tp = {}, {}, {}, {}
@@ -244,8 +262,6 @@ def evaluateModelAlreadySaved(nn, p_id):
 
     filename_train = nn.datasetFolder+"patient"+str(p_id)+suffix+".hkl"
     nn.train_df = dataset_utils.readFromHickle(filename_train)
-#    filename_train = nn.datasetFolder+"trainComplete"+str(p_id)+".h5"
-#   nn.train_df = dataset_utils.readFromHDF(filename_train, "")
     nn.dataset = dataset_utils.getTestDataset(nn.dataset, nn.train_df, p_id, nn.mp)
     nn.dataset["test"]["labels"] = dataset_utils.getLabelsFromIndex(train_df=nn.train_df, indices=nn.dataset["test"]["indices"], to_categ=nn.to_categ)
 

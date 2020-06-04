@@ -40,7 +40,7 @@ def initTestingDataFrame():
 def loadTrainingDataframe(nn, testing_id=None):
     cpu_count = multiprocessing.cpu_count()
     train_df = pd.DataFrame(columns=constants.dataFrameColumns) # columns : ['patient_id', 'label', 'pixels', 'ground_truth', "label_code"]
-
+    # get the suffix based on the SLICING_PIXELS, the M and N
     suffix = general_utils.getSuffix() # es == "_4_16x16"
 
     frames = [train_df]
@@ -129,8 +129,7 @@ def prepareDataset(nn, p_id):
     # train indices are ALL except the one = p_id
     train_val_dataset = np.nonzero((nn.train_df.patient_id.values != p_id))[0]
 
-    if nn.val["random_validation_selection"]:
-        # perform a random selection of the validation
+    if nn.val["random_validation_selection"]: # perform a random selection of the validation
         val_mod = int(100/nn["val"]["validation_perc"])
         nn.dataset["train"]["indices"] = np.nonzero((train_val_dataset%val_mod != 0))[0]
         nn.dataset["val"]["indices"] = np.nonzero((train_val_dataset%val_mod == 0))[0]

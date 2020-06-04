@@ -21,12 +21,14 @@ def getCommandLineArguments():
     parser.add_argument("-d", "--debug", help="DEBUG mode", action="store_true")
     parser.add_argument("-s", "--sname", help="Pass the setting filename")
     parser.add_argument("-t", "--tile", help="Set the tile pixels dimension (MxM)")
+    parser.add_argument("-dim", "--dimension", help="Set the dimension of the input images (widthXheight)")
     parser.add_argument("gpu", help="Give the id of gpu (or a list of the gpus) to use")
     args = parser.parse_args()
 
     constants.setVerbose(args.verbose)
     constants.setDEBUG(args.debug)
     constants.setTileDimension(args.tile)
+    constants.setImageDimension(args.dimension)
 
     if not args.sname:
         args.sname = constants.default_setting_filename
@@ -56,7 +58,7 @@ def setupEnvironment(args, setting):
     # important: set up the root path for later uses
     constants.setRootPath(setting["root_path"])
 
-    if "NUMBER_OF_IMAGE_PER_SECTION" in setting["init"].keys(): constant.setImagePerSection(setting["init"]["NUMBER_OF_IMAGE_PER_SECTION"])
+    if "NUMBER_OF_IMAGE_PER_SECTION" in setting["init"].keys(): constants.setImagePerSection(setting["init"]["NUMBER_OF_IMAGE_PER_SECTION"])
 
     experimentFolder = "EXP"+convertExperimentNumberToString(setting["EXPERIMENT"])+"/"
     N_GPU = setupEnvironmentForGPUs(args, setting)

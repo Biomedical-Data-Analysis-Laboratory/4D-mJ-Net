@@ -49,6 +49,12 @@ def setTileDimension(t):
         N = int(t)
         SLICING_PIXELS = int(M/4)
 
+def setImageDimension(d):
+    global IMAGE_WIDTH, IMAGE_HEIGHT
+    if d is not None:
+        IMAGE_WIDTH = int(d)
+        IMAGE_HEIGHT = int(d)
+
 def setRootPath(path):
     global root_path
     root_path = path

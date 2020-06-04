@@ -52,3 +52,7 @@ def setTileDimension(t):
 def setRootPath(path):
     global root_path
     root_path = path
+
+def setImagePerSection(num):
+    global NUMBER_OF_IMAGE_PER_SECTION
+    NUMBER_OF_IMAGE_PER_SECTION = num

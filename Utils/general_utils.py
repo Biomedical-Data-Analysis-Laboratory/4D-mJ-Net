@@ -55,6 +55,9 @@ def getSettingFile(filename):
 def setupEnvironment(args, setting):
     # important: set up the root path for later uses
     constants.setRootPath(setting["root_path"])
+
+    if "NUMBER_OF_IMAGE_PER_SECTION" in setting["init"].keys(): constant.setImagePerSection(setting["init"]["NUMBER_OF_IMAGE_PER_SECTION"])
+
     experimentFolder = "EXP"+convertExperimentNumberToString(setting["EXPERIMENT"])+"/"
     N_GPU = setupEnvironmentForGPUs(args, setting)
 

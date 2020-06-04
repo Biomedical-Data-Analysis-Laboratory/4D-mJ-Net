@@ -6,7 +6,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
-
+# import keract
 
 ################################################################################
 # Return the optimizer based on the setting
@@ -59,11 +59,13 @@ def getCallbacks(info, root_path, filename, textFolderPath, dataset, sample_weig
 
 ################################################################################
 # Fit the model
-def fitModel(model, dataset, batch_size, epochs, listOfCallbacks, sample_weights, initial_epoch, use_multiprocessing):
+def fitModel(model, dataset, batch_size, epochs, listOfCallbacks, sample_weights, initial_epoch, intermediate_activation_path, use_multiprocessing):
     validation_data = None
     if dataset["val"]["data"] is not None and dataset["val"]["labels"] is not None: validation_data = (dataset["val"]["data"], dataset["val"]["labels"])
+    input = np.array(dataset["train"]["data"])
+    # activations = keract.get_activations(model, input) # call to fetch the activations of the model.
 
-    training = model.fit(np.array(dataset["train"]["data"]),
+    training = model.fit(input,
                 dataset["train"]["labels"],
                 batch_size=batch_size,
                 epochs=epochs,
@@ -74,6 +76,8 @@ def fitModel(model, dataset, batch_size, epochs, listOfCallbacks, sample_weights
                 initial_epoch=initial_epoch,
                 verbose=constants.getVerbose(),
                 use_multiprocessing=use_multiprocessing)
+
+    # keract.display_activations(activations, save=True, directory=intermediate_activation_path)
 
     return training
 

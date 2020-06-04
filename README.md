@@ -10,3 +10,4 @@
 - h5py 2.10.0
 - pydot 1.4.1
 - graphviz 0.14
+- keract 3.1.1 (not yet, check later with tensorflow2.0)

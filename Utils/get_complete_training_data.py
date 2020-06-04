@@ -1,11 +1,8 @@
 #!/usr/bin/env python
 # coding: utf-8
 
+################################################################################
 # ### Import libraries
-
-# In[1]:
-
-
 import cv2
 import time
 import glob
@@ -17,48 +14,37 @@ import random
 import hickle as hkl # Price et al., (2018). Hickle: A HDF5-based python pickle replacement. Journal of Open Source Software, 3(32), 1115, https://doi.org/10.21105/joss.01115
 from scipy import ndimage
 
+################################################################################
+################################################################################
+################################################################################
+################################################################################
+##### CONSTANTS
+DATASET_NAME = "ISLES2018"
 
-# #### CONSTANTS
-
-# In[2]:
-
-DATASET_NAME = "Master2019" # ISLES2018
-
-ROOT_PATH = "/home/stud/lucat/PhD_Project/Stroke_segmentation/PATIENTS/"+DATASET_NAME+"/Training/"
+ROOT_PATH = "/home/stud/lucat/PhD_Project/Stroke_segmentation/PATIENTS/"+DATASET_NAME+"/NEW_TRAINING/"
 SCRIPT_PATH = "/local/home/lucat/DATASET/"+DATASET_NAME+"/"
 
-SAVE_REGISTERED_FOLDER = ROOT_PATH + "Patients/" # "OLDPREPROC_PATIENTS/"
-LABELLED_IMAGES_FOLDER_LOCATION = ROOT_PATH + "Manual_annotations/"
-
-NUMBER_OF_IMAGE_PER_SECTION = 30 # number of image (divided by time) for each section of the brain
-IMAGE_WIDTH, IMAGE_HEIGHT = 512, 512
+SAVE_REGISTERED_FOLDER = ROOT_PATH + "FINAL/"
+LABELLED_IMAGES_FOLDER_LOCATION = ROOT_PATH + "Ground Truth/"
+IMAGE_SUFFIX = "PA"
+NUMBER_OF_IMAGE_PER_SECTION = 64 # number of image (divided by time) for each section of the brain
+IMAGE_WIDTH, IMAGE_HEIGHT = 256, 256
 # background:255, brain:0, penumbra:~76, core:~150
 LABELS = ["background", "brain", "penumbra", "core"]
 dataset, listPatientsDataset, trainDatasetList = {}, {}, list()
 
-
-# In[3]:
-
-
+################################################################################
 DATA_AUGMENTATION = True
-ENTIRE_IMAGE = False # set to false if the tile are NOT the entire image
+ENTIRE_IMAGE = True # set to false if the tile are NOT the entire image
 
-# In[4]:
+################################################################################
+M, N = int(IMAGE_WIDTH), int(IMAGE_HEIGHT)
+SLICING_PIXELS = int(M/4) # USE ALWAYS M/4
+PERCENTAGE_BACKGROUND_IMAGES = 100
 
-
-M, N = int(IMAGE_WIDTH/8), int(IMAGE_HEIGHT/8)
-SLICING_PIXELS = int(M/8)
-
-PERCENTAGE_BACKGROUND_IMAGES = 20
-
-
-# ### Util Classes
-
+################################################################################
+#### Util Classes
 # Class for the slicing window
-
-# In[5]:
-
-
 class AreaInImage():
     def __init__(self, matrix, label):
         self.imgMatrix = matrix
@@ -70,11 +56,9 @@ class AreaInImage():
         self.listOfStartingPoints.append(points)
 
 
-# ### Util functions
-
-# In[6]:
-
-
+################################################################################
+#### Util functions
+################################################################################
 def initializeLabels(patientIndex):
     global dataset
     dataset = dict() # reset the dataset
@@ -84,29 +68,18 @@ def initializeLabels(patientIndex):
     dataset[patientIndex]["label_class"] = list()
     dataset[patientIndex]["ground_truth"] = list()
 
-
-# In[7]:
-
-
+################################################################################
 def getLabelledAreas(patientIndex, timeIndex):
-    print(LABELLED_IMAGES_FOLDER_LOCATION+"PA"+patientIndex+"/"+timeIndex+".png")
-    return cv2.imread(LABELLED_IMAGES_FOLDER_LOCATION+"PA"+patientIndex+"/"+timeIndex+".png", 0)
+    print(LABELLED_IMAGES_FOLDER_LOCATION+IMAGE_SUFFIX+patientIndex+"/"+timeIndex+".png")
+    return cv2.imread(LABELLED_IMAGES_FOLDER_LOCATION+IMAGE_SUFFIX+patientIndex+"/"+timeIndex+".png", 0)
 
-
+################################################################################
 # Function that return the slicing window from `img`, starting at pixels `startX` and `startY` with a width of `M` and height of `N`.
-
-# In[8]:
-
-
 def getSlicingWindow(img, startX, startY, M, N):
     return img[startX:startX+M,startY:startY+N]
 
-
+################################################################################
 # Function ofr inserting inside `dataset` the pixel areas (slicing windows) found with a slicing area approach (= start from point 0,0 it takes the areas `MxN` and then move on the right or on the bottom by a pre-fixed number of pixels = `SLICING_PIXELS`) and the corresponding area in the images inside the same folder, which are the registered images of the same section of the brain in different time.
-
-# In[9]:
-
-
 def fillDataset(train_df, relativePath, patientIndex, timeFolder):
     global dataset
 
@@ -180,7 +153,7 @@ def fillDataset(train_df, relativePath, patientIndex, timeFolder):
             numReplication = 6 if DATA_AUGMENTATION else 1
             numCore+=numReplication
 
-        for data_aug_idx in range(numReplication):
+        for data_aug_idx in range(numReplication): # start from 0
             # tmparray = []
 
             for image_idx, imagename in enumerate(np.sort(glob.glob(timeFolder+"*.png"))): # sort the images !
@@ -195,6 +168,9 @@ def fillDataset(train_df, relativePath, patientIndex, timeFolder):
 
                 image = imagesDict[filename]
                 slicingWindow = getSlicingWindow(image, startingX, startingY, M, N)
+
+                # rotate the image if the dataset == ISLES2018
+                if DATASET_NAME == "ISLES2018": slicingWindow = np.rot90(slicingWindow,1)
 
                 if data_aug_idx==1: slicingWindow = np.rot90(slicingWindow) # rotate 90 degree counterclockwise
                 elif data_aug_idx==2: slicingWindow = np.rot90(slicingWindow,2) # rotate 180 degree counterclockwise
@@ -252,16 +228,21 @@ def fillDataset(train_df, relativePath, patientIndex, timeFolder):
 
                 # convert the pixels in a (M,N,30) shape
                 zoom_val = NUMBER_OF_IMAGE_PER_SECTION/totalVol.shape[0]
-                if totalVol.shape[0] < NUMBER_OF_IMAGE_PER_SECTION:
+
+
+                if totalVol.shape[0] > NUMBER_OF_IMAGE_PER_SECTION:
                     zoom_val = totalVol.shape[0]/NUMBER_OF_IMAGE_PER_SECTION
 
                 pixels_zoom = ndimage.zoom(totalVol,[zoom_val,1,1])
 
+                ## USE THIS TO CHECK THE VALIDITIY OF THE INTERPOlATION
                 # print(pixels_zoom.shape)
                 # for z in range(0,pixels_zoom.shape[0]):
                 #     print(ROOT_PATH+"Test/img_{0}_{1}_{2}_{3}.png".format(d,x,y,z))
-                #     cv2.imwrite(ROOT_PATH+"Test/origimg_{0}_{1}_{2}_{3}.png".format(d,x,y,z), totalVol[z,:,:])
-                #     cv2.imwrite(ROOT_PATH+"Test/img_{0}_{1}_{2}_{3}.png".format(d,x,y,z), pixels_zoom[z,:,:])
+                #     cv2.imwrite(ROOT_PATH+"Test/img_{0}_{1}_{2}_{3}.png".format(d,x,y,z),  pixels_zoom[z,:,:])
+                #     if totalVol.shape[0] > z:
+                #         print(ROOT_PATH+"Test/origimg_{0}_{1}_{2}_{3}.png".format(d,x,y,z))
+                #         cv2.imwrite(ROOT_PATH+"Test/origimg_{0}_{1}_{2}_{3}.png".format(d,x,y,z), totalVol[z,:,:])
 
                 label = otherInforList[d][x][y]["label_class"]
                 gt = otherInforList[d][x][y]["ground_truth"]
@@ -293,11 +274,8 @@ def fillDataset(train_df, relativePath, patientIndex, timeFolder):
 
     return train_df
 
+################################################################################
 # Function that initialize the dataset: for each subfolder of the patient (section of the brain), it call the `fillDataset` function to get the pixels, save into the dataset and analyze them later.
-
-# In[10]:
-
-
 def initializeDataset():
     patientFolders = glob.glob(SAVE_REGISTERED_FOLDER+"*/")
 
@@ -307,7 +285,7 @@ def initializeDataset():
         train_df = pd.DataFrame(columns=['patient_id', 'label', 'pixels', 'ground_truth', 'label_code']) # reset the dataframe for every patient
 
         relativePath = patientFolder.replace(SAVE_REGISTERED_FOLDER, '')
-        patientIndex = relativePath.replace("PA", "").replace("/", "")
+        patientIndex = relativePath.replace(IMAGE_SUFFIX, "").replace("/", "")
         #filename_train = SCRIPT_PATH+"trainComplete"+str(patientIndex)+".h5"
         filename_train = SCRIPT_PATH+"patient"+str(patientIndex)+suffix_filename+".hkl"
         subfolders = glob.glob(patientFolder+"*/")
@@ -346,11 +324,7 @@ def initializeDataset():
         #train_df.to_hdf(filename_train, key="X_"+str(M)+"x"+str(N)+"_"+str(SLICING_PIXELS) + suffix)
         hkl.dump(train_df, filename_train, mode='w')
 
-
-
-# In[11]:
-
-
+################################################################################
 # def convertDatasetInList():
 #     global listPatientsDataset, dataset
 #     listPatientsDataset = {} # reset the list
@@ -376,10 +350,7 @@ def initializeDataset():
 #             label = dataset[patient_id]["label_class"][idx]
 #             listPatientsDataset[patient_id].append((patient_id, label, pixels_zoom, ground_truth))
 
-
-# In[12]:
-
-
+################################################################################
 def divideDataForTrainAndTest():
     global listPatientsDataset, trainDatasetList
 
@@ -387,10 +358,7 @@ def divideDataForTrainAndTest():
         np.random.shuffle(listPatientsDataset[p_id])
         trainDatasetList.extend(listPatientsDataset[p_id])
 
-
-# In[13]:
-
-
+################################################################################
 def prepareTraining():
     global trainDatasetList
     trainDatasetList = list() # reset
@@ -401,9 +369,9 @@ def prepareTraining():
 
     return tmp_df
 
-
+################################################################################
 # ## Main
-
+################################################################################
 if __name__ == '__main__':
     start = time.time()
     print("Initializing dataset...")

@@ -1,0 +1,100 @@
+{
+  "EXPERIMENT": 10,
+  "root_path": "/home/stud/lucat/PhD_Project/Stroke_segmentation/",
+  "dataset_path": "/local/home/lucat/DATASET/ISLES2018/",
+  "PATIENT_TO_TEST": ["ALL"],
+  "OVERRIDE_MODELS_ID_PATH": "",
+  "init": {
+    "NUMBER_OF_IMAGE_PER_SECTION": 64,
+    "TF_CPP_MIN_LOG_LEVEL": "3",
+    "per_process_gpu_memory_fraction": 0.5,
+    "allow_growth": 1,
+    "MULTIPROCESSING": 0
+  },
+  "relative_paths": {
+    "labeled_images": "PATIENTS/ISLES2018/NEW_TRAINING/Manual_annotations/",
+    "patients": "PATIENTS/ISLES2018/NEW_TRAINING/FINAL/",
+    "save": {
+      "model": "MODELS/",
+      "partial_model": "TMP_MODELS/",
+      "plot": "PLOTS/",
+      "images": "IMAGES/",
+      "text": "TEXT/",
+      "intermediate_activation": "TMP/"
+    }
+  },
+  "models": [
+     {
+      "name": "mJNet_v2",
+      "loss": "mod_dice_coef_loss",
+      "metrics": ["mod_dice_coef", "dice_coef"],
+      "epochs": 300,
+      "batch_size":2,
+      "classes_to_evaluate": ["penumbra", "core", "penumbracore"],
+      "statistics": ["sensitivity", "specificity", "precision", "f1", "accuracy", "jaccard_index"],
+      "val":{
+        "validation_perc": 5,
+        "random_validation_selection": 0
+      },
+      "test_steps":1,
+      "optimizer": {
+        "name": "SGD",
+        "learning_rate": 0.01,
+        "decay": 1e-6,
+        "momentum":0.9,
+        "nesterov":"True"
+      },
+      "params":{
+        "dropout":{
+          "long.1":0.25,
+          "1":0.25,
+          "2":0.25,
+          "3":0.25,
+          "3.1":0.5,
+          "3.2":0.5,
+          "3.3":0.5,
+          "3.4":0.5,
+          "4":0.3,
+          "5":0.3
+        },
+        "max_pool":{
+          "long.1":4,
+          "long.2":4,
+          "long.3":4
+        }
+      },
+      "callbacks":{
+        "ModelCheckpoint": {
+          "monitor": "mod_dice_coef",
+          "mode": "max",
+          "period": 1
+        },
+        "EarlyStopping": {
+          "monitor": "loss",
+          "min_delta": 0.001,
+          "patience": 12
+        },
+        "ReduceLROnPlateau": {
+          "monitor": "val_loss",
+          "factor": 0.1,
+          "patience": 2,
+          "min_delta": 1e-4,
+          "cooldown": 1,
+          "min_lr": 0
+        },
+        "CollectBatchStats": {
+          "acc":"mod_dice_coef"
+        }
+      },
+      "to_categ":0,
+      "save_images": 1,
+      "save_statistics":1,
+      "use_background_in_statistics":0,
+      "calculate_ROC":0,
+      "data_augmentation": 1,
+      "cross_validation": 0,
+      "train_again": 0,
+      "supervised": 1
+    }
+  ]
+}

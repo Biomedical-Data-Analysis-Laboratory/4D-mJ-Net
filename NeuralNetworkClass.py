@@ -28,15 +28,17 @@ class NeuralNetwork(object):
 
         self.val = {
             "validation_perc": info["val"]["validation_perc"],
-            "random_validation_selection": info["val"]["random_validation_selection"]
-            }
+            "random_validation_selection": info["val"]["random_validation_selection"],
+            "number_patients_for_validation": info["val"]["number_patients_for_validation"] if "number_patients_for_validation" in info["val"].keys() else 0,
+            "number_patients_for_testing": info["val"]["number_patients_for_testing"] if "number_patients_for_testing" in info["val"].keys() else 0
+        }
         self.test_steps = info["test_steps"]
 
         self.dataset = {
             "train": {},
             "val": {},
             "test": {}
-            }
+        }
 
         # get parameter for the model
         self.optimizerInfo = info["optimizer"]
@@ -73,12 +75,8 @@ class NeuralNetwork(object):
 
         self.infoCallbacks = info["callbacks"]
 
-        # epsilons = [(37.5,37,52.5)]
-        # self.epsilons = [((constants.PIXELVALUES[2]-constants.PIXELVALUES[1])/2, (constants.PIXELVALUES[3]-constants.PIXELVALUES[2])/2, (constants.PIXELVALUES[0]-constants.PIXELVALUES[3])/2)]
-
-        # best epsilons for F1 score (BUT THEY ARE BASED ON TESTING IMAGES)!
-        # self.epsilons = [(60, 59.2, 84)]
-        self.epsilons = [(63.75-constants.PIXELVALUES[1]-1, 127.5-constants.PIXELVALUES[2], 191.25-constants.PIXELVALUES[3])]
+        if constants.N_CLASSES == 4: self.epsilons = [(63.75-constants.PIXELVALUES[1]-1, 127.5-constants.PIXELVALUES[2], 191.25-constants.PIXELVALUES[3])]
+        else: self.epsilons = [(63.75-constants.PIXELVALUES[1]-1)]
 
         # epsiloList is the same list of epsilons multiply for the percentage (thresholding) involved to calculate ROC
         self.epsiloList = list(range(0,110, 10)) if self.calculate_ROC else [(None)]
@@ -88,7 +86,7 @@ class NeuralNetwork(object):
     def setCallbacks(self, p_id, sample_weights=None):
         if self.getVerbose():
             general_utils.printSeparation("-", 50)
-            print("Setting callbacks...")
+            print("[INFO] - Setting callbacks...")
 
         self.callbacks = training.getCallbacks(
             root_path=self.rootPath,
@@ -122,8 +120,8 @@ class NeuralNetwork(object):
 
         if self.getVerbose():
             general_utils.printSeparation("+",100)
-            print(" --- MODEL {} LOADED FROM DISK! --- ".format(saved_modelname))
-            print(" --- WEIGHTS {} LOADED FROM DISK! --- ".format(saved_weightname))
+            print("[INFO - Loading] - --- MODEL {} LOADED FROM DISK! --- ".format(saved_modelname))
+            print("[INFO - Loading] - --- WEIGHTS {} LOADED FROM DISK! --- ".format(saved_weightname))
 
 ################################################################################
 # Check if there are saved partial weights
@@ -147,21 +145,21 @@ class NeuralNetwork(object):
 
             if self.getVerbose():
                 general_utils.printSeparation("+",100)
-                print(" --- WEIGHTS {} LOADED FROM DISK! --- ".format(self.partialWeightsPath))
-                print(" --- Start training from epoch {} --- ".format(str(self.initial_epoch)))
+                print("[INFO - Loading] - --- WEIGHTS {} LOADED FROM DISK! --- ".format(self.partialWeightsPath))
+                print("[INFO] - --- Start training from epoch {} --- ".format(str(self.initial_epoch)))
 
 ################################################################################
 # Function to divide the dataframe in train and test based on the patient id;
 # plus it reshape the pixel array and initialize the model.
-    def prepareDataset(self, train_df, p_id):
+    def prepareDataset(self, train_df, p_id, listOfPatientsToTest):
         # set the dataset inside the class
         self.train_df = train_df
         if self.getVerbose():
             general_utils.printSeparation("+", 50)
-            print("Preparing Dataset for patient {}...".format(p_id))
+            print("[INFO] - Preparing Dataset for patient {}...".format(p_id))
 
         # get the dataset
-        self.dataset = dataset_utils.prepareDataset(self, p_id)
+        self.dataset = dataset_utils.prepareDataset(self, p_id, listOfPatientsToTest)
         # get the number of element per class in the dataset
         self.N_BACKGROUND, self.N_BRAIN, self.N_PENUMBRA, self.N_CORE, self.N_TOT = dataset_utils.getNumberOfElements(self.train_df)
 
@@ -190,7 +188,7 @@ class NeuralNetwork(object):
 
         if self.getVerbose():
             general_utils.printSeparation("-", 50)
-            print("[INFO] Getting model {0} with {1} optimizer...".format(self.name, self.optimizerInfo["name"]))
+            print("[INFO] - Getting model {0} with {1} optimizer...".format(self.name, self.optimizerInfo["name"]))
 
         # based on the number of GPUs availables
         # call the function called self.name in models.py
@@ -238,20 +236,18 @@ class NeuralNetwork(object):
 ################################################################################
 # Get the sample weight from the dataset
     def getSampleWeights(self, flag):
-        # background_weight = 1-((self.N_BACKGROUND)/self.N_TOT)
-        # brain_weight = 1-((self.N_BRAIN)/self.N_TOT)
-        # penumbra_weight = 1-((self.N_PENUMBRA)/self.N_TOT)
-        # core_weight = 1-((self.N_CORE)/self.N_TOT)
-        #
-        # min_weight = min([background_weight,brain_weight,penumbra_weight,core_weight])
-        # max_weight = max([background_weight,brain_weight,penumbra_weight,core_weight])
-
-        sample_weights = self.train_df.label.map({
-            constants.LABELS[0]:1, #0.1, #((background_weight-min_weight)/(max_weight-min_weight)),
-            constants.LABELS[1]:1, #1, #((brain_weight-min_weight)/(max_weight-min_weight)),
-            constants.LABELS[2]:50, #((penumbra_weight-min_weight)/(max_weight-min_weight))*100,
-            constants.LABELS[3]:100 #((core_weight-min_weight)/(max_weight-min_weight))*100
-        })
+        if constants.N_CLASSES==4:
+            sample_weights = self.train_df.label.map({
+                constants.LABELS[0]:1, #0.1, #((background_weight-min_weight)/(max_weight-min_weight)),
+                constants.LABELS[1]:1, #1, #((brain_weight-min_weight)/(max_weight-min_weight)),
+                constants.LABELS[2]:50, #((penumbra_weight-min_weight)/(max_weight-min_weight))*100,
+                constants.LABELS[3]:100 #((core_weight-min_weight)/(max_weight-min_weight))*100
+            })
+        else:
+            sample_weights = self.train_df.label.map({
+                constants.LABELS[0]:1,
+                constants.LABELS[1]:1
+            })
 
         return sample_weights.values[self.dataset[flag]["indices"]]
 
@@ -271,18 +267,18 @@ class NeuralNetwork(object):
 
         if self.getVerbose():
             general_utils.printSeparation("-", 50)
-            print("[INFO] Saved model and weights to disk!")
+            print("[INFO - Saving] - Saved model and weights to disk!")
 
 ################################################################################
 # Call the function located in testing for predicting and saved the images
     def predictAndSaveImages(self, p_id):
         if self.getVerbose():
             general_utils.printSeparation("+", 50)
-            print("Predicting and saving the images for patient {}".format(p_id))
+            print("[INFO] - Predicting and saving the images for patient {}".format(p_id))
 
         stats = testing.predictAndSaveImages(self, p_id)
         if self.save_statistics: self.saveStats(stats, p_id)
-        
+
         return stats
 
 ################################################################################
@@ -295,48 +291,42 @@ class NeuralNetwork(object):
                 text_file.write("====================================================\n")
                 for func in self.statistics:
                     for classToEval in self.classes_to_evaluate:
-
-                        # if func.__name__ == "mAP" or func.__name__ == "AUC" or func.__name__ == "ROC_AUC":
-                        #     res = np.mean(stats[func.__name__][classToEval])
-                        #     standard_dev = np.std(stats[func.__name__][classToEval])
-                        # else:
+                        if self.epsiloList[0]!=None:
+                            for idxE, epsilons in enumerate(self.epsiloList):
+                                tn = sum(cm[0] for cm in stats[func.__name__][classToEval][idxE])
+                                fn = sum(cm[1] for cm in stats[func.__name__][classToEval][idxE])
+                                fp = sum(cm[2] for cm in stats[func.__name__][classToEval][idxE])
+                                tp = sum(cm[3] for cm in stats[func.__name__][classToEval][idxE])
+                                res = func(tn,fn,fp,tp)
+                                standard_dev = 0
+                                # meanV = np.mean(stats[func.__name__][classToEval])
+                                # stdV = np.std(stats[func.__name__][classToEval])
+                                #text_file.write("\n\n EPSILONS: *{0} **{1} ***{2} ... {3} idx  \n".format(epsilons[0], epsilons[1], epsilons[2], idxE))
+                                text_file.write("TEST MEAN {0} {1}: {2} \n".format(func.__name__, classToEval, round(float(res), 3)))
+                                text_file.write("TEST STD {0} {1}: {2} \n".format(func.__name__, classToEval, round(float(standard_dev), 3)))
+                            # text_file.write("TEST MEAN %s %s: %.2f%% \n" % (func.__name__, classToEval, round(meanV,6)*100))
+                            # text_file.write("TEST STD %s %s: %.2f \n" % (func.__name__, classToEval, round(stdV,6)))
+                    text_file.write("----------------------------------------------------- \n")
+        else:
+            for func in self.statistics:
+                for classToEval in self.classes_to_evaluate:
+                    if self.epsiloList[0]!=None:
                         for idxE, epsilons in enumerate(self.epsiloList):
                             tn = sum(cm[0] for cm in stats[func.__name__][classToEval][idxE])
                             fn = sum(cm[1] for cm in stats[func.__name__][classToEval][idxE])
                             fp = sum(cm[2] for cm in stats[func.__name__][classToEval][idxE])
                             tp = sum(cm[3] for cm in stats[func.__name__][classToEval][idxE])
-                            res = func(tn,fn,fp,tp)
-                            standard_dev = 0
-                            # meanV = np.mean(stats[func.__name__][classToEval])
-                            # stdV = np.std(stats[func.__name__][classToEval])
-                            #text_file.write("\n\n EPSILONS: *{0} **{1} ***{2} ... {3} idx  \n".format(epsilons[0], epsilons[1], epsilons[2], idxE))
-                            text_file.write("TEST MEAN {0} {1}: {2} \n".format(func.__name__, classToEval, round(float(res), 3)))
-                            text_file.write("TEST STD {0} {1}: {2} \n".format(func.__name__, classToEval, round(float(standard_dev), 3)))
-                        # text_file.write("TEST MEAN %s %s: %.2f%% \n" % (func.__name__, classToEval, round(meanV,6)*100))
-                        # text_file.write("TEST STD %s %s: %.2f \n" % (func.__name__, classToEval, round(stdV,6)))
-                    text_file.write("----------------------------------------------------- \n")
-        else:
-            for func in self.statistics:
-                for classToEval in self.classes_to_evaluate:
-                    # if func.__name__ == "mAP" or func.__name__ == "AUC" or func.__name__ == "ROC_AUC":
-                    #     res = np.mean(stats[func.__name__][classToEval])
-                    # else:
-                    for idxE, epsilons in enumerate(self.epsiloList):
-                        tn = sum(cm[0] for cm in stats[func.__name__][classToEval][idxE])
-                        fn = sum(cm[1] for cm in stats[func.__name__][classToEval][idxE])
-                        fp = sum(cm[2] for cm in stats[func.__name__][classToEval][idxE])
-                        tp = sum(cm[3] for cm in stats[func.__name__][classToEval][idxE])
 
-                        res = func(tn,fn,fp,tp)
-                        #print("EPSILONS: *{0} **{1} ***{2} ... {3}\%  \n".format(epsilons[0], epsilons[1], epsilons[2], idxE))
-                        print("TEST {0} {1}: {2}".format(func.__name__, classToEval, round(float(res), 3)))
+                            res = func(tn,fn,fp,tp)
+                            #print("EPSILONS: *{0} **{1} ***{2} ... {3}\%  \n".format(epsilons[0], epsilons[1], epsilons[2], idxE))
+                            print("TEST {0} {1}: {2}".format(func.__name__, classToEval, round(float(res), 3)))
 
 ################################################################################
 # Test the model with the selected patient
     def evaluateModelWithCategorics(self, p_id, isAlreadySaved):
         if self.getVerbose():
             general_utils.printSeparation("+", 50)
-            print("Evaluating the model for patient {}".format(p_id))
+            print("[INFO] - Evaluating the model for patient {}".format(p_id))
 
         if isAlreadySaved:
             self.testing_score = testing.evaluateModelAlreadySaved(self, p_id)

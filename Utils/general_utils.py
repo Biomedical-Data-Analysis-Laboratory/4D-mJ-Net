@@ -20,8 +20,9 @@ def getCommandLineArguments():
     parser.add_argument("-v", "--verbose", help="Increase output verbosity", action="store_true")
     parser.add_argument("-d", "--debug", help="DEBUG mode", action="store_true")
     parser.add_argument("-s", "--sname", help="Pass the setting filename")
-    parser.add_argument("-t", "--tile", help="Set the tile pixels dimension (MxM)")
-    parser.add_argument("-dim", "--dimension", help="Set the dimension of the input images (widthXheight)")
+    parser.add_argument("-t", "--tile", help="Set the tile pixels dimension (MxM)", type=int)
+    parser.add_argument("-dim", "--dimension", help="Set the dimension of the input images (widthXheight)", type=int)
+    parser.add_argument("-c", "--classes", help="Set the # of classe involved (default = 4)", default=4, type=int, choices=[2,4])
     parser.add_argument("gpu", help="Give the id of gpu (or a list of the gpus) to use")
     args = parser.parse_args()
 
@@ -29,6 +30,7 @@ def getCommandLineArguments():
     constants.setDEBUG(args.debug)
     constants.setTileDimension(args.tile)
     constants.setImageDimension(args.dimension)
+    constants.setNumberOfClasses(args.classes)
 
     if not args.sname:
         args.sname = constants.default_setting_filename
@@ -119,9 +121,7 @@ def getLoss(name):
 # Get the statistic functions (& metrics) defined in the settings
 def getStatisticFunctions(listStats):
     statisticFuncs = []
-
-    for m in listStats:
-        statisticFuncs.append(getattr(metrics, m))
+    for m in listStats: statisticFuncs.append(getattr(metrics, m))
 
     return statisticFuncs
 
@@ -156,8 +156,7 @@ def getFullDirectoryPath(path):
 # Generate a directory in dir_path
 def createDir(dir_path):
     if not os.path.isdir(dir_path):
-        if constants.getVerbose():
-            print("Creating folder: " + dir_path)
+        if constants.getVerbose(): print("[INFO] - Creating folder: " + dir_path)
         os.makedirs(dir_path)
 
 ################################################################################
@@ -169,8 +168,7 @@ def printSeparation(what, howmuch):
 # Convert the experiment number to a string of 3 letters
 def convertExperimentNumberToString(expnum):
     exp = str(expnum)
-    while len(exp)<3:
-        exp = "0"+exp
+    while len(exp)<3: exp = "0"+exp
 
     return exp
 

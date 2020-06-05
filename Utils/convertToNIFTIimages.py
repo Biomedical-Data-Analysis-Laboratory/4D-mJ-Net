@@ -41,7 +41,7 @@ def convertImage(subject_folder, subsave_folder, caseID):
     CT = nib.load(CT_filename)
 
     prediction = np.zeros(CT.shape, np.int8)
-    print("Prediction shape: ", prediction.shape)
+    print("[INFO] - Prediction shape: ", prediction.shape)
 
     for imagename in np.sort(glob.glob(subsave_folder+"*test.png")): # sort the images !
         os.remove(imagename)
@@ -72,9 +72,9 @@ def main():
     for i in validation_indices:
         caseID = getStringPatientIndex(i)
         subject_folder = os.path.join(config["data_folder"],"case_" + str(i) + "/")
-        print("Subject folder: " + subject_folder)
+        print("[INFO] - Subject folder: " + subject_folder)
         subsave_folder = os.path.join(config["save_folder"],"PA" + caseID + "/")
-        print("Saved Image folder: " + subsave_folder)
+        print("[INFO] - Saved Image folder: " + subsave_folder)
 
         convertImage(subject_folder, subsave_folder, caseID)
 

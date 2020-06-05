@@ -188,11 +188,7 @@ def thresholding(y_true, y_pred, use_background_in_statistics, epsilons, percEps
     thresBrain = constants.PIXELVALUES[1]-1
     thresPenumbra = constants.PIXELVALUES[2]
     thresCore = constants.PIXELVALUES[3]
-
     eps1, eps2, eps3 = epsilons[0]
-
-    # eps = (thresCore-thresPenumbra)/2
-    # eps_plus = 79 # for upper bounding ~229
 
     y_true_brain = np.zeros_like(y_true)
     y_pred_brain = np.zeros_like(y_pred)
@@ -205,7 +201,6 @@ def thresholding(y_true, y_pred, use_background_in_statistics, epsilons, percEps
     y_pred_brain = np.array(y_pred<=(thresBrain+eps1), dtype="int32")
 
     # if label==None it means that the y_true & y_pred are coming from label=4 in ROC and mAP ...
-    #if label==None or label==2:
     if percEps==None: # no need to calculate the ROC with thresholding
         y_true_p = np.array(y_true>(thresBrain+eps1), dtype="int32") * np.array(y_true<=(thresPenumbra+eps2), dtype="int32")
         y_pred_p = np.array(y_pred>(thresBrain+eps1), dtype="int32") * np.array(y_pred<=(thresPenumbra+eps2), dtype="int32")
@@ -222,7 +217,6 @@ def thresholding(y_true, y_pred, use_background_in_statistics, epsilons, percEps
             y_true_c = np.array(y_true>(thresPenumbra+upperBound), dtype="int32")
             y_pred_c = np.array(y_pred>(thresPenumbra+upperBound), dtype="int32")
 
-    #if label==None or label==3:
     if percEps==None: # no need to calculate the ROC with thresholding
         y_true_c = np.array(y_true>(thresPenumbra+eps2), dtype="int32") * np.array(y_true<=(thresCore+eps3), dtype="int32")
         y_pred_c = np.array(y_pred>(thresPenumbra+eps2), dtype="int32") * np.array(y_pred<=(thresCore+eps3), dtype="int32")
@@ -235,7 +229,6 @@ def thresholding(y_true, y_pred, use_background_in_statistics, epsilons, percEps
 
             y_true_c = np.array(y_true>(thresCore-lowerBound), dtype="int32") * np.array(y_pred<=(thresCore+upperBound), dtype="int32")
             y_pred_c = np.array(y_pred>(thresCore-lowerBound), dtype="int32") * np.array(y_pred<=(thresCore+upperBound), dtype="int32")
-
 
     y_true_p = y_true_p * 2
     y_pred_p = y_pred_p * 2

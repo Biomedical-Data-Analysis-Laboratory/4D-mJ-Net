@@ -39,7 +39,7 @@ def initTestingDataFrame():
 # Function to load the saved dataframe
 def loadTrainingDataframe(nn, testing_id=None):
     cpu_count = multiprocessing.cpu_count()
-    train_df = pd.DataFrame(columns=constants.dataFrameColumns) # columns : ['patient_id', 'label', 'pixels', 'ground_truth', "label_code"]
+    train_df = pd.DataFrame(columns=constants.dataFrameColumns)
     # get the suffix based on the SLICING_PIXELS, the M and N
     suffix = general_utils.getSuffix() # es == "_4_16x16"
 
@@ -58,11 +58,6 @@ def loadTrainingDataframe(nn, testing_id=None):
 
     train_df = pd.concat(frames)
 
-    # filename_train = SCRIPT_PATH+"train.h5"
-    # if os.path.exists(filename_train):\
-    #     print('Loading TRAIN dataframe from {0}...'.format(filename_train))
-    #     train_df = pd.read_hdf(filename_train, "X_"+DTYPE+"_"+str(SAMPLES)+"_"+str(M)+"x"+str(N))
-
     return train_df
 
 ################################################################################
@@ -71,7 +66,7 @@ def loadSingleTrainingData(da, filename_train, testing_id):
     index = filename_train[-5:-3]
     p_id = general_utils.getStringPatientIndex(index)
 
-    if constants.getVerbose(): print('Loading TRAIN dataframe from {}...'.format(filename_train))
+    if constants.getVerbose(): print('[INFO] - Loading TRAIN dataframe from {}...'.format(filename_train))
     suffix = "_DATA_AUGMENTATION" if da else ""
     if testing_id==p_id:
          # take the normal dataset for the testing patient instead the augmented one...
@@ -98,60 +93,82 @@ def readFromHDF(filename_train, suffix):
 # First function that is been called to create the train_df
 def getDataset(nn, p_id=None):
     start = time.time()
-    train_df = pd.DataFrame(columns=['patient_id', 'label', 'pixels', 'ground_truth', "label_code"])
+    train_df = pd.DataFrame(columns=constants.dataFrameColumns)
 
     if constants.getVerbose():
         general_utils.printSeparation("-",50)
-        if nn.mp: print("Loading Dataset using MULTIprocessing...")
-        else: print("Loading Dataset using SINGLEprocessing...")
+        if nn.mp: print("[INFO] - Loading Dataset using MULTIprocessing...")
+        else: print("[INFO] - Loading Dataset using SINGLEprocessing...")
 
     if constants.getDEBUG(): train_df = initTestingDataFrame()
     else:
         # no debugging and no data augmentation
         if nn.da:
-            print("Data augmented training/testing... load the dataset differently for each patient")
+            print("[WARNING] - Data augmented training/testing... load the dataset differently for each patient")
             train_df = loadTrainingDataframe(nn, testing_id=p_id)
         else: train_df = loadTrainingDataframe(nn)
 
     end = time.time()
-    print("Total time to load the Dataset: {0}s".format(round(end-start, 3)))
+    print("[INFO] - Total time to load the Dataset: {0}s".format(round(end-start, 3)))
     generateDatasetSummary(train_df)
     return train_df
 
 ################################################################################
 # Function to divide the dataframe in train and test based on the patient id;
 # plus it reshape the pixel array and initialize the model.
-def prepareDataset(nn, p_id):
+def prepareDataset(nn, p_id, listOfPatientsToTest):
     start = time.time()
 
     nn.dataset["train"]["indices"] = list()
     nn.dataset["val"]["indices"] = list()
-    # train indices are ALL except the one = p_id
-    train_val_dataset = np.nonzero((nn.train_df.patient_id.values != p_id))[0]
 
-    if nn.val["random_validation_selection"]: # perform a random selection of the validation
-        val_mod = int(100/nn["val"]["validation_perc"])
-        nn.dataset["train"]["indices"] = np.nonzero((train_val_dataset%val_mod != 0))[0]
-        nn.dataset["val"]["indices"] = np.nonzero((train_val_dataset%val_mod == 0))[0]
+    if not nn.cross_validation and nn.val["number_patients_for_validation"]>0 and nn.val["number_patients_for_testing"]>0:
+        # here only if: NO cross-validation and the flags for number of patients (test/val) is > 0
+        validation_list = listOfPatientsToTest[:nn.val["number_patients_for_validation"]]
+        val_indices = set()
+        test_list = listOfPatientsToTest[nn.val["number_patients_for_validation"]:nn.val["number_patients_for_validation"]+nn.val["number_patients_for_testing"]]
+
+        for val_p in validation_list:
+            current_pid = general_utils.getStringPatientIndex(val_p)
+            nn.dataset["val"]["indices"].extend(np.nonzero((nn.train_df.patient_id.values == current_pid))[0])
+
+        for test_p in test_list:
+            current_pid = general_utils.getStringPatientIndex(test_p)
+            if nn.supervised:
+                if "indices" not in nn.dataset["test"].keys(): nn.dataset["test"]["indices"] = list()
+                nn.dataset["test"]["indices"].extend(np.nonzero((nn.train_df.patient_id.values == current_pid))[0])
+
+        nn.dataset["test"]["data"] = getDataFromIndex(nn.train_df, nn.dataset["test"]["indices"], "test", nn.mp)
+
+        all_indices = np.nonzero((nn.train_df.label_code.values >= 0))[0]
+        nn.dataset["train"]["indices"] = list(set(all_indices)-set(nn.dataset["val"]["indices"])-set(nn.dataset["test"]["indices"]))
+
     else:
-        # do NOT use a patient(s) as a validation set because maybe it doesn't have
-        # too much information about core and penumbra.
-        # Instead, get a percentage from each class!
-        for classLabelName in constants.LABELS:
-            random.seed(0)
-            classIndices = np.nonzero((nn.train_df.label.values[train_val_dataset]==classLabelName))[0]
-            classValIndices = [] if nn.val["validation_perc"]==0 else random.sample(list(classIndices), int((len(classIndices)*nn.val["validation_perc"])/100))
-            nn.dataset["train"]["indices"].extend(list(set(classIndices)-set(classValIndices)))
-            if nn.val["validation_perc"]!=0: nn.dataset["val"]["indices"].extend(classValIndices)
+        # train indices are ALL except the one = p_id
+        train_val_dataset = np.nonzero((nn.train_df.patient_id.values != p_id))[0]
 
-    nn.dataset["train"]["data"] = getDataFromIndex(nn.train_df, nn.dataset["train"]["indices"], nn.mp)
-    nn.dataset["val"]["data"] = None if nn.val["validation_perc"]==0 else getDataFromIndex(nn.train_df, nn.dataset["val"]["indices"], nn.mp)
+        if nn.val["random_validation_selection"]: # perform a random selection of the validation
+            val_mod = int(100/nn["val"]["validation_perc"])
+            nn.dataset["train"]["indices"] = np.nonzero((train_val_dataset%val_mod != 0))[0]
+            nn.dataset["val"]["indices"] = np.nonzero((train_val_dataset%val_mod == 0))[0]
+        else:
+            # do NOT use a patient(s) as a validation set because maybe it doesn't have
+            # too much information about core and penumbra.
+            # Instead, get a percentage from each class!
+            for classLabelName in constants.LABELS:
+                random.seed(0)
+                classIndices = np.nonzero((nn.train_df.label.values[train_val_dataset]==classLabelName))[0]
+                classValIndices = [] if nn.val["validation_perc"]==0 else random.sample(list(classIndices), int((len(classIndices)*nn.val["validation_perc"])/100))
+                nn.dataset["train"]["indices"].extend(list(set(classIndices)-set(classValIndices)))
+                if nn.val["validation_perc"]!=0: nn.dataset["val"]["indices"].extend(classValIndices)
 
-    if nn.supervised:
-        nn.dataset = getTestDataset(nn.dataset, nn.train_df, p_id, nn.mp)
+                if nn.supervised: nn.dataset = getTestDataset(nn.dataset, nn.train_df, p_id, nn.mp)
+
+    nn.dataset["train"]["data"] = getDataFromIndex(nn.train_df, nn.dataset["train"]["indices"], "train", nn.mp)
+    nn.dataset["val"]["data"] = None if nn.val["validation_perc"]==0 else getDataFromIndex(nn.train_df, nn.dataset["val"]["indices"], "val", nn.mp)
 
     end = time.time()
-    print("Total time to prepare the Dataset: {}s".format(round(end-start, 3)))
+    if constants.getVerbose(): print("[INFO] - Total time to prepare the Dataset: {}s".format(round(end-start, 3)))
 
     return nn.dataset
 
@@ -159,12 +176,12 @@ def prepareDataset(nn, p_id):
 # Get the test dataset, where the test indices are == p_id
 def getTestDataset(dataset, train_df, p_id, mp):
     dataset["test"]["indices"] = np.nonzero((train_df.patient_id.values == p_id))[0]
-    dataset["test"]["data"] = getDataFromIndex(train_df, dataset["test"]["indices"], mp)
+    dataset["test"]["data"] = getDataFromIndex(train_df, dataset["test"]["indices"], "test", mp)
     return dataset
 
 ################################################################################
 # get the data from a list of indices
-def getDataFromIndex(train_df, indices, mp):
+def getDataFromIndex(train_df, indices, flag, mp):
     start = time.time()
 
     if not mp: # (SINGLE PROCESSING VERSION)
@@ -179,7 +196,9 @@ def getDataFromIndex(train_df, indices, mp):
     if type(data) is not np.array: data = np.array(data)
 
     end = time.time()
-    print("*getDataFromIndex* Time: {}s".format(round(end-start, 3)))
+    if constants.getVerbose():
+        print("[INFO] - *getDataFromIndex* Time: {}s".format(round(end-start, 3)))
+        print("[INFO] - {0} shape; # {1}".format(data.shape, flag))
 
     return data
 
@@ -204,7 +223,7 @@ def getLabelsFromIndex(train_df, indices, to_categ):
         labels /= 255
 
     end = time.time()
-    print("*getLabelsFromIndex* Time: {}s".format(round(end-start, 3)))
+    if constants.getVerbose(): print("[INFO] - *getLabelsFromIndex* Time: {}s".format(round(end-start, 3)))
 
     return labels
 

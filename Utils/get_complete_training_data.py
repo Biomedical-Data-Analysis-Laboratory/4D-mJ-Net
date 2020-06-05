@@ -26,6 +26,7 @@ SCRIPT_PATH = "/local/home/lucat/DATASET/"+DATASET_NAME+"/Two_classes/" # Four_c
 
 SAVE_REGISTERED_FOLDER = ROOT_PATH + "FINAL/"
 LABELLED_IMAGES_FOLDER_LOCATION = ROOT_PATH + "Ground Truth/"
+NEWLABELLED_IMAGES_FOLDER_LOCATION = ROOT_PATH + "Binary_Ground_Truth/"
 IMAGE_SUFFIX = "PA"
 NUMBER_OF_IMAGE_PER_SECTION = 64 # number of image (divided by time) for each section of the brain
 IMAGE_WIDTH, IMAGE_HEIGHT = 256, 256
@@ -59,7 +60,6 @@ class AreaInImage():
     def appendInListOfStartingPoints(self, points):
         self.listOfStartingPoints.append(points)
 
-
 ################################################################################
 #### Util functions
 ################################################################################
@@ -74,7 +74,6 @@ def initializeLabels(patientIndex):
 
 ################################################################################
 def getLabelledAreas(patientIndex, timeIndex):
-    print(LABELLED_IMAGES_FOLDER_LOCATION+IMAGE_SUFFIX+patientIndex+"/"+timeIndex+".png")
     return cv2.imread(LABELLED_IMAGES_FOLDER_LOCATION+IMAGE_SUFFIX+patientIndex+"/"+timeIndex+".png", 0)
 
 ################################################################################
@@ -136,6 +135,10 @@ def fillDataset(train_df, relativePath, patientIndex, timeFolder):
 
             # set the window with the two classes
             realLabelledWindow = (binaryEverything*LABELS_REALVALUES[0]) + (binaryCoreNoSkull*LABELS_REALVALUES[1])
+            # save the binary ground truth image
+            if not os.path.isdir(NEWLABELLED_IMAGES_FOLDER_LOCATION+IMAGE_SUFFIX+patientIndex): os.makedirs(NEWLABELLED_IMAGES_FOLDER_LOCATION+IMAGE_SUFFIX+patientIndex)
+            if not os.path.exists(NEWLABELLED_IMAGES_FOLDER_LOCATION+IMAGE_SUFFIX+patientIndex+"/"+timeIndex+".png"): cv2.imwrite(NEWLABELLED_IMAGES_FOLDER_LOCATION+IMAGE_SUFFIX+patientIndex+"/"+timeIndex+".png", realLabelledWindow)
+
         else: # The normal four classes
             binaryBackgroundMatrix = realLabelledWindow>=LABELS_THRESHOLDS[0]
             binaryBrainMatrix = realLabelledWindow>=LABELS_THRESHOLDS[1]
@@ -151,8 +154,7 @@ def fillDataset(train_df, relativePath, patientIndex, timeFolder):
             # extract the brain area but not the background (= class 1)
             binaryBrainMatrixNoBackground = binaryBrainMatrix ^ binaryPenumbraMatrix # brain XOR penumbra
             valueClasses[LABELS[1]] = sum(sum(binaryBrainMatrixNoBackground))
-            # (= class 0)
-            valueClasses[LABELS[0]] = sum(sum(binaryBackgroundMatrix))
+            valueClasses[LABELS[0]] = sum(sum(binaryBackgroundMatrix)) # (= class 0)
 
             # set the window with just the four classes
             realLabelledWindow = (binaryBackgroundMatrix*LABELS_REALVALUES[0])+(binaryCoreNoSkull*LABELS_REALVALUES[3])+(binaryPenumbraNoSkull*LABELS_REALVALUES[2])+(binaryBrainMatrixNoBackground*LABELS_REALVALUES[1])

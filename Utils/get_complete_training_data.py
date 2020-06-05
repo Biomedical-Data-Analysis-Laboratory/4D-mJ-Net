@@ -22,15 +22,19 @@ from scipy import ndimage
 DATASET_NAME = "ISLES2018"
 
 ROOT_PATH = "/home/stud/lucat/PhD_Project/Stroke_segmentation/PATIENTS/"+DATASET_NAME+"/NEW_TRAINING/"
-SCRIPT_PATH = "/local/home/lucat/DATASET/"+DATASET_NAME+"/"
+SCRIPT_PATH = "/local/home/lucat/DATASET/"+DATASET_NAME+"/Two_classes/" # Four_classes
 
 SAVE_REGISTERED_FOLDER = ROOT_PATH + "FINAL/"
 LABELLED_IMAGES_FOLDER_LOCATION = ROOT_PATH + "Ground Truth/"
 IMAGE_SUFFIX = "PA"
 NUMBER_OF_IMAGE_PER_SECTION = 64 # number of image (divided by time) for each section of the brain
 IMAGE_WIDTH, IMAGE_HEIGHT = 256, 256
+
 # background:255, brain:0, penumbra:~76, core:~150
-LABELS = ["background", "brain", "penumbra", "core"]
+BINARY_CLASSIFICATION = True # to extract only two classes
+LABELS = ["background", "core"] # ["background", "brain", "penumbra", "core"]
+LABELS_THRESHOLDS = [234, 135] #[234, 0, 60, 135] # [250, 0 , 30, 100]
+LABELS_REALVALUES = [0, 255]# [255, 0, 76, 150]
 dataset, listPatientsDataset, trainDatasetList = {}, {}, list()
 
 ################################################################################
@@ -113,49 +117,63 @@ def fillDataset(train_df, relativePath, patientIndex, timeFolder):
     while True:
         if ENTIRE_IMAGE:
             count += 1
-            if count > 1:
-                break
+            if count > 1: break
         else:
-            if startingX>=IMAGE_WIDTH-M and startingY>=IMAGE_HEIGHT-N: # if we reach the end of the image, break the while loop.
-                break
+            if startingX>=IMAGE_WIDTH-M and startingY>=IMAGE_HEIGHT-N: break # if we reach the end of the image, break the while loop.
 
         realLabelledWindow = getSlicingWindow(labelledMatrix, startingX, startingY, M, N)
-        binaryBackgroundMatrix = realLabelledWindow>=250
-        binaryBrainMatrix = realLabelledWindow>=0
-        binaryPenumbraMatrix = realLabelledWindow>=30
-        binaryCoreMatrix = realLabelledWindow>=100
-
         valueClasses = dict()
+        numReplication = 1
 
-        # extract the core area but not the brain area (= class 3)
-        binaryCoreNoSkull = binaryBackgroundMatrix ^ binaryCoreMatrix # background XOR core
-        valueClasses[LABELS[3]] = sum(sum(binaryCoreNoSkull))
-        # extract the penumbra area but not the brain area (= class 2)
-        binaryPenumbraNoSkull = binaryCoreMatrix ^ binaryPenumbraMatrix # penumbra XOR core
-        valueClasses[LABELS[2]] = sum(sum(binaryPenumbraNoSkull))
-        # extract the brain area but not the background (= class 1)
-        binaryBrainMatrixNoBackground = binaryBrainMatrix ^ binaryPenumbraMatrix # brain XOR penumbra
-        valueClasses[LABELS[1]] = sum(sum(binaryBrainMatrixNoBackground))
-        # (= class 0)
-        valueClasses[LABELS[0]] = sum(sum(binaryBackgroundMatrix))
+        if BINARY_CLASSIFICATION: # JUST for 2 classes: core and the rest
+            everything = realLabelledWindow>=0
+            binaryBackgroundMatrix = realLabelledWindow<=LABELS_THRESHOLDS[0]
+            binaryCoreMatrix = realLabelledWindow>=LABELS_THRESHOLDS[1]
+            binaryCoreNoSkull = ~(binaryCoreMatrix ^ binaryBackgroundMatrix) # NOT background XOR core
+            valueClasses[LABELS[1]] = sum(sum(binaryCoreNoSkull))
+            binaryEverything = everything ^ binaryCoreMatrix # everything XOR core --> the other class
+            valueClasses[LABELS[0]] = sum(sum(binaryEverything))
+
+            # set the window with the two classes
+            realLabelledWindow = (binaryEverything*LABELS_REALVALUES[0]) + (binaryCoreNoSkull*LABELS_REALVALUES[1])
+        else: # The normal four classes
+            binaryBackgroundMatrix = realLabelledWindow>=LABELS_THRESHOLDS[0]
+            binaryBrainMatrix = realLabelledWindow>=LABELS_THRESHOLDS[1]
+            binaryPenumbraMatrix = realLabelledWindow>=LABELS_THRESHOLDS[2]
+            binaryCoreMatrix = realLabelledWindow>=LABELS_THRESHOLDS[3]
+
+            # extract the core area but not the brain area (= class 3)
+            binaryCoreNoSkull = binaryBackgroundMatrix ^ binaryCoreMatrix # background XOR core
+            valueClasses[LABELS[3]] = sum(sum(binaryCoreNoSkull))
+            # extract the penumbra area but not the brain area (= class 2)
+            binaryPenumbraNoSkull = binaryCoreMatrix ^ binaryPenumbraMatrix # penumbra XOR core
+            valueClasses[LABELS[2]] = sum(sum(binaryPenumbraNoSkull))
+            # extract the brain area but not the background (= class 1)
+            binaryBrainMatrixNoBackground = binaryBrainMatrix ^ binaryPenumbraMatrix # brain XOR penumbra
+            valueClasses[LABELS[1]] = sum(sum(binaryBrainMatrixNoBackground))
+            # (= class 0)
+            valueClasses[LABELS[0]] = sum(sum(binaryBackgroundMatrix))
+
+            # set the window with just the four classes
+            realLabelledWindow = (binaryBackgroundMatrix*LABELS_REALVALUES[0])+(binaryCoreNoSkull*LABELS_REALVALUES[3])+(binaryPenumbraNoSkull*LABELS_REALVALUES[2])+(binaryBrainMatrixNoBackground*LABELS_REALVALUES[1])
 
         # the max of these values is the class to set for the binary class (Y)
         classToSet = max(valueClasses.items(), key=operator.itemgetter(1))[0]
 
-        # set the window with just the four classes
-        realLabelledWindow = (binaryBackgroundMatrix*255)+(binaryCoreNoSkull*150)+(binaryPenumbraNoSkull*76)+(binaryBrainMatrixNoBackground*0)
-
-        numReplication = 1
-        if classToSet==LABELS[0]: numBack+=1
-        elif classToSet==LABELS[1]: numBrain+=1
-        elif classToSet==LABELS[2]: numPenumbra+=1
-        elif classToSet==LABELS[3]:
-            numReplication = 6 if DATA_AUGMENTATION else 1
-            numCore+=numReplication
+        if BINARY_CLASSIFICATION:
+            if classToSet==LABELS[0]: numBack+=1
+            else:
+                numReplication = 6 if DATA_AUGMENTATION else 1
+                numCore+=numReplication
+        else:
+            if classToSet==LABELS[0]: numBack+=1
+            elif classToSet==LABELS[1]: numBrain+=1
+            elif classToSet==LABELS[2]: numPenumbra+=1
+            elif classToSet==LABELS[3]:
+                numReplication = 6 if DATA_AUGMENTATION else 1
+                numCore+=numReplication
 
         for data_aug_idx in range(numReplication): # start from 0
-            # tmparray = []
-
             for image_idx, imagename in enumerate(np.sort(glob.glob(timeFolder+"*.png"))): # sort the images !
                 if str(startingX) not in pixelsList[data_aug_idx].keys(): pixelsList[data_aug_idx][str(startingX)] = dict()
                 if str(startingX) not in otherInforList[data_aug_idx].keys(): otherInforList[data_aug_idx][str(startingX)] = dict()
@@ -178,22 +196,11 @@ def fillDataset(train_df, relativePath, patientIndex, timeFolder):
                 elif data_aug_idx==4: slicingWindow = np.flipud(slicingWindow) # flip the matrix up/down
                 elif data_aug_idx==5: slicingWindow = np.fliplr(slicingWindow) # flip the matrix left/right
 
-                # tmparray.extend(slicingWindow)
-
-                # pixelsList[data_aug_idx][str(startingX)][str(startingY)].extend(slicingWindow)
                 if image_idx not in pixelsList[data_aug_idx][str(startingX)][str(startingY)].keys(): pixelsList[data_aug_idx][str(startingX)][str(startingY)][image_idx] = list()
                 pixelsList[data_aug_idx][str(startingX)][str(startingY)][image_idx] = slicingWindow
 
             otherInforList[data_aug_idx][str(startingX)][str(startingY)]["ground_truth"] = realLabelledWindow
             otherInforList[data_aug_idx][str(startingX)][str(startingY)]["label_class"] = classToSet
-
-            # if classToSet==LABELS[0]:
-            #     backgroundPixelList.append(tmparray)
-            #     backgroundGroundTruthList.append(realLabelledWindow)
-            # else:
-            #     tmpListPixels.append(tmparray)
-            #     tmpListGroundTruth.append(realLabelledWindow)
-            #     tmpListClasses.append(classToSet)
 
         if startingY<IMAGE_HEIGHT-N: startingY += SLICING_PIXELS
         else:
@@ -201,12 +208,18 @@ def fillDataset(train_df, relativePath, patientIndex, timeFolder):
                 startingY = 0
                 startingX += SLICING_PIXELS
 
-    print("+++++++++++++++++++++++++++++++++++++++++++++++++++++")
-    print("\t\t\t Background: {0}".format(numBack))
-    print("\t\t\t Brain: {0}".format(numBrain))
-    print("\t\t\t Penumbra: {0}".format(numPenumbra))
-    print("\t\t\t Core: {0}".format(numCore))
-    print("+++++++++++++++++++++++++++++++++++++++++++++++++++++")
+    if BINARY_CLASSIFICATION:
+        print("+++++++++++++++++++++++++++++++++++++++++++++++++++++")
+        print("\t\t\t Background: {0}".format(numBack))
+        print("\t\t\t Core: {0}".format(numCore))
+        print("+++++++++++++++++++++++++++++++++++++++++++++++++++++")
+    else:
+        print("+++++++++++++++++++++++++++++++++++++++++++++++++++++")
+        print("\t\t\t Background: {0}".format(numBack))
+        print("\t\t\t Brain: {0}".format(numBrain))
+        print("\t\t\t Penumbra: {0}".format(numPenumbra))
+        print("\t\t\t Core: {0}".format(numCore))
+        print("+++++++++++++++++++++++++++++++++++++++++++++++++++++")
 
     print(train_df.shape)
     backElem = 0
@@ -219,16 +232,9 @@ def fillDataset(train_df, relativePath, patientIndex, timeFolder):
                     arrayOfVolumeImages.append(tmp_pix)
 
                 totalVol = np.array(arrayOfVolumeImages)
-                # # print(np.array(pixelsList[d][x][y]).shape)
-                #
-                # # pixels = np.array(pixelsList[d][x][y]).reshape(NUMBER_OF_IMAGE_PER_SECTION,M,N)
-                #
-                # tmp_pix = np.array(pixelsList[d][x][y][z])
-                # pixels = tmp_pix.reshape(M,N,int(tmp_pix.shape[0]/M))
 
                 # convert the pixels in a (M,N,30) shape
                 zoom_val = NUMBER_OF_IMAGE_PER_SECTION/totalVol.shape[0]
-
 
                 if totalVol.shape[0] > NUMBER_OF_IMAGE_PER_SECTION:
                     zoom_val = totalVol.shape[0]/NUMBER_OF_IMAGE_PER_SECTION
@@ -255,22 +261,14 @@ def fillDataset(train_df, relativePath, patientIndex, timeFolder):
                         backElem+=1
 
                 tmp_df = pd.DataFrame(np.array([[patientIndex, label, pixels_zoom, gt]]), columns=['patient_id', 'label', 'pixels', 'ground_truth'])
-                tmp_df['label_code'] = tmp_df.label.map({LABELS[0]:0, LABELS[1]:1, LABELS[2]:2, LABELS[3]:3})
+
+                if BINARY_CLASSIFICATION: tmp_df['label_code'] = tmp_df.label.map({LABELS[0]:0, LABELS[1]:1})
+                else: tmp_df['label_code'] = tmp_df.label.map({LABELS[0]:0, LABELS[1]:1, LABELS[2]:2, LABELS[3]:3})
+
                 train_df = train_df.append(tmp_df, ignore_index=True)
 
     print(train_df.shape)
-
-    # indices = random.sample(range(0,len(backgroundPixelList)), MAX_NUM_BACKGROUND_IMAGES)
-    # newBackgroundPixelList, newBackgroundGroundTruthList = list(), list()
-    # for index in indices:
-    #     newBackgroundPixelList.append(backgroundPixelList[index])
-    #     newBackgroundGroundTruthList.append(backgroundGroundTruthList[index])
-
     print("\t\t\t Randomly picked {0} background images (~ {1} %).".format(str(backElem), PERCENTAGE_BACKGROUND_IMAGES))
-
-    # dataset[patientIndex]["data"] = tmpListPixels + newBackgroundPixelList
-    # dataset[patientIndex]["ground_truth"] = tmpListGroundTruth + newBackgroundGroundTruthList
-    # dataset[patientIndex]["label_class"] = tmpListClasses + [LABELS[0]]*MAX_NUM_BACKGROUND_IMAGES
 
     return train_df
 
@@ -286,12 +284,9 @@ def initializeDataset():
 
         relativePath = patientFolder.replace(SAVE_REGISTERED_FOLDER, '')
         patientIndex = relativePath.replace(IMAGE_SUFFIX, "").replace("/", "")
-        #filename_train = SCRIPT_PATH+"trainComplete"+str(patientIndex)+".h5"
         filename_train = SCRIPT_PATH+"patient"+str(patientIndex)+suffix_filename+".hkl"
         subfolders = glob.glob(patientFolder+"*/")
 
-        ## only patients from 2 to 11 (the one with annotations)
-        # if int(patientIndex)>1 and int(patientIndex)<=11:
         print("\t Analyzing {0}/{1}; patient folder: {2}...".format(numFold+1, len(patientFolders), relativePath))
         for count, timeFolder in enumerate(subfolders): # for each slicing time
             initializeLabels(patientIndex)
@@ -300,55 +295,18 @@ def initializeDataset():
 
             train_df = fillDataset(train_df, relativePath, patientIndex, timeFolder) # insert the data inside the dataset dictionary
             # print("\t\t Details:", [(key, len(subdataset)) for key, subdataset in dataset[patientIndex].items()])
-            print("+++++++++++++++++++++++++++++++++++++++++++++++++++++")
-            print("\t\t Background: {0}".format(str(sum(train_df.label==LABELS[0]))))
-            print("\t\t Brain: {0}".format(str(sum(train_df.label==LABELS[1]))))
-            print("\t\t Penumbra: {0}".format(str(sum(train_df.label==LABELS[2]))))
-            print("\t\t Core: {0}".format(str(sum(train_df.label==LABELS[3]))))
-            print("+++++++++++++++++++++++++++++++++++++++++++++++++++++")
+            # print("+++++++++++++++++++++++++++++++++++++++++++++++++++++")
+            # print("\t\t Background: {0}".format(str(sum(train_df.label==LABELS[0]))))
+            # print("\t\t Brain: {0}".format(str(sum(train_df.label==LABELS[1]))))
+            # print("\t\t Penumbra: {0}".format(str(sum(train_df.label==LABELS[2]))))
+            # print("\t\t Core: {0}".format(str(sum(train_df.label==LABELS[3]))))
+            # print("+++++++++++++++++++++++++++++++++++++++++++++++++++++")
 
             end = time.time()
             print("\t\t Processed {0}/{1} subfolders in {2}s.".format(count+1, len(subfolders), round(end-start, 3)))
-
-            # start = time.time()
-            # convertDatasetInList()
-            # print("Preparing partial TRAIN dataframe...")
-            # tmp = prepareTraining()
-            # end = time.time()
-            # append the new rows in the dataframe
-            # for index in range(0, tmp.shape[0]): train_df = train_df.append( tmp.iloc[index] )
-            # print("Time: {0}".format(round(end-start, 3)))
             print("Train shape: ", train_df.shape)
         print("Saving TRAIN dataframe for patient {1} in {0}...".format(filename_train, str(patientIndex)))
-        #suffix = "_DATA_AUGMENTATION" if DATA_AUGMENTATION else ""
-        #train_df.to_hdf(filename_train, key="X_"+str(M)+"x"+str(N)+"_"+str(SLICING_PIXELS) + suffix)
         hkl.dump(train_df, filename_train, mode='w')
-
-################################################################################
-# def convertDatasetInList():
-#     global listPatientsDataset, dataset
-#     listPatientsDataset = {} # reset the list
-#
-#     for patient_id in dataset.keys():
-#         listPatientsDataset[patient_id] = []
-#         for idx, pixels in enumerate(dataset[patient_id]["data"]):
-#
-#
-#             # pixels = np.array(pixels).reshape(NUMBER_OF_IMAGE_PER_SECTION,M,N)
-#
-#             tmp_pix = np.array(pixels)
-#             pixels = tmp_pix.reshape(M,N,int(tmp_pix.shape[0]/M))
-#
-#             # convert the pixels in a (M,N,30) shape
-#             zoom_val = NUMBER_OF_IMAGE_PER_SECTION/pixels.shape[2]
-#             if pixels.shape[2] < NUMBER_OF_IMAGE_PER_SECTION:
-#                 zoom_val = pixels.shape[2]/NUMBER_OF_IMAGE_PER_SECTION
-#
-#             pixels_zoom = ndimage.zoom(pixels,[1,1,zoom_val])
-#
-#             ground_truth = dataset[patient_id]["ground_truth"][idx]
-#             label = dataset[patient_id]["label_class"][idx]
-#             listPatientsDataset[patient_id].append((patient_id, label, pixels_zoom, ground_truth))
 
 ################################################################################
 def divideDataForTrainAndTest():
@@ -365,7 +323,9 @@ def prepareTraining():
     # start the preparation for the training
     divideDataForTrainAndTest()
     tmp_df = pd.DataFrame(trainDatasetList, columns=['patient_id', 'label', 'pixels', 'ground_truth'])
-    tmp_df['label_code'] = tmp_df.label.map({LABELS[0]:0, LABELS[1]:1, LABELS[2]:2, LABELS[3]:3})
+
+    if BINARY_CLASSIFICATION: tmp_df['label_code'] = tmp_df.label.map({LABELS[0]:0, LABELS[1]:1})
+    else: tmp_df['label_code'] = tmp_df.label.map({LABELS[0]:0, LABELS[1]:1, LABELS[2]:2, LABELS[3]:3})
 
     return tmp_df
 

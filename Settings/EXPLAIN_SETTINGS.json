@@ -39,6 +39,8 @@
       %% validation variable
       "val":{
         "validation_perc": 5, %% percentage
+        "number_patients_for_validation": 5, % number of patients for the validation set
+        "number_patients_for_testing": 4, % number of patients for the test set
         "random_validation_selection": 0 % flag for random selection in the validation dataset
       },
       "test_steps":1, %% # of test steps

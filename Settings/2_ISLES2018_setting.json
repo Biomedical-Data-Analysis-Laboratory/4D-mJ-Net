@@ -1,5 +1,5 @@
 {
-  "EXPERIMENT": 10,
+  "EXPERIMENT": 11,
   "root_path": "/home/stud/lucat/PhD_Project/Stroke_segmentation/",
   "dataset_path": "/local/home/lucat/DATASET/ISLES2018/Two_classes/",
   "PATIENT_TO_TEST": ["ALL"],
@@ -12,7 +12,7 @@
     "MULTIPROCESSING": 0
   },
   "relative_paths": {
-    "labeled_images": "PATIENTS/ISLES2018/NEW_TRAINING/Manual_annotations/",
+    "labeled_images": "PATIENTS/ISLES2018/NEW_TRAINING/Binary_Ground_Truth/",
     "patients": "PATIENTS/ISLES2018/NEW_TRAINING/FINAL/",
     "save": {
       "model": "MODELS/",
@@ -26,14 +26,16 @@
   "models": [
      {
       "name": "mJNet_v2",
-      "loss": "mod_dice_coef_loss",
-      "metrics": ["mod_dice_coef", "dice_coef"],
-      "epochs": 3,
+      "loss": "weighted_categorical_cross_entropy_loss",
+      "metrics": ["weighted_categorical_cross_entropy", "mod_dice_coef", "dice_coef"],
+      "epochs": 1,
       "batch_size":2,
       "classes_to_evaluate": ["core"],
       "statistics": ["sensitivity", "specificity", "precision", "f1", "accuracy", "jaccard_index"],
       "val":{
         "validation_perc": 5,
+        "number_patients_for_validation": 5,
+        "number_patients_for_testing": 4,
         "random_validation_selection": 0
       },
       "test_steps":1,

@@ -22,9 +22,11 @@ def predictAndSaveImages(that, p_id):
     stats = {}
 
     relativePatientFolder = constants.PREFIX_IMAGES+p_id+"/"
+    relativePatientFolderHeatMap = relativePatientFolder + "HEATMAP/"
     patientFolder = that.patientsFolder+relativePatientFolder
     general_utils.createDir(that.saveImagesFolder+that.getNNID(p_id)+general_utils.getSuffix())
     general_utils.createDir(that.saveImagesFolder+that.getNNID(p_id)+general_utils.getSuffix()+"/"+relativePatientFolder)
+    general_utils.createDir(that.saveImagesFolder+that.getNNID(p_id)+general_utils.getSuffix()+"/"+relativePatientFolderHeatMap)
 
     if constants.getVerbose(): general_utils.printSeparation("-", 100)
 
@@ -39,25 +41,26 @@ def predictAndSaveImages(that, p_id):
     #         pool.starmap(predictImage, input)
     # else:
 
-
     for subfolder in glob.glob(patientFolder+"*/"):
         try:
-            tmpStats = predictImage(that, subfolder, p_id, patientFolder, that.getNNID(p_id)+general_utils.getSuffix()+"/"+relativePatientFolder)
+            tmpStats = predictImage(that, subfolder, p_id, patientFolder, that.getNNID(p_id)+general_utils.getSuffix()+"/"+relativePatientFolder, that.getNNID(p_id)+general_utils.getSuffix()+"/"+relativePatientFolderHeatMap)
+
+            if that.save_statistics:
+                for func in that.statistics:
+                    if func.__name__ not in stats.keys(): stats[func.__name__] = {}
+                    for classToEval in that.classes_to_evaluate:
+                        if classToEval not in stats[func.__name__].keys(): stats[func.__name__][classToEval] = {}
+                        for idxE, _ in enumerate(that.epsiloList):
+                            if idxE not in stats[func.__name__][classToEval].keys(): stats[func.__name__][classToEval][idxE] = []
+                            stats[func.__name__][classToEval][idxE].append(tmpStats[func.__name__][classToEval][idxE])
+
         except Exception as e:
-            print(e)
+            print("[ERROR] - ", e)
             continue
 
-        if that.save_statistics:
-            for func in that.statistics:
-                if func.__name__ not in stats.keys(): stats[func.__name__] = {}
-                for classToEval in that.classes_to_evaluate:
-                    if classToEval not in stats[func.__name__].keys(): stats[func.__name__][classToEval] = {}
-                    for idxE, _ in enumerate(that.epsiloList):
-                        if idxE not in stats[func.__name__][classToEval].keys(): stats[func.__name__][classToEval][idxE] = []
-                        stats[func.__name__][classToEval][idxE].append(tmpStats[func.__name__][classToEval][idxE])
 
     end = time.time()
-    print("Total time: {0}s for patient {1}.".format(round(end-start, 3), p_id))
+    if constants.getVerbose(): print("[INFO] - Total time: {0}s for patient {1}.".format(round(end-start, 3), p_id))
 
     if constants.getVerbose(): general_utils.printSeparation("-", 100)
 
@@ -65,7 +68,7 @@ def predictAndSaveImages(that, p_id):
 
 ################################################################################
 # Generate a SINGLE image for the patient and save it
-def predictImage(that, subfolder, p_id, patientFolder, relativePatientFolder):
+def predictImage(that, subfolder, p_id, patientFolder, relativePatientFolder, relativePatientFolderHeatMap):
     start = time.time()
     stats = {}
     YTRUEToEvaluate, YPREDToEvaluate = [], []
@@ -77,7 +80,7 @@ def predictImage(that, subfolder, p_id, patientFolder, relativePatientFolder):
     if os.path.isfile(logsName): os.remove(logsName)
 
     if constants.getVerbose():
-        print("Analyzing Patient {0}, image {1}...".format(p_id, idx))
+        print("[INFO] - Analyzing Patient {0}, image {1}...".format(p_id, idx))
 
     if that.labeledImagesFolder!="": # get the label image only if the path is set
         filename = that.labeledImagesFolder+"PA"+p_id+"/"+idx+".png"
@@ -141,15 +144,20 @@ def predictImage(that, subfolder, p_id, patientFolder, relativePatientFolder):
             YTRUEToEvaluate.extend(y_true)
             YPREDToEvaluate.extend(slicingWindowPredicted*multiplier)
 
-        # Transform the slicingWindowPredicted into a tuple of three dimension!
         if that.save_images:
+            # Transform the slicingWindowPredicted into a tuple of three dimension!
             threeDimensionSlicingWindow = np.zeros(shape=(slicingWindowPredicted.shape[0],slicingWindowPredicted.shape[1], 3), dtype=np.uint8)
 
-            thresBack = constants.PIXELVALUES[0]
-            thresBrain = constants.PIXELVALUES[1]
-            thresPenumbra = constants.PIXELVALUES[2]
-            thresCore = constants.PIXELVALUES[3]
-            eps1, eps2, eps3 = that.epsilons[0]
+            if constants.N_CLASSES == 4:
+                thresBack = constants.PIXELVALUES[0]
+                thresBrain = constants.PIXELVALUES[1]
+                thresPenumbra = constants.PIXELVALUES[2]
+                thresCore = constants.PIXELVALUES[3]
+                eps1, eps2, eps3 = that.epsilons[0]
+            else:
+                thresBack = constants.PIXELVALUES[0]
+                thresCore = constants.PIXELVALUES[1]
+                eps1 = that.epsilons[0]
 
             for r, _ in enumerate(slicingWindowPredicted):
                 for c, pixel in enumerate(slicingWindowPredicted[r]):
@@ -173,28 +181,27 @@ def predictImage(that, subfolder, p_id, patientFolder, relativePatientFolder):
                 startingX+=constants.getM()
 
     s2 = time.time()
-    print("image time: {}".format(round(s2-s1, 3)))
+    if constants.getVerbose(): print("image time: {}".format(round(s2-s1, 3)))
     if that.save_images:
         s1 = time.time()
-
         # rotate the predictions foor the ISLES2018 dataset
         if "ISLES2018" in that.datasetFolder: imagePredicted = np.rot90(imagePredicted,1)
-
         # save the image predicted in the specific folder
         cv2.imwrite(that.saveImagesFolder+relativePatientFolder+idx+".png", imagePredicted)
-        # HEATMAP
+        # create and save the HEATMAP
         heatmap_img = cv2.applyColorMap(~imagePredicted, cv2.COLORMAP_JET)
-        cv2.imwrite(that.saveImagesFolder+relativePatientFolder+idx+"_heatmap.png", heatmap_img)
+        cv2.imwrite(that.saveImagesFolder+relativePatientFolderHeatMap+idx+"_heatmap.png", heatmap_img)
         s2 = time.time()
-        print("save time: {}".format(round(s2-s1, 3)))
-
+        if constants.getVerbose(): print("save time: {}".format(round(s2-s1, 3)))
 
     if that.save_statistics:
         s1 = time.time()
         tn, fn, fp, tp = {}, {}, {}, {}
         for classToEval in that.classes_to_evaluate:
             if classToEval=="penumbra": label=2
-            elif classToEval=="core": label=3
+            elif classToEval=="core":
+                label=3
+                if constants.N_CLASSES==2: label=1 # binary classification
             elif classToEval=="penumbracore": label=4
 
             if classToEval not in tn.keys(): tn[classToEval] = {}
@@ -202,25 +209,30 @@ def predictImage(that, subfolder, p_id, patientFolder, relativePatientFolder):
             if classToEval not in fp.keys(): fp[classToEval] = {}
             if classToEval not in tp.keys(): tp[classToEval] = {}
 
-            for  idxE,percEps in enumerate(that.epsiloList):
-                # loop over the various epsilon
-                tn[classToEval][idxE], fn[classToEval][idxE], fp[classToEval][idxE], tp[classToEval][idxE] = metrics.mappingPrediction(YTRUEToEvaluate, YPREDToEvaluate, that.use_background_in_statistics, that.epsilons, percEps, label)
+            if that.epsiloList[0]!=None:
+                for  idxE,percEps in enumerate(that.epsiloList):
+                    # loop over the various epsilon
+                    tn[classToEval][idxE], fn[classToEval][idxE], fp[classToEval][idxE], tp[classToEval][idxE] = metrics.mappingPrediction(YTRUEToEvaluate, YPREDToEvaluate, that.use_background_in_statistics, that.epsilons, percEps, label)
 
         for func in that.statistics:
             if func.__name__ not in stats.keys(): stats[func.__name__] = {}
             for classToEval in that.classes_to_evaluate:
                 if classToEval=="penumbra": label=2
-                elif classToEval=="core": label=3
+                elif classToEval=="core":
+                    label=3
+                    if constants.N_CLASSES==2: label=1 # binary classification
                 elif classToEval=="penumbracore": label=4
+
                 if classToEval not in stats[func.__name__].keys(): stats[func.__name__][classToEval] = {}
 
-                for  idxE, _ in enumerate(that.epsiloList):
-                    stats[func.__name__][classToEval][idxE] = (tn[classToEval][idxE], fn[classToEval][idxE], fp[classToEval][idxE], tp[classToEval][idxE])
+                if that.epsiloList[0]!=None:
+                    for  idxE, _ in enumerate(that.epsiloList):
+                        stats[func.__name__][classToEval][idxE] = (tn[classToEval][idxE], fn[classToEval][idxE], fp[classToEval][idxE], tp[classToEval][idxE])
         s2 = time.time()
-        print("stats time: {}".format(round(s2-s1, 3)))
+        if constants.getVerbose(): print("stats time: {}".format(round(s2-s1, 3)))
     end = time.time()
     if constants.getVerbose():
-        print("Time: {0}s for image {1}.".format(round(end-start, 3), idx))
+        print("[INFO] - Time: {0}s for image {1}.".format(round(end-start, 3), idx))
         general_utils.printSeparation("-", 100)
 
     return stats

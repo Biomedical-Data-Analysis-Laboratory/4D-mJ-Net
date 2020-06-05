@@ -223,7 +223,8 @@ def getLabelsFromIndex(train_df, indices, to_categ):
         labels /= 255
 
     end = time.time()
-    if constants.getVerbose(): print("[INFO] - *getLabelsFromIndex* Time: {}s".format(round(end-start, 3)))
+    if constants.getVerbose():
+        print("[INFO] - *getLabelsFromIndex* Time: {}s".format(round(end-start, 3)))
 
     return labels
 

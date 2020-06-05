@@ -28,12 +28,14 @@
       "name": "mJNet_v2",
       "loss": "mod_dice_coef_loss",
       "metrics": ["mod_dice_coef", "dice_coef"],
-      "epochs": 3,
+      "epochs": 50,
       "batch_size":2,
       "classes_to_evaluate": ["core"],
       "statistics": ["sensitivity", "specificity", "precision", "f1", "accuracy", "jaccard_index"],
       "val":{
         "validation_perc": 5,
+        "number_patients_for_validation": 5,
+        "number_patients_for_testing": 5,
         "random_validation_selection": 0
       },
       "test_steps":1,

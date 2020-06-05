@@ -59,7 +59,7 @@ def main():
                 else: # Otherwise get dataset only the first time
                     if train_df is None: train_df = dataset_utils.getDataset(nn)
                 ## PREPARE DATASET
-                nn.prepareDataset(train_df, p_id)
+                nn.prepareDataset(train_df, p_id, listOfPatientsToTest)
                 ## SET THE CALLBACKS, RUN TRAINING & SAVE THE MODELS WEIGHTS
                 nn.runTraining(p_id, n_gpu)
                 nn.saveModelAndWeight(p_id)
@@ -75,9 +75,10 @@ def main():
                     for classToEval in nn.classes_to_evaluate:
                         if func.__name__ not in stats.keys(): stats[func.__name__] = {}
                         if classToEval not in stats[func.__name__].keys(): stats[func.__name__][classToEval] = {}
-                        for idxE, _ in enumerate(nn.epsiloList):
-                            if idxE not in stats[func.__name__][classToEval].keys(): stats[func.__name__][classToEval][idxE] = []
-                            stats[func.__name__][classToEval][idxE].extend(tmpStats[func.__name__][classToEval][idxE])
+                        if nn.epsiloList[0]!=None:
+                            for idxE, _ in enumerate(nn.epsiloList):
+                                if idxE not in stats[func.__name__][classToEval].keys(): stats[func.__name__][classToEval][idxE] = []
+                                stats[func.__name__][classToEval][idxE].extend(tmpStats[func.__name__][classToEval][idxE])
 
         if nn.save_statistics: nn.saveStats(stats, "PATIENT_TO_TEST")
 
@@ -85,7 +86,8 @@ def main():
 ################################################################################
 if __name__ == '__main__':
     """
-    Usage: python main.py [-h] [-v] [-d] [-s SNAME] [-t TILE] gpu
+    Usage: python main.py [-h] [-v] [-d] [-s SNAME] [-t TILE] [-dim DIMENSION] [-c {2,4}]
+               gpu
 
     positional arguments:
       gpu                   Give the id of gpu (or a list of the gpus) to use
@@ -97,6 +99,9 @@ if __name__ == '__main__':
       -s SNAME, --sname SNAME
                             Pass the setting filename
       -t TILE, --tile TILE  Set the tile pixels dimension (MxM)
-
+      -dim DIMENSION, --dimension DIMENSION
+                            Set the dimension of the input images (widthXheight)
+      -c {2,4}, --classes {2,4}
+                            Set the # of classe involved (default = 4)
     """
     main()

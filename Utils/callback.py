@@ -2,12 +2,12 @@ import constants
 from Utils import general_utils
 
 import os, glob, json
-import tensorflow as tf
+from tensorflow.keras import callbacks
 from sklearn.metrics import roc_auc_score
 
 ################################################################################
 # Return information about the loss and accuracy
-class CollectBatchStats(tf.keras.callbacks.Callback):
+class CollectBatchStats(callbacks.Callback):
     def __init__(self, root_path, savedModelName, textFolderPath, acc="acc"):
         self.batch_losses = []
         self.batch_acc = []
@@ -43,7 +43,7 @@ class CollectBatchStats(tf.keras.callbacks.Callback):
 ################################################################################
 # Callback for the AUC_ROC
 # TODO: NOT working!! <-- use it just for testing
-class RocCallback(tf.keras.callbacks.Callback):
+class RocCallback(callbacks.Callback):
     def __init__(self, training_data, validation_data, model, sample_weight, savedModelName, textFolderPath):
         self.x = training_data[0]
         self.y = training_data[1]
@@ -87,7 +87,7 @@ class RocCallback(tf.keras.callbacks.Callback):
 ################################################################################
 # Save the best model every "period" number of epochs
 def modelCheckpoint(filename, monitor, mode, period):
-    return tf.keras.callbacks.ModelCheckpoint(
+    return callbacks.ModelCheckpoint(
             filename+constants.suffix_partial_weights+"{epoch:02d}.h5",
             monitor=monitor,
             verbose=constants.getVerbose(),
@@ -100,7 +100,7 @@ def modelCheckpoint(filename, monitor, mode, period):
 # Stop the training if the "monitor" quantity does NOT change of a "min_delta"
 # after a number of "patience" epochs
 def earlyStopping(monitor, min_delta, patience):
-    return tf.keras.callbacks.EarlyStopping(
+    return callbacks.EarlyStopping(
             monitor=monitor,
             min_delta=min_delta,
             patience=patience,
@@ -111,7 +111,7 @@ def earlyStopping(monitor, min_delta, patience):
 ################################################################################
 # Reduce learning rate when a metric has stopped improving.
 def reduceLROnPlateau(monitor, factor, patience, min_delta, cooldown, min_lr):
-    return tf.keras.callbacks.ReduceLROnPlateau(
+    return callbacks.ReduceLROnPlateau(
             monitor=monitor,
             factor=factor,
             patience=patience,
@@ -121,3 +121,12 @@ def reduceLROnPlateau(monitor, factor, patience, min_delta, cooldown, min_lr):
             cooldown=cooldown,
             min_lr=min_lr
     )
+
+################################################################################
+# Reduce the learning rate every decay_step of a certain decay_rate
+def LearningRateScheduler(decay_step, decay_rate):
+    def lr_scheduler(epoch, lr):
+        if epoch % decay_step == 0 and epoch:
+            return lr * decay_rate
+        return lr
+    return callbacks.LearningRateScheduler(lr_scheduler, verbose=constants.getVerbose())

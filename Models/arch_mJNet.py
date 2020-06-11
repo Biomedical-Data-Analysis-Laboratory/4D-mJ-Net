@@ -20,8 +20,9 @@ def mJNet(X, params, to_categ, drop=False, longJ=False, v2=False):
         # size_two = (2,2,1)
         activ_func = None
         l1_l2_reg = regularizers.l1_l2(l1=1e-6, l2=1e-5)
-        channels = [16,32,32,64,64,128,128,32,64,128,256,512,1024,512,1024,512,1024,-1,512,256,-1,128,64]
-        channels = [int(ch/4) for ch in channels] # implemented due to memory issues
+        # channels = [16,32,32,64,64,128,128,32,64,128,256,512,1024,512,1024,512,1024,-1,512,256,-1,128,64]
+        channels = [16,32,32,64,64,128,128,16,32,32,64,64,128,128,128,256,128,-1,128,64,-1,64,32]
+        channels = [int(ch/2) for ch in channels] # implemented due to memory issues
 
         # input_shape = (None,constants.getM(),constants.getN(),1)
         ## TODO: input_shape = (constants.NUMBER_OF_IMAGE_PER_SECTION,None,None,1)

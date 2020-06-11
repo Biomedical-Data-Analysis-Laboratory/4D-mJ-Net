@@ -6,6 +6,8 @@ import tensorflow.keras.backend as K
 
 ################################################################################
 # Model from Van De Leemput (https://doi.org/10.1109/ACCESS.2019.2910348)
+# TODO: change input accordly to the paper
+# convolutional layers loose 2 voxels (in this case pixels) each layer... 
 def van_De_Leemput(X, params, to_categ):
     l1_l2_reg = None # regularizers.l1_l2(l1=1e-6, l2=1e-5)
 

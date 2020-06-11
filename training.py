@@ -5,15 +5,15 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
-import tensorflow as tf
-# import keract
+from tensorflow.keras import optimizers
+import keract
 
 ################################################################################
 # Return the optimizer based on the setting
 def getOptimizer(optInfo):
     optimizer = None
     if optInfo["name"].lower()=="adam":
-        optimizer = tf.keras.optimizers.Adam(
+        optimizer = optimizers.Adam(
             lr=optInfo["lr"],
             beta_1=optInfo["beta_1"],
             beta_2=optInfo["beta_2"],
@@ -22,7 +22,7 @@ def getOptimizer(optInfo):
             amsgrad=False
         )
     elif optInfo["name"].lower()=="sgd":
-        optimizer = tf.keras.optimizers.SGD(
+        optimizer = optimizers.SGD(
             learning_rate=optInfo["learning_rate"],
             decay=optInfo["decay"],
             momentum=optInfo["momentum"],
@@ -45,6 +45,9 @@ def getCallbacks(info, root_path, filename, textFolderPath, dataset, sample_weig
         # reduce the learning rate if the monitor is not improving
         elif key=="ReduceLROnPlateau":
             cbs.append(callback.reduceLROnPlateau(info[key]["monitor"], info[key]["factor"], info[key]["patience"], info[key]["min_delta"], info[key]["cooldown"], info[key]["min_lr"]))
+        # reduce learning_rate every fix number of epochs
+        elif key=="LearningRateScheduler":
+            cbs.append(callback.LearningRateScheduler(info[key]["decay_step"], info[key]["decay_rate"]))
         # collect info
         elif key=="CollectBatchStats":
             cbs.append(callback.CollectBatchStats(root_path, filename, textFolderPath, info[key]["acc"]))
@@ -52,20 +55,24 @@ def getCallbacks(info, root_path, filename, textFolderPath, dataset, sample_weig
             training_data = (dataset["train"]["data"], dataset["train"]["labels"])
             validation_data = (dataset["val"]["data"], dataset["val"]["labels"])
             # # TODO: no model passed!
-            # # TODO: filename is different (isthe TMP_MODELS not MODELS folder)
+            # # TODO: filename is different (is the TMP_MODELS not MODELS folder)
             cbs.append(callback.RocCallback(training_data, validation_data, model, sample_weights, filename, textFolderPath))
 
     return cbs
 
 ################################################################################
 # Fit the model
-def fitModel(model, dataset, batch_size, epochs, listOfCallbacks, sample_weights, initial_epoch, intermediate_activation_path, use_multiprocessing):
+def fitModel(model, dataset, batch_size, epochs, listOfCallbacks, sample_weights, initial_epoch, save_activation_filter, intermediate_activation_path, use_multiprocessing):
     validation_data = None
     if dataset["val"]["data"] is not None and dataset["val"]["labels"] is not None: validation_data = (dataset["val"]["data"], dataset["val"]["labels"])
-    input = np.array(dataset["train"]["data"])
-    # activations = keract.get_activations(model, input) # call to fetch the activations of the model.
 
-    training = model.fit(input,
+    x = np.random.uniform(size=(1,)+tuple(np.array(dataset["train"]["data"][0].shape)))
+
+    # if sample_weights is not None: print(sample_weights.shape)
+    # print(dataset["train"]["data"].shape)
+    # print(dataset["train"]["labels"].shape)
+
+    training = model.fit(dataset["train"]["data"],
                 dataset["train"]["labels"],
                 batch_size=batch_size,
                 epochs=epochs,
@@ -77,7 +84,9 @@ def fitModel(model, dataset, batch_size, epochs, listOfCallbacks, sample_weights
                 verbose=constants.getVerbose(),
                 use_multiprocessing=use_multiprocessing)
 
-    # keract.display_activations(activations, save=True, directory=intermediate_activation_path)
+    if save_activation_filter:
+        activations = keract.get_activations(model, x) # call to fetch the activations of the model.
+        keract.display_activations(activations, save=True, directory=intermediate_activation_path)
 
     return training
 

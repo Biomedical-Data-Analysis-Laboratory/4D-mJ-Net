@@ -86,10 +86,14 @@ def setupEnvironmentForGPUs(args, setting):
     os.environ["CUDA_VISIBLE_DEVICES"] = GPU
     os.environ["TF_CPP_MIN_LOG_LEVEL"] = setting["init"]["TF_CPP_MIN_LOG_LEVEL"]
 
-    config = tf.compat.v1.ConfigProto() #tf.ConfigProto()
-    if setting["init"]["allow_growth"]: config.gpu_options.allow_growth = True
+    config = tf.compat.v1.ConfigProto()
+    if setting["init"]["allow_growth"]:
+        config.gpu_options.allow_growth = True
+        physical_devices = tf.config.experimental.list_physical_devices('GPU')
+        for physical_device in physical_devices: tf.config.experimental.set_memory_growth(physical_device, True)
+
     config.gpu_options.per_process_gpu_memory_fraction = setting["init"]["per_process_gpu_memory_fraction"] * N_GPU
-    session = tf.compat.v1.Session(config=config) #tf.Session(config=config)
+    session = tf.compat.v1.Session(config=config)
 
     if constants.getVerbose():
         printSeparation("-",50)
@@ -115,6 +119,10 @@ def getLoss(name):
     loss["loss"] = getattr(losses, name)
     loss["name"] = name
 
+    if constants.getVerbose():
+        printSeparation("-",50)
+        print("[WARNING] - Use {} Loss".format(name))
+
     return loss
 
 ################################################################################
@@ -122,6 +130,10 @@ def getLoss(name):
 def getStatisticFunctions(listStats):
     statisticFuncs = []
     for m in listStats: statisticFuncs.append(getattr(metrics, m))
+
+    if constants.getVerbose():
+        printSeparation("-",50)
+        print("[WARNING] - Getting {} functions".format(listStats))
 
     return statisticFuncs
 

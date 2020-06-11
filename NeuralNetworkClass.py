@@ -58,6 +58,7 @@ class NeuralNetwork(object):
         self.train_again = True if info["train_again"]==1 else False
         self.cross_validation = True if info["cross_validation"]==1 else False
         self.supervised = True if info["supervised"]==1 else False
+        self.save_activation_filter = True if info["save_activation_filter"]==1 else False
 
         # paths
         self.rootPath = setting["root_path"]
@@ -111,7 +112,7 @@ class NeuralNetwork(object):
     def loadSavedModel(self, p_id):
         saved_modelname = self.getSavedModel(p_id)
         saved_weightname = self.getSavedWeight(p_id)
-        json_file =open(saved_modelname, 'r')
+        json_file = open(saved_modelname, 'r')
         loaded_model_json = json_file.read()
         json_file.close()
         self.model = model_from_json(loaded_model_json)
@@ -168,11 +169,14 @@ class NeuralNetwork(object):
     def compileModel(self):
         # set the optimizer (or reset)
         self.optimizer = training.getOptimizer(optInfo=self.optimizerInfo)
+        sample_weight_mode = None
+        # if constants.N_CLASSES == 2: sample_weight_mode = "temporal"
 
         self.model.compile(
             optimizer=self.optimizer,
             loss=self.loss["loss"],
-            metrics=[self.metricFuncs]
+            weighted_metrics=[self.metricFuncs],
+            sample_weight_mode=sample_weight_mode
         )
 
 ################################################################################
@@ -227,6 +231,7 @@ class NeuralNetwork(object):
                 listOfCallbacks=self.callbacks,
                 sample_weights=sample_weights,
                 initial_epoch=self.initial_epoch,
+                save_activation_filter=self.save_activation_filter,
                 intermediate_activation_path=self.intermediateActivationFolder,
                 use_multiprocessing=self.mp)
 
@@ -236,6 +241,7 @@ class NeuralNetwork(object):
 ################################################################################
 # Get the sample weight from the dataset
     def getSampleWeights(self, flag):
+        ret = None
         if constants.N_CLASSES==4:
             sample_weights = self.train_df.label.map({
                 constants.LABELS[0]:1, #0.1, #((background_weight-min_weight)/(max_weight-min_weight)),
@@ -243,13 +249,20 @@ class NeuralNetwork(object):
                 constants.LABELS[2]:50, #((penumbra_weight-min_weight)/(max_weight-min_weight))*100,
                 constants.LABELS[3]:100 #((core_weight-min_weight)/(max_weight-min_weight))*100
             })
-        else:
-            sample_weights = self.train_df.label.map({
-                constants.LABELS[0]:1,
-                constants.LABELS[1]:1
-            })
+            ret = np.array(sample_weights.values[self.dataset[flag]["indices"]])
+        else: # we are in a binary class problem
+            f = lambda x : np.sum(np.array(x))
+            # f = lambda x : (np.sum(x)>0 and np.sum(x) or 0)
+            sample_weights = self.train_df.ground_truth.map(f)
+            ret = np.array(sample_weights.values[self.dataset[flag]["indices"]])
 
-        return sample_weights.values[self.dataset[flag]["indices"]]
+            # res = [sum(i) for i in zip(*self.train_df.ground_truth.values.tolist())]
+            # res = np.array(res)
+            # res = res.reshape(1, res.shape[0], res.shape[1])
+            # res = res/len(self.train_df.ground_truth.values)
+            # ret = np.concatenate((res,)*len(self.dataset[flag]["indices"]))
+
+        return ret
 
 ################################################################################
 # Save the trained model and its relative weights

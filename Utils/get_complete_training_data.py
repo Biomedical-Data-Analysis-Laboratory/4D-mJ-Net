@@ -40,10 +40,10 @@ dataset, listPatientsDataset, trainDatasetList = {}, {}, list()
 
 ################################################################################
 DATA_AUGMENTATION = True
-ENTIRE_IMAGE = True # set to false if the tile are NOT the entire image
+ENTIRE_IMAGE = False # set to false if the tile are NOT the entire image
 
 ################################################################################
-M, N = int(IMAGE_WIDTH), int(IMAGE_HEIGHT)
+M, N = int(IMAGE_WIDTH/8), int(IMAGE_HEIGHT/8)
 SLICING_PIXELS = int(M/4) # USE ALWAYS M/4
 PERCENTAGE_BACKGROUND_IMAGES = 100
 
@@ -64,7 +64,7 @@ class AreaInImage():
 #### Util functions
 ################################################################################
 def initializeLabels(patientIndex):
-    global dataset
+    global dataset 
     dataset = dict() # reset the dataset
     dataset[patientIndex] = dict()
 

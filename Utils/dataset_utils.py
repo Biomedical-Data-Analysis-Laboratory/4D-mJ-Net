@@ -209,7 +209,7 @@ def getSingleDataFromIndex(singledata):
     return singledata.reshape(singledata.shape + (1,))
 
 ################################################################################
-# Return the labels ginve the indices
+# Return the labels given the indices
 def getLabelsFromIndex(train_df, indices, to_categ):
     start = time.time()
     labels = None
@@ -219,8 +219,7 @@ def getLabelsFromIndex(train_df, indices, to_categ):
     else:
         labels = np.array([np.array(a).reshape(constants.getM(),constants.getN()) for a in train_df.ground_truth.values[indices]])
         labels = labels.astype("float32")
-        # convert the label in [0, 1] values
-        labels /= 255
+        labels /= 255 # convert the label in [0, 1] values
 
     end = time.time()
     if constants.getVerbose():

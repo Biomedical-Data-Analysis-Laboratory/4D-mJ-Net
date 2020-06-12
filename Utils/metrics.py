@@ -10,25 +10,31 @@ from sklearn.metrics import roc_auc_score, average_precision_score, auc, multila
 
 ################################################################################
 # Funtion that calculates the DICE coefficient. Important when calculates the different of two images
-def mod_dice_coef(y_true, y_pred):
+def mod_dice_coef(y_true, y_pred, epsilon=1e-6):
     """
     Dice = (2*|X & Y|)/ (|X|+ |Y|)
          =  2*sum(|A*B|)/(sum(A^2)+sum(B^2))
     ref: https://arxiv.org/pdf/1606.04797v1.pdf
     """
 
-    intersection = K.sum(K.abs(y_true * y_pred), axis=-1)
-    denom = (K.sum(K.square(y_true),-1) + K.sum(K.square(y_pred),-1) + 1)
-    return (2. * intersection + 1) / denom
+    axes = tuple(range(1, len(y_pred.shape)-1))
+    numerator = 2. * K.sum(K.abs(y_pred * y_true), axis=axes)
+    denominator = (K.sum(K.square(y_pred) + K.square(y_true), axis=axes) + epsilon)
+    return (numerator/denominator)
+
+    # intersection = K.sum(K.abs(y_true * y_pred), axis=-1)
+    # denom = (K.sum(K.square(y_true),-1) + K.sum(K.square(y_pred),-1) + 1)
+    # return (2. * intersection + 1) / denom
 
 ################################################################################
 # REAL Dice coefficient = (2*|X & Y|)/ (|X|+ |Y|)
 # Calculate the real value for the Dice coefficient, but it returns lower values than the other dice_coef + lower specificity and precision
 # == to F1 score for boolean values
-def dice_coef(y_true, y_pred):
-    intersection = K.sum(K.abs(y_true * y_pred), axis=-1)
-    denom = (K.sum(K.abs(y_true) + K.abs(y_pred), axis=-1) + 1)
-    return  (2. * intersection + 1) / denom
+def dice_coef(y_true, y_pred, epsilon=1e-6):
+    axes = tuple(range(1, len(y_pred.shape)-1))
+    intersection = 2. * K.sum(K.abs(y_true * y_pred), axis=axes)
+    denom = (K.sum(K.abs(y_true) + K.abs(y_pred), axis=axes) + epsilon)
+    return  (intersection/denom)
 
 ################################################################################
 # Function to calculate the Jaccard similarity

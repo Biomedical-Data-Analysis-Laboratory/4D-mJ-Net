@@ -48,7 +48,7 @@ class NeuralNetwork(object):
         self.metricFuncs = general_utils.getStatisticFunctions(info["metrics"])
         self.statistics = general_utils.getStatisticFunctions(info["statistics"])
 
-        # flags for the model
+        # FLAGS for the model
         self.to_categ = True if info["to_categ"]==1 else False
         self.save_images = True if info["save_images"]==1 else False
         self.save_statistics = True if info["save_statistics"]==1 else False
@@ -287,7 +287,7 @@ class NeuralNetwork(object):
     def predictAndSaveImages(self, p_id):
         if self.getVerbose():
             general_utils.printSeparation("+", 50)
-            print("[INFO] - Predicting and saving the images for patient {}".format(p_id))
+            print("[INFO] - Executing function: predictAndSaveImages for patient {}".format(p_id))
 
         stats = testing.predictAndSaveImages(self, p_id)
         if self.save_statistics: self.saveStats(stats, p_id)

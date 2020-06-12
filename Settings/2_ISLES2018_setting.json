@@ -67,7 +67,7 @@
       },
       "callbacks":{
         "ModelCheckpoint": {
-          "monitor": "weighted_categorical_cross_entropy",
+          "monitor": "weighted_weighted_categorical_cross_entropy",
           "mode": "max",
           "period": 1
         },
@@ -81,7 +81,7 @@
           "decay_rate": 0.1
         },
         "CollectBatchStats": {
-          "acc":"weighted_categorical_cross_entropy"
+          "acc":"weighted_weighted_categorical_cross_entropy"
         }
       },
       "to_categ":1,

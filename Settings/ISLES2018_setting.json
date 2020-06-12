@@ -12,7 +12,7 @@
     "MULTIPROCESSING": 0
   },
   "relative_paths": {
-    "labeled_images": "PATIENTS/ISLES2018/NEW_TRAINING/Manual_annotations/",
+    "labeled_images": "PATIENTS/ISLES2018/NEW_TRAINING/Binary_Ground_Truth/",
     "patients": "PATIENTS/ISLES2018/NEW_TRAINING/FINAL/",
     "save": {
       "model": "MODELS/",

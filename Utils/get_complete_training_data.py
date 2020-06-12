@@ -19,33 +19,63 @@ from scipy import ndimage
 ################################################################################
 ################################################################################
 ##### CONSTANTS
-DATASET_NAME = "ISLES2018"
 
-ROOT_PATH = "/home/stud/lucat/PhD_Project/Stroke_segmentation/PATIENTS/"+DATASET_NAME+"/NEW_TRAINING/"
-SCRIPT_PATH = "/local/home/lucat/DATASET/"+DATASET_NAME+"/Two_classes/" # Four_classes
+################################################################################
+# ISLES2018 Setting
+################################################################################
+# DATASET_NAME ="ISLES2018/"
+# ROOT_PATH = "/home/stud/lucat/PhD_Project/Stroke_segmentation/PATIENTS/"+DATASET_NAME +"NEW_TRAINING/"
+# SCRIPT_PATH = "/local/home/lucat/DATASET/"+DATASET_NAME +"Two_classes/" # Four_classes
+#
+# SAVE_REGISTERED_FOLDER = ROOT_PATH + "FINAL/"
+# LABELLED_IMAGES_FOLDER_LOCATION = ROOT_PATH + "Ground Truth/"
+# NEWLABELLED_IMAGES_FOLDER_LOCATION = ROOT_PATH + "Binary_Ground_Truth/"
+# IMAGE_SUFFIX = "PA"
+# NUMBER_OF_IMAGE_PER_SECTION = 64 # number of image (divided by time) for each section of the brain
+# IMAGE_WIDTH, IMAGE_HEIGHT = 256, 256
+#
+# # background:255, brain:0, penumbra:~76, core:~150
+# BINARY_CLASSIFICATION = True # to extract only two classes
+# LABELS = ["background", "core"] # ["background", "brain", "penumbra", "core"]
+# LABELS_THRESHOLDS = [234, 135] #[234, 0, 60, 135] # [250, 0 , 30, 100]
+# LABELS_REALVALUES = [0, 255] # [255, 0, 76, 150]
+# TILE_DIVISION = 8
+# PERCENTAGE_BACKGROUND_IMAGES = 100
 
-SAVE_REGISTERED_FOLDER = ROOT_PATH + "FINAL/"
-LABELLED_IMAGES_FOLDER_LOCATION = ROOT_PATH + "Ground Truth/"
-NEWLABELLED_IMAGES_FOLDER_LOCATION = ROOT_PATH + "Binary_Ground_Truth/"
+################################################################################
+# Master2019 Setting
+################################################################################
+DATASET_NAME = "Master2019/"
+ROOT_PATH = "/home/stud/lucat/PhD_Project/Stroke_segmentation/PATIENTS/"+DATASET_NAME+"Training/"
+SCRIPT_PATH = "/local/home/lucat/DATASET/"+DATASET_NAME
+
+SAVE_REGISTERED_FOLDER = ROOT_PATH + "Patients/"
+LABELLED_IMAGES_FOLDER_LOCATION = ROOT_PATH + "Manual_annotations/"
+NEWLABELLED_IMAGES_FOLDER_LOCATION = ""
 IMAGE_SUFFIX = "PA"
-NUMBER_OF_IMAGE_PER_SECTION = 64 # number of image (divided by time) for each section of the brain
-IMAGE_WIDTH, IMAGE_HEIGHT = 256, 256
-
+NUMBER_OF_IMAGE_PER_SECTION = 30 # number of image (divided by time) for each section of the brain
+IMAGE_WIDTH, IMAGE_HEIGHT = 512, 512
 # background:255, brain:0, penumbra:~76, core:~150
-BINARY_CLASSIFICATION = True # to extract only two classes
-LABELS = ["background", "core"] # ["background", "brain", "penumbra", "core"]
-LABELS_THRESHOLDS = [234, 135] #[234, 0, 60, 135] # [250, 0 , 30, 100]
-LABELS_REALVALUES = [0, 255]# [255, 0, 76, 150]
-dataset, listPatientsDataset, trainDatasetList = {}, {}, list()
+BINARY_CLASSIFICATION = False # to extract only two classes
+LABELS = ["background", "brain", "penumbra", "core"]
+LABELS_THRESHOLDS = [234, 0, 60, 135] # [250, 0 , 30, 100]
+LABELS_REALVALUES = [255, 0, 76, 150]
+TILE_DIVISION = 32
+PERCENTAGE_BACKGROUND_IMAGES = 20
 
+
+################################################################################
+################################################################################
+################################################################################
 ################################################################################
 DATA_AUGMENTATION = True
 ENTIRE_IMAGE = False # set to false if the tile are NOT the entire image
+VERBOSE = 1
+dataset, listPatientsDataset, trainDatasetList = {}, {}, list()
 
 ################################################################################
-M, N = int(IMAGE_WIDTH/8), int(IMAGE_HEIGHT/8)
+M, N = int(IMAGE_WIDTH/TILE_DIVISION), int(IMAGE_HEIGHT/TILE_DIVISION)
 SLICING_PIXELS = int(M/4) # USE ALWAYS M/4
-PERCENTAGE_BACKGROUND_IMAGES = 100
 
 ################################################################################
 #### Util Classes
@@ -64,7 +94,7 @@ class AreaInImage():
 #### Util functions
 ################################################################################
 def initializeLabels(patientIndex):
-    global dataset 
+    global dataset
     dataset = dict() # reset the dataset
     dataset[patientIndex] = dict()
 
@@ -167,6 +197,8 @@ def fillDataset(train_df, relativePath, patientIndex, timeFolder):
             else:
                 numReplication = 6 if DATA_AUGMENTATION else 1
                 numCore+=numReplication
+
+            if ENTIRE_IMAGE and DATA_AUGMENTATION: numReplication = 6
         else:
             if classToSet==LABELS[0]: numBack+=1
             elif classToSet==LABELS[1]: numBrain+=1
@@ -179,7 +211,7 @@ def fillDataset(train_df, relativePath, patientIndex, timeFolder):
             for image_idx, imagename in enumerate(np.sort(glob.glob(timeFolder+"*.png"))): # sort the images !
                 if str(startingX) not in pixelsList[data_aug_idx].keys(): pixelsList[data_aug_idx][str(startingX)] = dict()
                 if str(startingX) not in otherInforList[data_aug_idx].keys(): otherInforList[data_aug_idx][str(startingX)] = dict()
-                if str(startingY) not in pixelsList[data_aug_idx][str(startingX)].keys(): pixelsList[data_aug_idx][str(startingX)][str(startingY)] = dict() #list()
+                if str(startingY) not in pixelsList[data_aug_idx][str(startingX)].keys(): pixelsList[data_aug_idx][str(startingX)][str(startingY)] = dict()
                 if str(startingY) not in otherInforList[data_aug_idx][str(startingX)].keys(): otherInforList[data_aug_idx][str(startingX)][str(startingY)] = dict()
 
                 filename = imagename.replace(timeFolder, '')
@@ -188,21 +220,37 @@ def fillDataset(train_df, relativePath, patientIndex, timeFolder):
 
                 image = imagesDict[filename]
                 slicingWindow = getSlicingWindow(image, startingX, startingY, M, N)
+                realLabelledWindowToAdd = realLabelledWindow
 
                 # rotate the image if the dataset == ISLES2018
-                if DATASET_NAME == "ISLES2018": slicingWindow = np.rot90(slicingWindow,1)
+                # if DATASET_NAME == "ISLES2018/":
+                #     slicingWindow = np.rot90(slicingWindow,1)
+                #     realLabelledWindowToAdd = np.rot90(realLabelledWindowToAdd,1)
 
-                if data_aug_idx==1: slicingWindow = np.rot90(slicingWindow) # rotate 90 degree counterclockwise
-                elif data_aug_idx==2: slicingWindow = np.rot90(slicingWindow,2) # rotate 180 degree counterclockwise
-                elif data_aug_idx==3: slicingWindow = np.rot90(slicingWindow,3) # rotate 270 degree counterclockwise
-                elif data_aug_idx==4: slicingWindow = np.flipud(slicingWindow) # flip the matrix up/down
-                elif data_aug_idx==5: slicingWindow = np.fliplr(slicingWindow) # flip the matrix left/right
+                if data_aug_idx==1:
+                    slicingWindow = np.rot90(slicingWindow) # rotate 90 degree counterclockwise
+                    realLabelledWindowToAdd = np.rot90(realLabelledWindowToAdd)
+                elif data_aug_idx==2:
+                    slicingWindow = np.rot90(slicingWindow,2) # rotate 180 degree counterclockwise
+                    realLabelledWindowToAdd = np.rot90(realLabelledWindowToAdd,2)
+                elif data_aug_idx==3:
+                    slicingWindow = np.rot90(slicingWindow,3) # rotate 270 degree counterclockwise
+                    realLabelledWindowToAdd = np.rot90(realLabelledWindowToAdd,3)
+                elif data_aug_idx==4:
+                    slicingWindow = np.flipud(slicingWindow) # flip the matrix up/down
+                    realLabelledWindowToAdd = np.flipud(realLabelledWindowToAdd)
+                elif data_aug_idx==5:
+                    slicingWindow = np.fliplr(slicingWindow) # flip the matrix left/right
+                    realLabelledWindowToAdd = np.fliplr(realLabelledWindowToAdd)
 
                 if image_idx not in pixelsList[data_aug_idx][str(startingX)][str(startingY)].keys(): pixelsList[data_aug_idx][str(startingX)][str(startingY)][image_idx] = list()
                 pixelsList[data_aug_idx][str(startingX)][str(startingY)][image_idx] = slicingWindow
 
-            otherInforList[data_aug_idx][str(startingX)][str(startingY)]["ground_truth"] = realLabelledWindow
+            otherInforList[data_aug_idx][str(startingX)][str(startingY)]["ground_truth"] = realLabelledWindowToAdd
             otherInforList[data_aug_idx][str(startingX)][str(startingY)]["label_class"] = classToSet
+            otherInforList[data_aug_idx][str(startingX)][str(startingY)]["x_y"] = (startingX, startingY)
+            otherInforList[data_aug_idx][str(startingX)][str(startingY)]["data_aug_idx"] = data_aug_idx
+            otherInforList[data_aug_idx][str(startingX)][str(startingY)]["timeIndex"] = timeIndex
 
         if startingY<IMAGE_HEIGHT-N: startingY += SLICING_PIXELS
         else:
@@ -210,20 +258,15 @@ def fillDataset(train_df, relativePath, patientIndex, timeFolder):
                 startingY = 0
                 startingX += SLICING_PIXELS
 
-    if BINARY_CLASSIFICATION:
+    if VERBOSE:
         print("+++++++++++++++++++++++++++++++++++++++++++++++++++++")
         print("\t\t\t Background: {0}".format(numBack))
-        print("\t\t\t Core: {0}".format(numCore))
-        print("+++++++++++++++++++++++++++++++++++++++++++++++++++++")
-    else:
-        print("+++++++++++++++++++++++++++++++++++++++++++++++++++++")
-        print("\t\t\t Background: {0}".format(numBack))
-        print("\t\t\t Brain: {0}".format(numBrain))
-        print("\t\t\t Penumbra: {0}".format(numPenumbra))
+        if not BINARY_CLASSIFICATION:
+            print("\t\t\t Brain: {0}".format(numBrain))
+            print("\t\t\t Penumbra: {0}".format(numPenumbra))
         print("\t\t\t Core: {0}".format(numCore))
         print("+++++++++++++++++++++++++++++++++++++++++++++++++++++")
 
-    print(train_df.shape)
     backElem = 0
     for d in range(0, len(pixelsList)):
         for x in pixelsList[d].keys():
@@ -254,23 +297,22 @@ def fillDataset(train_df, relativePath, patientIndex, timeFolder):
 
                 label = otherInforList[d][x][y]["label_class"]
                 gt = otherInforList[d][x][y]["ground_truth"]
+                x_y = otherInforList[d][x][y]["x_y"]
+                data_aug_idx = otherInforList[d][x][y]["data_aug_idx"]
 
                 perc = random.randint(0, 100)
                 if label==LABELS[0]:
-                    if perc > PERCENTAGE_BACKGROUND_IMAGES:
-                        continue
-                    else:
-                        backElem+=1
+                    if perc > PERCENTAGE_BACKGROUND_IMAGES: continue
+                    else: backElem+=1
 
-                tmp_df = pd.DataFrame(np.array([[patientIndex, label, pixels_zoom, gt]]), columns=['patient_id', 'label', 'pixels', 'ground_truth'])
+                tmp_df = pd.DataFrame(np.array([[patientIndex, label, pixels_zoom, gt, x_y, data_aug_idx, timeIndex]]), columns=['patient_id', 'label', 'pixels', 'ground_truth', 'x_y', 'data_aug_idx', 'timeIndex'])
 
                 if BINARY_CLASSIFICATION: tmp_df['label_code'] = tmp_df.label.map({LABELS[0]:0, LABELS[1]:1})
                 else: tmp_df['label_code'] = tmp_df.label.map({LABELS[0]:0, LABELS[1]:1, LABELS[2]:2, LABELS[3]:3})
 
-                train_df = train_df.append(tmp_df, ignore_index=True)
+                train_df = train_df.append(tmp_df, ignore_index=True, sort=True)
 
-    print(train_df.shape)
-    print("\t\t\t Randomly picked {0} background images (~ {1} %).".format(str(backElem), PERCENTAGE_BACKGROUND_IMAGES))
+    if VERBOSE: print("\t\t\t Randomly picked {0} background images (~ {1} %).".format(str(backElem), PERCENTAGE_BACKGROUND_IMAGES))
 
     return train_df
 
@@ -279,17 +321,19 @@ def fillDataset(train_df, relativePath, patientIndex, timeFolder):
 def initializeDataset():
     patientFolders = glob.glob(SAVE_REGISTERED_FOLDER+"*/")
 
+
+
     suffix_filename = "_"+str(SLICING_PIXELS)+"_"+str(M)+"x"+str(N)
 
     for numFold, patientFolder in enumerate(patientFolders): # for each patient
-        train_df = pd.DataFrame(columns=['patient_id', 'label', 'pixels', 'ground_truth', 'label_code']) # reset the dataframe for every patient
+        train_df = pd.DataFrame(columns=['patient_id', 'label', 'pixels', 'ground_truth', 'label_code', 'x_y', 'data_aug_idx', 'timeIndex']) # reset the dataframe for every patient
 
         relativePath = patientFolder.replace(SAVE_REGISTERED_FOLDER, '')
         patientIndex = relativePath.replace(IMAGE_SUFFIX, "").replace("/", "")
         filename_train = SCRIPT_PATH+"patient"+str(patientIndex)+suffix_filename+".hkl"
         subfolders = glob.glob(patientFolder+"*/")
 
-        print("\t Analyzing {0}/{1}; patient folder: {2}...".format(numFold+1, len(patientFolders), relativePath))
+        print("[INFO] - Analyzing {0}/{1}; patient folder: {2}...".format(numFold+1, len(patientFolders), relativePath))
         for count, timeFolder in enumerate(subfolders): # for each slicing time
             initializeLabels(patientIndex)
             print("\t\t Analyzing subfolder {0}".format(timeFolder.replace(SAVE_REGISTERED_FOLDER, '').replace(relativePath, '')))
@@ -306,8 +350,8 @@ def initializeDataset():
 
             end = time.time()
             print("\t\t Processed {0}/{1} subfolders in {2}s.".format(count+1, len(subfolders), round(end-start, 3)))
-            print("Train shape: ", train_df.shape)
-        print("Saving TRAIN dataframe for patient {1} in {0}...".format(filename_train, str(patientIndex)))
+            if VERBOSE: print("Train shape: ", train_df.shape)
+        if VERBOSE: print("Saving TRAIN dataframe for patient {1} in {0}...".format(filename_train, str(patientIndex)))
         hkl.dump(train_df, filename_train, mode='w')
 
 ################################################################################
@@ -324,7 +368,7 @@ def prepareTraining():
     trainDatasetList = list() # reset
     # start the preparation for the training
     divideDataForTrainAndTest()
-    tmp_df = pd.DataFrame(trainDatasetList, columns=['patient_id', 'label', 'pixels', 'ground_truth'])
+    tmp_df = pd.DataFrame(trainDatasetList, columns=['patient_id', 'label', 'pixels', 'ground_truth', 'x_y', 'data_aug_idx'])
 
     if BINARY_CLASSIFICATION: tmp_df['label_code'] = tmp_df.label.map({LABELS[0]:0, LABELS[1]:1})
     else: tmp_df['label_code'] = tmp_df.label.map({LABELS[0]:0, LABELS[1]:1, LABELS[2]:2, LABELS[3]:3})

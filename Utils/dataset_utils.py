@@ -14,8 +14,8 @@ import tensorflow as tf
 def initTestingDataFrame():
     patientList = ["02", "03", "04", "05", "06", "07", "08", "09", "10", "11"]
     testingList = []
-    for sample in range(0, constants.SAMPLES*2):
-        if sample<constants.SAMPLES:
+    for sample in range(0, 1000):
+        if sample<500:
             rand_pixels = np.random.randint(low=0, high=50, size=(constants.NUMBER_OF_IMAGE_PER_SECTION, constants.getM(), constants.getN()))
             # rand_pixels = np.random.randint(low=0, high=50, size=(constants.getM(), constants.getN(), random.randrange(1,70)))
             label = constants.LABELS[0]
@@ -26,11 +26,11 @@ def initTestingDataFrame():
             label = constants.LABELS[1]
             ground_truth = np.ones(shape=(constants.getM(), constants.getN()))*255
 
-        testingList.append((random.choice(patientList), label, rand_pixels, ground_truth))
+        testingList.append((random.choice(patientList), label, rand_pixels, ground_truth, (0,0)), sort=True)
 
     np.random.shuffle(testingList)
-    # columns : ['patient_id', 'label', 'pixels', 'ground_truth']
-    train_df = pd.DataFrame(testingList, columns=constants.dataFrameColumnsTest)
+    # columns : ['patient_id', 'label', 'pixels', 'ground_truth', 'x_y']
+    train_df = pd.DataFrame(testingList, columns=constants.dataFrameColumns[:len(constants.dataFrameColumns)-1])
     train_df['label_code'] = train_df.label.map({constants.LABELS[0]:0, constants.LABELS[1]:1})
 
     return train_df
@@ -47,11 +47,11 @@ def loadTrainingDataframe(nn, testing_id=None):
     if not nn.mp: # (SINGLE PROCESSING VERSION)
         for filename_train in glob.glob(nn.datasetFolder+"*"+suffix+".hkl"):
             tmp_df = loadSingleTrainingData(nn.da, filename_train, testing_id)
-            frames.append(tmp_df)
+            frames.append(tmp_df, sort=True)
     else: # (MULTI PROCESSING VERSION)
         input = []
         for filename_train in glob.glob(nn.datasetFolder+"*"+suffix+".hkl"):
-            input.append((nn.da, filename_train, testing_id))
+            input.append((nn.da, filename_train, testing_id), sort=True)
 
         with multiprocessing.Pool(processes=cpu_count) as pool: # auto closing workers
             frames = pool.starmap(loadSingleTrainingData, input)
@@ -66,7 +66,7 @@ def loadSingleTrainingData(da, filename_train, testing_id):
     index = filename_train[-5:-3]
     p_id = general_utils.getStringPatientIndex(index)
 
-    if constants.getVerbose(): print('[INFO] - Loading TRAIN dataframe from {}...'.format(filename_train))
+    if constants.getVerbose(): print('[INFO] - Loading dataframe from {}...'.format(filename_train))
     suffix = "_DATA_AUGMENTATION" if da else ""
     if testing_id==p_id:
          # take the normal dataset for the testing patient instead the augmented one...

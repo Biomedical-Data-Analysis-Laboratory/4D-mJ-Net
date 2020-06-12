@@ -10,8 +10,8 @@ import tensorflow.keras.backend as K
 def predictFromModel(nn, input):
     return nn.model.predict(
             x=input,
+            batch_size=nn.batch_size,
             steps=nn.test_steps,
-            #callbacks=nn.callbacks,
             use_multiprocessing=nn.mp
     )
 
@@ -23,27 +23,23 @@ def predictAndSaveImages(that, p_id):
 
     relativePatientFolder = constants.PREFIX_IMAGES+p_id+"/"
     relativePatientFolderHeatMap = relativePatientFolder + "HEATMAP/"
+    relativePatientFolderTMP = relativePatientFolder + "TMP/"
     patientFolder = that.patientsFolder+relativePatientFolder
     general_utils.createDir(that.saveImagesFolder+that.getNNID(p_id)+general_utils.getSuffix())
     general_utils.createDir(that.saveImagesFolder+that.getNNID(p_id)+general_utils.getSuffix()+"/"+relativePatientFolder)
     general_utils.createDir(that.saveImagesFolder+that.getNNID(p_id)+general_utils.getSuffix()+"/"+relativePatientFolderHeatMap)
+    general_utils.createDir(that.saveImagesFolder+that.getNNID(p_id)+general_utils.getSuffix()+"/"+relativePatientFolderTMP)
 
-    if constants.getVerbose(): general_utils.printSeparation("-", 100)
-
-    # TODO: reduce the prediction time to <60s!
-    # TODO: find a way to use multiprocessing the generation of the images!!!!
-    # if that.mp:
-    #     cpu_count = multiprocessing.cpu_count()
-    #     input = []
-    #     for subfolder in glob.glob(patientFolder+"*/"):
-    #         input.append((that, subfolder, p_id, patientFolder, relativePatientFolder))
-    #     with multiprocessing.Pool(processes=cpu_count) as pool: # auto closing workers
-    #         pool.starmap(predictImage, input)
-    # else:
+    if constants.getVerbose():
+        for w in range(2): general_utils.printSeparation("-", 100)
 
     for subfolder in glob.glob(patientFolder+"*/"):
         try:
-            tmpStats = predictImage(that, subfolder, p_id, patientFolder, that.getNNID(p_id)+general_utils.getSuffix()+"/"+relativePatientFolder, that.getNNID(p_id)+general_utils.getSuffix()+"/"+relativePatientFolderHeatMap)
+            subpatientFolder = that.getNNID(p_id)+general_utils.getSuffix()+"/"+relativePatientFolder
+            patientFolderHeatMap = that.getNNID(p_id)+general_utils.getSuffix()+"/"+relativePatientFolderHeatMap
+            patientFolderTMP = that.getNNID(p_id)+general_utils.getSuffix()+"/"+relativePatientFolderTMP
+
+            tmpStats = predictImage(that, subfolder, p_id, patientFolder, subpatientFolder, patientFolderHeatMap, patientFolderTMP)
 
             if that.save_statistics:
                 for func in that.statistics:
@@ -53,25 +49,26 @@ def predictAndSaveImages(that, p_id):
                         for idxE, _ in enumerate(that.epsiloList):
                             if idxE not in stats[func.__name__][classToEval].keys(): stats[func.__name__][classToEval][idxE] = []
                             stats[func.__name__][classToEval][idxE].append(tmpStats[func.__name__][classToEval][idxE])
-
         except Exception as e:
             print("[ERROR] - ", e)
             continue
 
-
     end = time.time()
-    if constants.getVerbose(): print("[INFO] - Total time: {0}s for patient {1}.".format(round(end-start, 3), p_id))
-
-    if constants.getVerbose(): general_utils.printSeparation("-", 100)
+    if constants.getVerbose():
+        print("[INFO] - Total time: {0}s for patient {1}.".format(round(end-start, 3), p_id))
+        general_utils.printSeparation("-", 100)
 
     return stats
 
 ################################################################################
 # Generate a SINGLE image for the patient and save it
-def predictImage(that, subfolder, p_id, patientFolder, relativePatientFolder, relativePatientFolderHeatMap):
+def predictImage(that, subfolder, p_id, patientFolder, relativePatientFolder, relativePatientFolderHeatMap, relativePatientFolderTMP):
     start = time.time()
     stats = {}
     YTRUEToEvaluate, YPREDToEvaluate = [], []
+    imagesDict = {} # faster access to the images
+    imagePredicted = np.zeros(shape=(constants.IMAGE_WIDTH, constants.IMAGE_HEIGHT, 3), dtype=np.uint8)
+    suffix = general_utils.getSuffix() # es == "_4_16x16"
 
     idx = general_utils.getStringPatientIndex(subfolder.replace(patientFolder, '').replace("/", "")) # image index
 
@@ -79,58 +76,24 @@ def predictImage(that, subfolder, p_id, patientFolder, relativePatientFolder, re
     # remove the old logs.
     if os.path.isfile(logsName): os.remove(logsName)
 
-    if constants.getVerbose():
-        print("[INFO] - Analyzing Patient {0}, image {1}...".format(p_id, idx))
-
-    if that.labeledImagesFolder!="": # get the label image only if the path is set
-        filename = that.labeledImagesFolder+"PA"+p_id+"/"+idx+".png"
-        if not os.path.exists(filename):
-            print("[WARNING] - {0} does NOT exists, try another...".format(filename))
-            filename = that.labeledImagesFolder+"PA"+p_id+"/"+p_id+idx+".png"
-            if not os.path.exists(filename):
-                raise Exception("[ERROR] - {0} does NOT exist".format(filename))
-
-        labeled_image = cv2.imread(filename, 0)
-
-    startingX, startingY = 0, 0
-    imagePredicted = np.zeros(shape=(constants.IMAGE_WIDTH, constants.IMAGE_HEIGHT, 3), dtype=np.uint8)
-
-    imagesDict = {} # faster access to the images
-    for imagename in np.sort(glob.glob(subfolder+"*.png")): # sort the images !
-        filename = imagename.replace(subfolder, '')
-        if not that.supervised or that.patientsFolder!="OLDPREPROC_PATIENTS/":
-            image = cv2.imread(imagename, 0)
-            imagesDict[filename] = image
-        else:
-            if filename != "01.png": # don't take the first image (the manually annotated one)
-                image = cv2.imread(imagename, 0)
-                imagesDict[filename] = image
-
-    # Generate the predicted image
+    if constants.getVerbose(): print("[INFO] - Analyzing Patient {0}, image {1}.".format(p_id, idx))
     s1 = time.time()
-    while True:
-        pixels = np.zeros(shape=(constants.NUMBER_OF_IMAGE_PER_SECTION,constants.getM(),constants.getN()))
-        count = 0
-        row, column = 0, 0
+    filename_test = that.datasetFolder+constants.DATASET_PREFIX+str(p_id)+suffix+".hkl"
+    test_df = dataset_utils.loadSingleTrainingData(that.da, filename_test, p_id)
+    test_df = test_df[test_df.data_aug_idx==0] # get only the rows with data_aug_idx==0 (no rotation or any data augmentation)
+    test_df = test_df[test_df.timeIndex==idx]
 
-        # for each image
-        for imagename in np.sort(glob.glob(subfolder+"*.png")):
-            filename = imagename.replace(subfolder, '')
-            if not that.supervised or that.patientsFolder!="OLDPREPROC_PATIENTS/":
-                image = imagesDict[filename]
-                pixels[count] = general_utils.getSlicingWindow(image, startingX, startingY, constants.getM(), constants.getN())
-                count+=1
-            else:
-                if filename != "01.png":
-                    image = imagesDict[filename]
-                    pixels[count] = general_utils.getSlicingWindow(image, startingX, startingY, constants.getM(), constants.getN())
-                    count+=1
+    for i_t, test_row in test_df.iterrows(): # for every rows of the same image
+        startingX, startingY = test_row.x_y
+        pixels = test_row.pixels.reshape(1, test_row.pixels.shape[0], test_row.pixels.shape[1], test_row.pixels.shape[2], 1)
+        # get the label image only if the path is set
+        if that.labeledImagesFolder!="":
+            y_true = test_row.ground_truth
+            cv2.imwrite(that.saveImagesFolder+relativePatientFolderTMP+idx+"y_true.png", y_true)
 
-        pixels = pixels.reshape(1, pixels.shape[0], pixels.shape[1], pixels.shape[2], 1)
+        for q in range(test_row.pixels.shape[0]):  cv2.imwrite(that.saveImagesFolder+relativePatientFolderTMP+idx+"_"+str(q)+"real.png", test_row.pixels[q,:,:])
 
         ### MODEL PREDICT (image & statistics)
-        if that.labeledImagesFolder!="":
-            y_true = general_utils.getSlicingWindow(labeled_image, startingX, startingY, constants.getM(), constants.getN())
 
         # slicingWindowPredicted contain only the prediction for the last step
         slicingWindowPredicted = predictFromModel(that, pixels)[that.test_steps-1]
@@ -145,7 +108,6 @@ def predictImage(that, subfolder, p_id, patientFolder, relativePatientFolder, re
             YPREDToEvaluate.extend(slicingWindowPredicted*multiplier)
 
         if that.save_images:
-            # Transform the slicingWindowPredicted into a tuple of three dimension!
             threeDimensionSlicingWindow = np.zeros(shape=(slicingWindowPredicted.shape[0],slicingWindowPredicted.shape[1], 3), dtype=np.uint8)
 
             if constants.N_CLASSES == 4:
@@ -161,31 +123,16 @@ def predictImage(that, subfolder, p_id, patientFolder, relativePatientFolder, re
 
             for r, _ in enumerate(slicingWindowPredicted):
                 for c, pixel in enumerate(slicingWindowPredicted[r]):
-                    # if pixel<=(thresBrain+eps1): pixel = thresBrain
-                    # elif pixel>(thresBrain+eps1) and pixel<=(thresPenumbra+eps2): pixel = thresPenumbra
-                    # elif pixel>(thresPenumbra+eps2) and pixel<=(thresCore+eps3): pixel = thresCore
-                    # else: pixel = thresBack
                     threeDimensionSlicingWindow[r][c] = (pixel*multiplier,)*3
             # Create the image
             imagePredicted[startingX:startingX+constants.getM(), startingY:startingY+constants.getN()] = threeDimensionSlicingWindow
-
-        # if we reach the end of the image, break the while loop.
-        if startingX>=constants.IMAGE_WIDTH-constants.getM() and startingY>=constants.IMAGE_HEIGHT-constants.getN():
-            break
-
-        # going to the next slicingWindow
-        if startingY<constants.IMAGE_HEIGHT-constants.getN(): startingY+=constants.getN()
-        else:
-            if startingX<constants.IMAGE_WIDTH:
-                startingY=0
-                startingX+=constants.getM()
 
     s2 = time.time()
     if constants.getVerbose(): print("image time: {}".format(round(s2-s1, 3)))
     if that.save_images:
         s1 = time.time()
         # rotate the predictions foor the ISLES2018 dataset
-        if "ISLES2018" in that.datasetFolder: imagePredicted = np.rot90(imagePredicted,1)
+        # if "ISLES2018" in that.datasetFolder: imagePredicted = np.rot90(imagePredicted,-1)
         # save the image predicted in the specific folder
         cv2.imwrite(that.saveImagesFolder+relativePatientFolder+idx+".png", imagePredicted)
         # create and save the HEATMAP
@@ -246,8 +193,8 @@ def evaluateModelWithCategorics(nn, p_id):
     testing = nn.model.evaluate(
         x=nn.dataset["test"]["data"],
         y=nn.dataset["test"]["labels"],
-        sample_weight=sample_weights,
         callbacks=nn.callbacks,
+        sample_weight=sample_weights,
         verbose=constants.getVerbose(),
         use_multiprocessing=nn.mp
     )
@@ -272,7 +219,7 @@ def evaluateModelWithCategorics(nn, p_id):
 def evaluateModelAlreadySaved(nn, p_id):
     suffix = general_utils.getSuffix()
 
-    filename_train = nn.datasetFolder+"patient"+str(p_id)+suffix+".hkl"
+    filename_train = nn.datasetFolder+constants.DATASET_PREFIX+str(p_id)+suffix+".hkl"
     nn.train_df = dataset_utils.readFromHickle(filename_train)
     nn.dataset = dataset_utils.getTestDataset(nn.dataset, nn.train_df, p_id, nn.mp)
     nn.dataset["test"]["labels"] = dataset_utils.getLabelsFromIndex(train_df=nn.train_df, indices=nn.dataset["test"]["indices"], to_categ=nn.to_categ)
@@ -283,8 +230,8 @@ def evaluateModelAlreadySaved(nn, p_id):
     testing = nn.model.evaluate(
         x=nn.dataset["test"]["data"],
         y=nn.dataset["test"]["labels"],
-        sample_weight=sample_weights,
         callbacks=nn.callbacks,
+        sample_weight=sample_weights,
         verbose=constants.getVerbose(),
         use_multiprocessing=nn.mp
     )

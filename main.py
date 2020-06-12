@@ -64,7 +64,7 @@ def main():
                 nn.runTraining(p_id, n_gpu)
                 nn.saveModelAndWeight(p_id)
 
-            ## PERFOM TESTING
+            ## PERFORM TESTING
             if nn.supervised:
                 nn.evaluateModelWithCategorics(p_id, isAlreadySaved)
             # predict and save the images

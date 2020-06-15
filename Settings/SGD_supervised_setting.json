@@ -73,7 +73,7 @@
           "patience": 15
         },
         "LearningRateScheduler": {
-          "decay_step": 10,
+          "decay_step": 5,
           "decay_rate": 0.1
         },
         "CollectBatchStats": {

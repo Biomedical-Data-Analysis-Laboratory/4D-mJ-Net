@@ -55,6 +55,7 @@ def predictAndSaveImages(that, p_id):
 
     end = time.time()
     if constants.getVerbose():
+        general_utils.printSeparation("-", 100)
         print("[INFO] - Total time: {0}s for patient {1}.".format(round(end-start, 3), p_id))
         general_utils.printSeparation("-", 100)
 
@@ -67,8 +68,10 @@ def predictImage(that, subfolder, p_id, patientFolder, relativePatientFolder, re
     stats = {}
     YTRUEToEvaluate, YPREDToEvaluate = [], []
     imagesDict = {} # faster access to the images
-    imagePredicted = np.zeros(shape=(constants.IMAGE_WIDTH, constants.IMAGE_HEIGHT, 3), dtype=np.uint8)
-    suffix = general_utils.getSuffix() # es == "_4_16x16"
+    imagePredicted = np.zeros(shape=(constants.IMAGE_WIDTH, constants.IMAGE_HEIGHT), dtype=np.uint8)
+    checkImageProcessed = np.zeros(shape=(constants.IMAGE_WIDTH, constants.IMAGE_HEIGHT), dtype=np.uint8)
+    # imagePredicted = np.zeros(shape=(constants.IMAGE_WIDTH, constants.IMAGE_HEIGHT, 3), dtype=np.uint8)
+    suffix = general_utils.getSuffix() ## es == "_4_16x16"
 
     idx = general_utils.getStringPatientIndex(subfolder.replace(patientFolder, '').replace("/", "")) # image index
 
@@ -83,15 +86,16 @@ def predictImage(that, subfolder, p_id, patientFolder, relativePatientFolder, re
     test_df = test_df[test_df.data_aug_idx==0] # get only the rows with data_aug_idx==0 (no rotation or any data augmentation)
     test_df = test_df[test_df.timeIndex==idx]
 
+    if constants.getVerbose(): print("Rows in dataframe to analyze: {}".format(len(test_df.index)))
     for i_t, test_row in test_df.iterrows(): # for every rows of the same image
         startingX, startingY = test_row.x_y
         pixels = test_row.pixels.reshape(1, test_row.pixels.shape[0], test_row.pixels.shape[1], test_row.pixels.shape[2], 1)
+
         # get the label image only if the path is set
         if that.labeledImagesFolder!="":
             y_true = test_row.ground_truth
-            cv2.imwrite(that.saveImagesFolder+relativePatientFolderTMP+idx+"y_true.png", y_true)
-
-        for q in range(test_row.pixels.shape[0]):  cv2.imwrite(that.saveImagesFolder+relativePatientFolderTMP+idx+"_"+str(q)+"real.png", test_row.pixels[q,:,:])
+            # cv2.imwrite(that.saveImagesFolder+relativePatientFolderTMP+idx+"y_true.png", y_true)
+        # for q in range(test_row.pixels.shape[0]):  cv2.imwrite(that.saveImagesFolder+relativePatientFolderTMP+idx+"_"+str(q)+"real.png", test_row.pixels[q,:,:])
 
         ### MODEL PREDICT (image & statistics)
 
@@ -108,7 +112,8 @@ def predictImage(that, subfolder, p_id, patientFolder, relativePatientFolder, re
             YPREDToEvaluate.extend(slicingWindowPredicted*multiplier)
 
         if that.save_images:
-            threeDimensionSlicingWindow = np.zeros(shape=(slicingWindowPredicted.shape[0],slicingWindowPredicted.shape[1], 3), dtype=np.uint8)
+            threeDimensionSlicingWindow = np.zeros(shape=(slicingWindowPredicted.shape[0],slicingWindowPredicted.shape[1]), dtype=np.uint8)
+            # threeDimensionSlicingWindow = np.zeros(shape=(slicingWindowPredicted.shape[0],slicingWindowPredicted.shape[1], 3), dtype=np.uint8)
 
             if constants.N_CLASSES == 4:
                 thresBack = constants.PIXELVALUES[0]
@@ -121,11 +126,19 @@ def predictImage(that, subfolder, p_id, patientFolder, relativePatientFolder, re
                 thresCore = constants.PIXELVALUES[1]
                 eps1 = that.epsilons[0]
 
-            for r, _ in enumerate(slicingWindowPredicted):
-                for c, pixel in enumerate(slicingWindowPredicted[r]):
-                    threeDimensionSlicingWindow[r][c] = (pixel*multiplier,)*3
+            # print(startingX,startingX+constants.getM(),startingY,startingY+constants.getN())
+            # print(slicingWindowPredicted.shape)
+            # print(slicingWindowPredicted)
+
+            imagePredicted[startingX:startingX+constants.getM(), startingY:startingY+constants.getN()] = slicingWindowPredicted*multiplier
+            checkImageProcessed[startingX:startingX+constants.getM(), startingY:startingY+constants.getN()] = 255
+            # for r, _ in enumerate(slicingWindowPredicted):
+            #     threeDimensionSlicingWindow[r] = slicingWindowPredicted[r]*multiplier
+
+                # for c, pixel in enumerate(slicingWindowPredicted[r]):
+                #     threeDimensionSlicingWindow[r][c] = (pixel*multiplier,)*3
             # Create the image
-            imagePredicted[startingX:startingX+constants.getM(), startingY:startingY+constants.getN()] = threeDimensionSlicingWindow
+            # imagePredicted[startingX:startingX+constants.getM(), startingY:startingY+constants.getN()] = threeDimensionSlicingWindow
 
     s2 = time.time()
     if constants.getVerbose(): print("image time: {}".format(round(s2-s1, 3)))
@@ -138,6 +151,9 @@ def predictImage(that, subfolder, p_id, patientFolder, relativePatientFolder, re
         # create and save the HEATMAP
         heatmap_img = cv2.applyColorMap(~imagePredicted, cv2.COLORMAP_JET)
         cv2.imwrite(that.saveImagesFolder+relativePatientFolderHeatMap+idx+"_heatmap.png", heatmap_img)
+
+        cv2.imwrite(that.saveImagesFolder+relativePatientFolderTMP+idx+".png", checkImageProcessed)
+
         s2 = time.time()
         if constants.getVerbose(): print("save time: {}".format(round(s2-s1, 3)))
 
@@ -186,9 +202,16 @@ def predictImage(that, subfolder, p_id, patientFolder, relativePatientFolder, re
 
 ################################################################################
 # Test the model with the selected patient
-def evaluateModelWithCategorics(nn, p_id):
-    sample_weights = nn.getSampleWeights("test")
+def evaluateModel(nn, p_id, isAlreadySaved):
     suffix = general_utils.getSuffix()
+    if isAlreadySaved:
+        filename_train = nn.datasetFolder+constants.DATASET_PREFIX+str(p_id)+suffix+".hkl"
+        nn.train_df = dataset_utils.readFromHickle(filename_train)
+        nn.dataset = dataset_utils.getTestDataset(nn.dataset, nn.train_df, p_id, nn.mp)
+        nn.dataset["test"]["labels"] = dataset_utils.getLabelsFromIndex(train_df=nn.train_df, indices=nn.dataset["test"]["indices"], to_categ=nn.to_categ)
+        nn.compileModel() # compile the model and then evaluate
+
+    sample_weights = nn.getSampleWeights("test")
 
     testing = nn.model.evaluate(
         x=nn.dataset["test"]["data"],
@@ -196,52 +219,22 @@ def evaluateModelWithCategorics(nn, p_id):
         callbacks=nn.callbacks,
         sample_weight=sample_weights,
         verbose=constants.getVerbose(),
+        batch_size=nn.batch_size,
         use_multiprocessing=nn.mp
     )
 
     general_utils.printSeparation("-",50)
-
-    for metric_name in nn.train.history:
-        print("TRAIN %s: %.2f%%" % (metric_name, round(float(nn.train.history[metric_name][-1]), 6)*100))
-    for index, val in enumerate(testing):
-        print("TEST %s: %.2f%%" % (nn.model.metrics_names[index], round(val,6)*100))
-    general_utils.printSeparation("-",50)
-
-    with open(general_utils.getFullDirectoryPath(nn.saveTextFolder)+nn.getNNID(p_id)+suffix+".txt", "a+") as text_file:
+    if not isAlreadySaved:
         for metric_name in nn.train.history:
-            text_file.write("TRAIN %s: %.2f%% \n" % (metric_name, round(float(nn.train.history[metric_name][-1]), 6)*100))
-        for index, val in enumerate(testing):
-            text_file.write("TEST %s: %.2f%% \n" % (nn.model.metrics_names[index], round(val,6)*100))
-        text_file.write("----------------------------------------------------- \n")
-
-################################################################################
-# Test the model (already saved) with the selected patient
-def evaluateModelAlreadySaved(nn, p_id):
-    suffix = general_utils.getSuffix()
-
-    filename_train = nn.datasetFolder+constants.DATASET_PREFIX+str(p_id)+suffix+".hkl"
-    nn.train_df = dataset_utils.readFromHickle(filename_train)
-    nn.dataset = dataset_utils.getTestDataset(nn.dataset, nn.train_df, p_id, nn.mp)
-    nn.dataset["test"]["labels"] = dataset_utils.getLabelsFromIndex(train_df=nn.train_df, indices=nn.dataset["test"]["indices"], to_categ=nn.to_categ)
-
-    nn.compileModel() # compile the model and then evaluate
-    sample_weights = nn.getSampleWeights("test")
-
-    testing = nn.model.evaluate(
-        x=nn.dataset["test"]["data"],
-        y=nn.dataset["test"]["labels"],
-        callbacks=nn.callbacks,
-        sample_weight=sample_weights,
-        verbose=constants.getVerbose(),
-        use_multiprocessing=nn.mp
-    )
-
-    general_utils.printSeparation("-",50)
+            print("TRAIN %s: %.2f%%" % (metric_name, round(float(nn.train.history[metric_name][-1]), 6)*100))
     for index, val in enumerate(testing):
         print("TEST %s: %.2f%%" % (nn.model.metrics_names[index], round(val,6)*100))
     general_utils.printSeparation("-",50)
 
     with open(general_utils.getFullDirectoryPath(nn.saveTextFolder)+nn.getNNID(p_id)+suffix+".txt", "a+") as text_file:
+        if not isAlreadySaved:
+            for metric_name in nn.train.history:
+                text_file.write("TRAIN %s: %.2f%% \n" % (metric_name, round(float(nn.train.history[metric_name][-1]), 6)*100))
         for index, val in enumerate(testing):
             text_file.write("TEST %s: %.2f%% \n" % (nn.model.metrics_names[index], round(val,6)*100))
         text_file.write("----------------------------------------------------- \n")

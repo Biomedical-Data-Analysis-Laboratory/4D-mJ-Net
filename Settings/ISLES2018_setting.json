@@ -28,7 +28,7 @@
       "name": "mJNet_v2",
       "loss": "mod_dice_coef_loss",
       "metrics": ["mod_dice_coef", "dice_coef"],
-      "epochs": 1,
+      "epochs": 100,
       "batch_size":2,
       "classes_to_evaluate": ["core"],
       "statistics": ["sensitivity", "specificity", "precision", "f1", "accuracy", "jaccard_index"],
@@ -48,16 +48,16 @@
       },
       "params":{
         "dropout":{
-          "long.1":0.25,
-          "1":0.25,
-          "2":0.25,
-          "3":0.25,
+          "long.1":0,
+          "1":0,
+          "2":0,
+          "3":0,
           "3.1":0.5,
           "3.2":0.5,
-          "3.3":0.5,
-          "3.4":0.5,
-          "4":0.3,
-          "5":0.3
+          "3.3":0,
+          "3.4":0,
+          "4":0,
+          "5":0
         },
         "max_pool":{
           "long.1":4,
@@ -72,17 +72,13 @@
           "period": 1
         },
         "EarlyStopping": {
-          "monitor": "loss",
+          "monitor": "weighted_mod_dice_coef",
           "min_delta": 0.001,
           "patience": 10
         },
-        "ReduceLROnPlateau": {
-          "monitor": "val_loss",
-          "factor": 0.1,
-          "patience": 4,
-          "min_delta": 1e-4,
-          "cooldown": 1,
-          "min_lr": 0
+        "LearningRateScheduler": {
+          "decay_step": 5,
+          "decay_rate": 0.1
         },
         "CollectBatchStats": {
           "acc":"weighted_mod_dice_coef"

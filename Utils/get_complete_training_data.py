@@ -61,7 +61,7 @@ LABELS = ["background", "brain", "penumbra", "core"]
 LABELS_THRESHOLDS = [234, 0, 60, 135] # [250, 0 , 30, 100]
 LABELS_REALVALUES = [255, 0, 76, 150]
 TILE_DIVISION = 32
-PERCENTAGE_BACKGROUND_IMAGES = 20
+PERCENTAGE_BACKGROUND_IMAGES = 100
 
 
 ################################################################################

@@ -7,7 +7,7 @@
   "init": {
     "NUMBER_OF_IMAGE_PER_SECTION": 64,
     "TF_CPP_MIN_LOG_LEVEL": "3",
-    "per_process_gpu_memory_fraction": 0.5,
+    "per_process_gpu_memory_fraction": 1,
     "allow_growth": 1,
     "MULTIPROCESSING": 0
   },
@@ -25,11 +25,11 @@
   },
   "models": [
      {
-      "name": "mJNet_v2",
+      "name": "mJNet",
       "loss": "weighted_categorical_cross_entropy_loss",
       "metrics": ["weighted_categorical_cross_entropy","mod_dice_coef", "dice_coef"],
-      "epochs": 100,
-      "batch_size":32,
+      "epochs": 10,
+      "batch_size":64,
       "classes_to_evaluate": ["core"],
       "statistics": ["sensitivity", "specificity", "precision", "f1", "accuracy", "jaccard_index"],
       "val":{
@@ -48,16 +48,16 @@
       },
       "params":{
         "dropout":{
-          "long.1":0.25,
-          "1":0.25,
-          "2":0.25,
-          "3":0.25,
+          "long.1":0,
+          "1":0,
+          "2":0,
+          "3":0,
           "3.1":0.5,
           "3.2":0.5,
-          "3.3":0.5,
-          "3.4":0.5,
-          "4":0.3,
-          "5":0.3
+          "3.3":0,
+          "3.4":0,
+          "4":0,
+          "5":0
         },
         "max_pool":{
           "long.1":4,
@@ -73,11 +73,11 @@
         },
         "EarlyStopping": {
           "monitor": "loss",
-          "min_delta": 0.0001,
+          "min_delta": 0.00001,
           "patience": 15
         },
         "LearningRateScheduler": {
-          "decay_step": 10,
+          "decay_step": 5,
           "decay_rate": 0.1
         },
         "CollectBatchStats": {

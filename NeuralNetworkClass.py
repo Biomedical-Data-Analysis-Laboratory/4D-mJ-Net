@@ -341,10 +341,7 @@ class NeuralNetwork(object):
             general_utils.printSeparation("+", 50)
             print("[INFO] - Evaluating the model for patient {}".format(p_id))
 
-        if isAlreadySaved:
-            self.testing_score = testing.evaluateModelAlreadySaved(self, p_id)
-        else:
-            self.testing_score = testing.evaluateModelWithCategorics(self, p_id)
+        self.testing_score = testing.evaluateModel(self, p_id, isAlreadySaved)
 
 ################################################################################
 # set the flag for single/multi PROCESSING

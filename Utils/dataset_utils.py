@@ -29,7 +29,6 @@ def initTestingDataFrame():
         testingList.append((random.choice(patientList), label, rand_pixels, ground_truth, (0,0)), sort=True)
 
     np.random.shuffle(testingList)
-    # columns : ['patient_id', 'label', 'pixels', 'ground_truth', 'x_y']
     train_df = pd.DataFrame(testingList, columns=constants.dataFrameColumns[:len(constants.dataFrameColumns)-1])
     train_df['label_code'] = train_df.label.map({constants.LABELS[0]:0, constants.LABELS[1]:1})
 
@@ -53,7 +52,7 @@ def loadTrainingDataframe(nn, testing_id=None):
         for filename_train in glob.glob(nn.datasetFolder+"*"+suffix+".hkl"):
             input.append((nn.da, filename_train, testing_id))
 
-        with multiprocessing.Pool(processes=cpu_count) as pool: # auto closing workers
+        with multiprocessing.Pool(processes=10) as pool: # auto closing workers
             frames = pool.starmap(loadSingleTrainingData, input)
 
     train_df = pd.concat(frames, sort=True)
@@ -162,7 +161,7 @@ def prepareDataset(nn, p_id, listOfPatientsToTest):
                 nn.dataset["train"]["indices"].extend(list(set(classIndices)-set(classValIndices)))
                 if nn.val["validation_perc"]!=0: nn.dataset["val"]["indices"].extend(classValIndices)
 
-                if nn.supervised: nn.dataset = getTestDataset(nn.dataset, nn.train_df, p_id, nn.mp)
+            if nn.supervised: nn.dataset = getTestDataset(nn.dataset, nn.train_df, p_id, nn.mp)
 
     nn.dataset["train"]["data"] = getDataFromIndex(nn.train_df, nn.dataset["train"]["indices"], "train", nn.mp)
     nn.dataset["val"]["data"] = None if nn.val["validation_perc"]==0 else getDataFromIndex(nn.train_df, nn.dataset["val"]["indices"], "val", nn.mp)

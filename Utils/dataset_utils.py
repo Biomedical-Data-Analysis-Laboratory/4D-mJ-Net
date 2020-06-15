@@ -47,16 +47,16 @@ def loadTrainingDataframe(nn, testing_id=None):
     if not nn.mp: # (SINGLE PROCESSING VERSION)
         for filename_train in glob.glob(nn.datasetFolder+"*"+suffix+".hkl"):
             tmp_df = loadSingleTrainingData(nn.da, filename_train, testing_id)
-            frames.append(tmp_df, sort=True)
+            frames.append(tmp_df)
     else: # (MULTI PROCESSING VERSION)
         input = []
         for filename_train in glob.glob(nn.datasetFolder+"*"+suffix+".hkl"):
-            input.append((nn.da, filename_train, testing_id), sort=True)
+            input.append((nn.da, filename_train, testing_id))
 
         with multiprocessing.Pool(processes=cpu_count) as pool: # auto closing workers
             frames = pool.starmap(loadSingleTrainingData, input)
 
-    train_df = pd.concat(frames)
+    train_df = pd.concat(frames, sort=True)
 
     return train_df
 

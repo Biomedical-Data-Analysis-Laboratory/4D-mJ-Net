@@ -208,7 +208,7 @@ def evaluateModel(nn, p_id, isAlreadySaved):
         filename_train = nn.datasetFolder+constants.DATASET_PREFIX+str(p_id)+suffix+".hkl"
         nn.train_df = dataset_utils.readFromHickle(filename_train)
         nn.dataset = dataset_utils.getTestDataset(nn.dataset, nn.train_df, p_id, nn.mp)
-        nn.dataset["test"]["labels"] = dataset_utils.getLabelsFromIndex(train_df=nn.train_df, indices=nn.dataset["test"]["indices"], to_categ=nn.to_categ)
+        nn.dataset["test"]["labels"] = dataset_utils.getLabelsFromIndex(train_df=nn.train_df, indices=nn.dataset["test"]["indices"], to_categ=nn.to_categ, flag="train")
         nn.compileModel() # compile the model and then evaluate
 
     sample_weights = nn.getSampleWeights("test")

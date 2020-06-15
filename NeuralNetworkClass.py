@@ -186,9 +186,9 @@ class NeuralNetwork(object):
             general_utils.printSeparation("*", 50)
             print("[INFO] - Start runTraining function.")
 
-        self.dataset["train"]["labels"] = dataset_utils.getLabelsFromIndex(train_df=self.train_df, indices=self.dataset["train"]["indices"], to_categ=self.to_categ)
-        self.dataset["val"]["labels"] = None if self.val["validation_perc"]==0 else dataset_utils.getLabelsFromIndex(train_df=self.train_df, indices=self.dataset["val"]["indices"], to_categ=self.to_categ)
-        if self.supervised: self.dataset["test"]["labels"] = dataset_utils.getLabelsFromIndex(train_df=self.train_df, indices=self.dataset["test"]["indices"], to_categ=self.to_categ)
+        self.dataset["train"]["labels"] = dataset_utils.getLabelsFromIndex(train_df=self.train_df, indices=self.dataset["train"]["indices"], to_categ=self.to_categ, flag="train")
+        self.dataset["val"]["labels"] = None if self.val["validation_perc"]==0 else dataset_utils.getLabelsFromIndex(train_df=self.train_df, indices=self.dataset["val"]["indices"], to_categ=self.to_categ, flag="val")
+        if self.supervised: self.dataset["test"]["labels"] = dataset_utils.getLabelsFromIndex(train_df=self.train_df, indices=self.dataset["test"]["indices"], to_categ=self.to_categ, flag="test")
 
         if self.getVerbose():
             general_utils.printSeparation("-", 50)

@@ -183,14 +183,9 @@ def getTestDataset(dataset, train_df, p_id, mp):
 def getDataFromIndex(train_df, indices, flag, mp):
     start = time.time()
 
-    if not mp: # (SINGLE PROCESSING VERSION)
-        # data = np.array([np.array(a).reshape(constants.NUMBER_OF_IMAGE_PER_SECTION,constants.getM(),constants.getN(),1) for a in train_df.pixels.values[indices]])
-        data = [a.reshape(a.shape + (1,)) for a in np.array(train_df.pixels.values[indices], dtype=object)]
-    else: # (MULTI PROCESSING VERSION)
-        cpu_count = multiprocessing.cpu_count()
-        input = [a for a in np.array(train_df.pixels.values[indices], dtype=object)]
-        with multiprocessing.Pool(processes=cpu_count) as pool: # auto closing workers
-            data = pool.map(getSingleDataFromIndex, input)
+    input = [a for a in np.array(train_df.pixels.values[indices], dtype=object)]
+    with multiprocessing.Pool(processes=10) as pool: # auto closing workers
+        data = pool.map(getSingleDataFromIndex, input)
 
     if type(data) is not np.array: data = np.array(data)
 
@@ -204,25 +199,36 @@ def getDataFromIndex(train_df, indices, flag, mp):
 ################################################################################
 
 def getSingleDataFromIndex(singledata):
-    # return np.array(singledata).reshape(constants.NUMBER_OF_IMAGE_PER_SECTION,constants.getM(),constants.getN(),1)
     return singledata.reshape(singledata.shape + (1,))
+
+def getSingleLabelFromIndex(singledata):
+    return singledata.reshape(constants.getM(),constants.getN())
+
+def getSingleLabelFromIndexCateg(singledata):
+    return np.array(utils.to_categorical(np.trunc((singledata/256)*len(constants.LABELS)), num_classes=len(constants.LABELS)))
 
 ################################################################################
 # Return the labels given the indices
-def getLabelsFromIndex(train_df, indices, to_categ):
+def getLabelsFromIndex(train_df, indices, to_categ, flag):
     start = time.time()
     labels = None
 
+    data = [a for a in np.array(train_df.ground_truth.values[indices])]
     if to_categ:
-        labels = np.array([np.array(utils.to_categorical(np.trunc(np.array((a/256)*len(constants.LABELS), dtype="float32")), num_classes=len(constants.LABELS))) for a in train_df.ground_truth.values[indices]])
+        with multiprocessing.Pool(processes=10) as pool: # auto closing workers
+            labels = pool.map(getSingleLabelFromIndexCateg, data)
+        if type(labels) is not np.array: labels = np.array(labels)
     else:
-        labels = np.array([np.array(a).reshape(constants.getM(),constants.getN()) for a in train_df.ground_truth.values[indices]])
+        with multiprocessing.Pool(processes=10) as pool: # auto closing workers
+            labels = pool.map(getSingleLabelFromIndex, data)
+        if type(labels) is not np.array: labels = np.array(labels)
         labels = labels.astype("float32")
         labels /= 255 # convert the label in [0, 1] values
 
     end = time.time()
     if constants.getVerbose():
         print("[INFO] - *getLabelsFromIndex* Time: {}s".format(round(end-start, 3)))
+        print("[INFO] - {0} shape; # {1}".format(labels.shape, flag))
 
     return labels
 

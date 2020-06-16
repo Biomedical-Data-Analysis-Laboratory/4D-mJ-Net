@@ -11,6 +11,7 @@ import pandas as pd
 import os
 import operator
 import random
+import pickle as pkl
 import hickle as hkl # Price et al., (2018). Hickle: A HDF5-based python pickle replacement. Journal of Open Source Software, 3(32), 1115, https://doi.org/10.21105/joss.01115
 from scipy import ndimage
 
@@ -40,7 +41,6 @@ from scipy import ndimage
 # LABELS_THRESHOLDS = [234, 135] #[234, 0, 60, 135] # [250, 0 , 30, 100]
 # LABELS_REALVALUES = [0, 255] # [255, 0, 76, 150]
 # TILE_DIVISION = 8
-# PERCENTAGE_BACKGROUND_IMAGES = 100
 
 ################################################################################
 # Master2019 Setting
@@ -61,7 +61,6 @@ LABELS = ["background", "brain", "penumbra", "core"]
 LABELS_THRESHOLDS = [234, 0, 60, 135] # [250, 0 , 30, 100]
 LABELS_REALVALUES = [255, 0, 76, 150]
 TILE_DIVISION = 32
-PERCENTAGE_BACKGROUND_IMAGES = 100
 
 
 ################################################################################
@@ -148,11 +147,13 @@ def fillDataset(train_df, relativePath, patientIndex, timeFolder):
             count += 1
             if count > 1: break
         else:
-            if startingX>=IMAGE_WIDTH-M and startingY>=IMAGE_HEIGHT-N: break # if we reach the end of the image, break the while loop.
+            if startingX>=IMAGE_WIDTH-M and startingY>=IMAGE_HEIGHT-N:
+                break # if we reach the end of the image, break the while loop.
 
         realLabelledWindow = getSlicingWindow(labelledMatrix, startingX, startingY, M, N)
         valueClasses = dict()
         numReplication = 1
+        processTile = True # use to skip the overlapping background tile (MEMORY ISSUES)
 
         if BINARY_CLASSIFICATION: # JUST for 2 classes: core and the rest
             everything = realLabelledWindow>=0
@@ -200,57 +201,78 @@ def fillDataset(train_df, relativePath, patientIndex, timeFolder):
 
             if ENTIRE_IMAGE and DATA_AUGMENTATION: numReplication = 6
         else:
-            if classToSet==LABELS[0]: numBack+=1
+            if classToSet==LABELS[0]:
+                numBack+=1
+                if startingY > 0 and startingY%N > 0: # we are in a overlapping tile (Y dimension)
+                    jumps = int((startingY%N)/SLICING_PIXELS)
+                    for j in range(jumps):
+                        prevTileY = (startingY-SLICING_PIXELS%N)-(j*SLICING_PIXELS)
+                        if str(startingX) in otherInforList[0].keys() and str(prevTileY) in otherInforList[0][str(startingX)].keys():
+                            if  otherInforList[0][str(startingX)][str(prevTileY)]["label_class"] == classToSet:
+                                numBack -= 1
+                                processTile = False
+                                break
+                if not processTile and startingX%M > 0: # we are in a overlapping tile (X dimension)
+                    jumps = int((startingX%N)/SLICING_PIXELS)
+                    for j in range(jumps):
+                        prevTileX = (startingX-SLICING_PIXELS%N)-(j*SLICING_PIXELS)
+                        if str(prevTileX) in otherInforList[0].keys() and str(startingY) in otherInforList[0][str(prevTileX)].keys():
+                            if  otherInforList[0][str(prevTileX)][str(startingY)]["label_class"] == classToSet:
+                                numBack -= 1
+                                processTile = False
+                                break
+
             elif classToSet==LABELS[1]: numBrain+=1
             elif classToSet==LABELS[2]: numPenumbra+=1
             elif classToSet==LABELS[3]:
                 numReplication = 6 if DATA_AUGMENTATION else 1
                 numCore+=numReplication
 
-        for data_aug_idx in range(numReplication): # start from 0
-            for image_idx, imagename in enumerate(np.sort(glob.glob(timeFolder+"*.png"))): # sort the images !
-                if str(startingX) not in pixelsList[data_aug_idx].keys(): pixelsList[data_aug_idx][str(startingX)] = dict()
-                if str(startingX) not in otherInforList[data_aug_idx].keys(): otherInforList[data_aug_idx][str(startingX)] = dict()
-                if str(startingY) not in pixelsList[data_aug_idx][str(startingX)].keys(): pixelsList[data_aug_idx][str(startingX)][str(startingY)] = dict()
-                if str(startingY) not in otherInforList[data_aug_idx][str(startingX)].keys(): otherInforList[data_aug_idx][str(startingX)][str(startingY)] = dict()
+        if processTile:
+            for data_aug_idx in range(numReplication): # start from 0
+                for image_idx, imagename in enumerate(np.sort(glob.glob(timeFolder+"*.png"))): # sort the images !
+                    if str(startingX) not in pixelsList[data_aug_idx].keys(): pixelsList[data_aug_idx][str(startingX)] = dict()
+                    if str(startingX) not in otherInforList[data_aug_idx].keys(): otherInforList[data_aug_idx][str(startingX)] = dict()
+                    if str(startingY) not in pixelsList[data_aug_idx][str(startingX)].keys(): pixelsList[data_aug_idx][str(startingX)][str(startingY)] = dict()
+                    if str(startingY) not in otherInforList[data_aug_idx][str(startingX)].keys(): otherInforList[data_aug_idx][str(startingX)][str(startingY)] = dict()
 
-                filename = imagename.replace(timeFolder, '')
-                # don't take the first image (the manually annotated one)
-                if "OLDPREPROC_PATIENTS/" in SAVE_REGISTERED_FOLDER and  filename == "01.png": continue
+                    filename = imagename.replace(timeFolder, '')
+                    # don't take the first image (the manually annotated one)
+                    if "OLDPREPROC_PATIENTS/" in SAVE_REGISTERED_FOLDER and  filename == "01.png": continue
 
-                image = imagesDict[filename]
-                slicingWindow = getSlicingWindow(image, startingX, startingY, M, N)
-                realLabelledWindowToAdd = realLabelledWindow
+                    image = imagesDict[filename]
+                    slicingWindow = getSlicingWindow(image, startingX, startingY, M, N)
+                    realLabelledWindowToAdd = realLabelledWindow
 
-                # rotate the image if the dataset == ISLES2018
-                # if DATASET_NAME == "ISLES2018/":
-                #     slicingWindow = np.rot90(slicingWindow,1)
-                #     realLabelledWindowToAdd = np.rot90(realLabelledWindowToAdd,1)
+                    # rotate the image if the dataset == ISLES2018
+                    # if DATASET_NAME == "ISLES2018/":
+                    #     slicingWindow = np.rot90(slicingWindow,1)
+                    #     realLabelledWindowToAdd = np.rot90(realLabelledWindowToAdd,1)
 
-                if data_aug_idx==1:
-                    slicingWindow = np.rot90(slicingWindow) # rotate 90 degree counterclockwise
-                    realLabelledWindowToAdd = np.rot90(realLabelledWindowToAdd)
-                elif data_aug_idx==2:
-                    slicingWindow = np.rot90(slicingWindow,2) # rotate 180 degree counterclockwise
-                    realLabelledWindowToAdd = np.rot90(realLabelledWindowToAdd,2)
-                elif data_aug_idx==3:
-                    slicingWindow = np.rot90(slicingWindow,3) # rotate 270 degree counterclockwise
-                    realLabelledWindowToAdd = np.rot90(realLabelledWindowToAdd,3)
-                elif data_aug_idx==4:
-                    slicingWindow = np.flipud(slicingWindow) # flip the matrix up/down
-                    realLabelledWindowToAdd = np.flipud(realLabelledWindowToAdd)
-                elif data_aug_idx==5:
-                    slicingWindow = np.fliplr(slicingWindow) # flip the matrix left/right
-                    realLabelledWindowToAdd = np.fliplr(realLabelledWindowToAdd)
+                    if data_aug_idx==1:
+                        slicingWindow = np.rot90(slicingWindow) # rotate 90 degree counterclockwise
+                        realLabelledWindowToAdd = np.rot90(realLabelledWindowToAdd)
+                    elif data_aug_idx==2:
+                        slicingWindow = np.rot90(slicingWindow,2) # rotate 180 degree counterclockwise
+                        realLabelledWindowToAdd = np.rot90(realLabelledWindowToAdd,2)
+                    elif data_aug_idx==3:
+                        slicingWindow = np.rot90(slicingWindow,3) # rotate 270 degree counterclockwise
+                        realLabelledWindowToAdd = np.rot90(realLabelledWindowToAdd,3)
+                    elif data_aug_idx==4:
+                        slicingWindow = np.flipud(slicingWindow) # flip the matrix up/down
+                        realLabelledWindowToAdd = np.flipud(realLabelledWindowToAdd)
+                    elif data_aug_idx==5:
+                        slicingWindow = np.fliplr(slicingWindow) # flip the matrix left/right
+                        realLabelledWindowToAdd = np.fliplr(realLabelledWindowToAdd)
 
-                if image_idx not in pixelsList[data_aug_idx][str(startingX)][str(startingY)].keys(): pixelsList[data_aug_idx][str(startingX)][str(startingY)][image_idx] = list()
-                pixelsList[data_aug_idx][str(startingX)][str(startingY)][image_idx] = slicingWindow
+                    if image_idx not in pixelsList[data_aug_idx][str(startingX)][str(startingY)].keys(): pixelsList[data_aug_idx][str(startingX)][str(startingY)][image_idx] = list()
+                    pixelsList[data_aug_idx][str(startingX)][str(startingY)][image_idx] = slicingWindow
 
-            otherInforList[data_aug_idx][str(startingX)][str(startingY)]["ground_truth"] = realLabelledWindowToAdd
-            otherInforList[data_aug_idx][str(startingX)][str(startingY)]["label_class"] = classToSet
-            otherInforList[data_aug_idx][str(startingX)][str(startingY)]["x_y"] = (startingX, startingY)
-            otherInforList[data_aug_idx][str(startingX)][str(startingY)]["data_aug_idx"] = data_aug_idx
-            otherInforList[data_aug_idx][str(startingX)][str(startingY)]["timeIndex"] = timeIndex
+                otherInforList[data_aug_idx][str(startingX)][str(startingY)]["ground_truth"] = realLabelledWindowToAdd
+                otherInforList[data_aug_idx][str(startingX)][str(startingY)]["label_class"] = classToSet
+                otherInforList[data_aug_idx][str(startingX)][str(startingY)]["x_y"] = (startingX, startingY)
+                otherInforList[data_aug_idx][str(startingX)][str(startingY)]["data_aug_idx"] = data_aug_idx
+                otherInforList[data_aug_idx][str(startingX)][str(startingY)]["timeIndex"] = timeIndex
 
         if startingY<IMAGE_HEIGHT-N: startingY += SLICING_PIXELS
         else:
@@ -300,11 +322,6 @@ def fillDataset(train_df, relativePath, patientIndex, timeFolder):
                 x_y = otherInforList[d][x][y]["x_y"]
                 data_aug_idx = otherInforList[d][x][y]["data_aug_idx"]
 
-                perc = random.randint(0, 100)
-                if label==LABELS[0]:
-                    if perc > PERCENTAGE_BACKGROUND_IMAGES: continue
-                    else: backElem+=1
-
                 tmp_df = pd.DataFrame(np.array([[patientIndex, label, pixels_zoom, gt, x_y, data_aug_idx, timeIndex]]), columns=['patient_id', 'label', 'pixels', 'ground_truth', 'x_y', 'data_aug_idx', 'timeIndex'])
 
                 if BINARY_CLASSIFICATION: tmp_df['label_code'] = tmp_df.label.map({LABELS[0]:0, LABELS[1]:1})
@@ -312,17 +329,12 @@ def fillDataset(train_df, relativePath, patientIndex, timeFolder):
 
                 train_df = train_df.append(tmp_df, ignore_index=True, sort=True)
 
-    if VERBOSE: print("\t\t\t Randomly picked {0} background images (~ {1} %).".format(str(backElem), PERCENTAGE_BACKGROUND_IMAGES))
-
     return train_df
 
 ################################################################################
 # Function that initialize the dataset: for each subfolder of the patient (section of the brain), it call the `fillDataset` function to get the pixels, save into the dataset and analyze them later.
 def initializeDataset():
     patientFolders = glob.glob(SAVE_REGISTERED_FOLDER+"*/")
-
-
-
     suffix_filename = "_"+str(SLICING_PIXELS)+"_"+str(M)+"x"+str(N)
 
     for numFold, patientFolder in enumerate(patientFolders): # for each patient
@@ -330,7 +342,8 @@ def initializeDataset():
 
         relativePath = patientFolder.replace(SAVE_REGISTERED_FOLDER, '')
         patientIndex = relativePath.replace(IMAGE_SUFFIX, "").replace("/", "")
-        filename_train = SCRIPT_PATH+"patient"+str(patientIndex)+suffix_filename+".hkl"
+        # filename_train = SCRIPT_PATH+"patient"+str(patientIndex)+suffix_filename+".hkl"
+        filename_train = SCRIPT_PATH+"patient"+str(patientIndex)+suffix_filename+".pkl"
         subfolders = glob.glob(patientFolder+"*/")
 
         print("[INFO] - Analyzing {0}/{1}; patient folder: {2}...".format(numFold+1, len(patientFolders), relativePath))
@@ -352,7 +365,10 @@ def initializeDataset():
             print("\t\t Processed {0}/{1} subfolders in {2}s.".format(count+1, len(subfolders), round(end-start, 3)))
             if VERBOSE: print("Train shape: ", train_df.shape)
         if VERBOSE: print("Saving TRAIN dataframe for patient {1} in {0}...".format(filename_train, str(patientIndex)))
-        hkl.dump(train_df, filename_train, mode='w')
+
+        f = open(filename_train, 'wb')
+        pkl.dump(train_df, f)
+        # hkl.dump(train_df, filename_train, mode='w')
 
 ################################################################################
 def divideDataForTrainAndTest():

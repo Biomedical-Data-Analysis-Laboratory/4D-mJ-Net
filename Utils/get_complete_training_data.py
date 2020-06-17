@@ -3,14 +3,9 @@
 
 ################################################################################
 # ### Import libraries
-import cv2
-import time
-import glob
+import cv2, time, glob, os, operator, random, math
 import numpy as np
 import pandas as pd
-import os
-import operator
-import random
 import pickle as pkl
 import hickle as hkl # Price et al., (2018). Hickle: A HDF5-based python pickle replacement. Journal of Open Source Software, 3(32), 1115, https://doi.org/10.21105/joss.01115
 from scipy import ndimage
@@ -24,44 +19,49 @@ from scipy import ndimage
 ################################################################################
 # ISLES2018 Setting
 ################################################################################
-# DATASET_NAME ="ISLES2018/"
-# ROOT_PATH = "/home/stud/lucat/PhD_Project/Stroke_segmentation/PATIENTS/"+DATASET_NAME +"NEW_TRAINING/"
-# SCRIPT_PATH = "/local/home/lucat/DATASET/"+DATASET_NAME +"Two_classes/" # Four_classes
-#
-# SAVE_REGISTERED_FOLDER = ROOT_PATH + "FINAL/"
-# LABELLED_IMAGES_FOLDER_LOCATION = ROOT_PATH + "Ground Truth/"
-# NEWLABELLED_IMAGES_FOLDER_LOCATION = ROOT_PATH + "Binary_Ground_Truth/"
-# IMAGE_SUFFIX = "PA"
-# NUMBER_OF_IMAGE_PER_SECTION = 64 # number of image (divided by time) for each section of the brain
-# IMAGE_WIDTH, IMAGE_HEIGHT = 256, 256
-#
-# # background:255, brain:0, penumbra:~76, core:~150
-# BINARY_CLASSIFICATION = True # to extract only two classes
-# LABELS = ["background", "core"] # ["background", "brain", "penumbra", "core"]
-# LABELS_THRESHOLDS = [234, 135] #[234, 0, 60, 135] # [250, 0 , 30, 100]
-# LABELS_REALVALUES = [0, 255] # [255, 0, 76, 150]
-# TILE_DIVISION = 8
+DATASET_NAME ="ISLES2018/"
+ROOT_PATH = "/home/stud/lucat/PhD_Project/Stroke_segmentation/PATIENTS/"+DATASET_NAME +"NEW_TRAINING/"
+SCRIPT_PATH = "/local/home/lucat/DATASET/"+DATASET_NAME +"Two_classes/" # Four_classes
+
+SAVE_REGISTERED_FOLDER = ROOT_PATH + "FINAL/"
+LABELLED_IMAGES_FOLDER_LOCATION = ROOT_PATH + "Ground Truth/"
+NEWLABELLED_IMAGES_FOLDER_LOCATION = ROOT_PATH + "Binary_Ground_Truth/"
+IMAGE_SUFFIX = "PA"
+NUMBER_OF_IMAGE_PER_SECTION = 64 # number of image (divided by time) for each section of the brain
+IMAGE_WIDTH, IMAGE_HEIGHT = 256, 256
+
+# background:255, brain:0, penumbra:~76, core:~150
+BINARY_CLASSIFICATION = True # to extract only two classes
+LABELS = ["background", "core"] # ["background", "brain", "penumbra", "core"]
+LABELS_THRESHOLDS = [234, 135] #[234, 0, 60, 135] # [250, 0 , 30, 100]
+LABELS_REALVALUES = [0, 255] # [255, 0, 76, 150]
+TILE_DIVISION = 8
+
+THREE_D = True
+Z_ARRAY = [-1,0,1]
 
 ################################################################################
 # Master2019 Setting
 ################################################################################
-DATASET_NAME = "Master2019/"
-ROOT_PATH = "/home/stud/lucat/PhD_Project/Stroke_segmentation/PATIENTS/"+DATASET_NAME+"Training/"
-SCRIPT_PATH = "/local/home/lucat/DATASET/"+DATASET_NAME
+# DATASET_NAME = "Master2019/"
+# ROOT_PATH = "/home/stud/lucat/PhD_Project/Stroke_segmentation/PATIENTS/"+DATASET_NAME+"Training/"
+# SCRIPT_PATH = "/local/home/lucat/DATASET/"+DATASET_NAME
+#
+# SAVE_REGISTERED_FOLDER = ROOT_PATH + "Patients/"
+# LABELLED_IMAGES_FOLDER_LOCATION = ROOT_PATH + "Manual_annotations/"
+# NEWLABELLED_IMAGES_FOLDER_LOCATION = ""
+# IMAGE_SUFFIX = "PA"
+# NUMBER_OF_IMAGE_PER_SECTION = 30 # number of image (divided by time) for each section of the brain
+# IMAGE_WIDTH, IMAGE_HEIGHT = 512, 512
+# # background:255, brain:0, penumbra:~76, core:~150
+# BINARY_CLASSIFICATION = False # to extract only two classes
+# LABELS = ["background", "brain", "penumbra", "core"]
+# LABELS_THRESHOLDS = [234, 0, 60, 135] # [250, 0 , 30, 100]
+# LABELS_REALVALUES = [255, 0, 76, 150]
+# TILE_DIVISION = 16
 
-SAVE_REGISTERED_FOLDER = ROOT_PATH + "Patients/"
-LABELLED_IMAGES_FOLDER_LOCATION = ROOT_PATH + "Manual_annotations/"
-NEWLABELLED_IMAGES_FOLDER_LOCATION = ""
-IMAGE_SUFFIX = "PA"
-NUMBER_OF_IMAGE_PER_SECTION = 30 # number of image (divided by time) for each section of the brain
-IMAGE_WIDTH, IMAGE_HEIGHT = 512, 512
-# background:255, brain:0, penumbra:~76, core:~150
-BINARY_CLASSIFICATION = False # to extract only two classes
-LABELS = ["background", "brain", "penumbra", "core"]
-LABELS_THRESHOLDS = [234, 0, 60, 135] # [250, 0 , 30, 100]
-LABELS_REALVALUES = [255, 0, 76, 150]
-TILE_DIVISION = 32
-
+# THREE_D = True
+# Z_DIMENSION = 3
 
 ################################################################################
 ################################################################################
@@ -124,6 +124,9 @@ def fillDataset(train_df, relativePath, patientIndex, timeFolder):
     startingX, startingY, count = 0, 0, 0
     tmpListPixels, tmpListClasses, tmpListGroundTruth = list(), list(), list()
     backgroundPixelList, backgroundGroundTruthList = list(), list()
+    pixelsList, otherInforList = list(), list()
+    numRep = 1
+    if DATA_AUGMENTATION: numRep = 6
 
     imagesDict = {} # faster access to the images
     for imagename in np.sort(glob.glob(timeFolder+"*.png")): # sort the images !
@@ -133,10 +136,6 @@ def fillDataset(train_df, relativePath, patientIndex, timeFolder):
 
         image = cv2.imread(imagename, 0)
         imagesDict[filename] = image
-
-    pixelsList, otherInforList = list(), list()
-    numRep = 1
-    if DATA_AUGMENTATION: numRep = 6
 
     for rep in range(numRep):
         pixelsList.append(dict())
@@ -170,6 +169,11 @@ def fillDataset(train_df, relativePath, patientIndex, timeFolder):
             if not os.path.isdir(NEWLABELLED_IMAGES_FOLDER_LOCATION+IMAGE_SUFFIX+patientIndex): os.makedirs(NEWLABELLED_IMAGES_FOLDER_LOCATION+IMAGE_SUFFIX+patientIndex)
             if not os.path.exists(NEWLABELLED_IMAGES_FOLDER_LOCATION+IMAGE_SUFFIX+patientIndex+"/"+timeIndex+".png"): cv2.imwrite(NEWLABELLED_IMAGES_FOLDER_LOCATION+IMAGE_SUFFIX+patientIndex+"/"+timeIndex+".png", realLabelledWindow)
 
+            # set a lower threshold for the core class
+            if valueClasses[LABELS[1]]==0: classToSet = LABELS[0]
+            else:
+                core_ratio = valueClasses[LABELS[1]]/sum(valueClasses.values())
+                classToSet = LABELS[1] if not math.isnan(core_ratio) and core_ratio > 0.4 else LABELS[0]
         else: # The normal four classes
             binaryBackgroundMatrix = realLabelledWindow>=LABELS_THRESHOLDS[0]
             binaryBrainMatrix = realLabelledWindow>=LABELS_THRESHOLDS[1]
@@ -190,39 +194,38 @@ def fillDataset(train_df, relativePath, patientIndex, timeFolder):
             # set the window with just the four classes
             realLabelledWindow = (binaryBackgroundMatrix*LABELS_REALVALUES[0])+(binaryCoreNoSkull*LABELS_REALVALUES[3])+(binaryPenumbraNoSkull*LABELS_REALVALUES[2])+(binaryBrainMatrixNoBackground*LABELS_REALVALUES[1])
 
-        # the max of these values is the class to set for the binary class (Y)
-        classToSet = max(valueClasses.items(), key=operator.itemgetter(1))[0]
+            # the max of these values is the class to set for the binary class (Y)
+            classToSet = max(valueClasses.items(), key=operator.itemgetter(1))[0]
+
+        if classToSet==LABELS[0]:
+            numBack+=1
+            if startingY > 0 and startingY%N > 0: # we are in a overlapping tile (Y dimension)
+                jumps = int((startingY%N)/SLICING_PIXELS)
+                for j in range(jumps):
+                    prevTileY = (startingY-SLICING_PIXELS%N)-(j*SLICING_PIXELS)
+                    if str(startingX) in otherInforList[0].keys() and str(prevTileY) in otherInforList[0][str(startingX)].keys():
+                        if  otherInforList[0][str(startingX)][str(prevTileY)]["label_class"] == classToSet:
+                            numBack -= 1
+                            processTile = False
+                            break
+            if not processTile and startingX%M > 0: # we are in a overlapping tile (X dimension)
+                jumps = int((startingX%N)/SLICING_PIXELS)
+                for j in range(jumps):
+                    prevTileX = (startingX-SLICING_PIXELS%N)-(j*SLICING_PIXELS)
+                    if str(prevTileX) in otherInforList[0].keys() and str(startingY) in otherInforList[0][str(prevTileX)].keys():
+                        if  otherInforList[0][str(prevTileX)][str(startingY)]["label_class"] == classToSet:
+                            numBack -= 1
+                            processTile = False
+                            break
 
         if BINARY_CLASSIFICATION:
-            if classToSet==LABELS[0]: numBack+=1
-            else:
+            if classToSet!=LABELS[0]:
                 numReplication = 6 if DATA_AUGMENTATION else 1
                 numCore+=numReplication
 
             if ENTIRE_IMAGE and DATA_AUGMENTATION: numReplication = 6
         else:
-            if classToSet==LABELS[0]:
-                numBack+=1
-                if startingY > 0 and startingY%N > 0: # we are in a overlapping tile (Y dimension)
-                    jumps = int((startingY%N)/SLICING_PIXELS)
-                    for j in range(jumps):
-                        prevTileY = (startingY-SLICING_PIXELS%N)-(j*SLICING_PIXELS)
-                        if str(startingX) in otherInforList[0].keys() and str(prevTileY) in otherInforList[0][str(startingX)].keys():
-                            if  otherInforList[0][str(startingX)][str(prevTileY)]["label_class"] == classToSet:
-                                numBack -= 1
-                                processTile = False
-                                break
-                if not processTile and startingX%M > 0: # we are in a overlapping tile (X dimension)
-                    jumps = int((startingX%N)/SLICING_PIXELS)
-                    for j in range(jumps):
-                        prevTileX = (startingX-SLICING_PIXELS%N)-(j*SLICING_PIXELS)
-                        if str(prevTileX) in otherInforList[0].keys() and str(startingY) in otherInforList[0][str(prevTileX)].keys():
-                            if  otherInforList[0][str(prevTileX)][str(startingY)]["label_class"] == classToSet:
-                                numBack -= 1
-                                processTile = False
-                                break
-
-            elif classToSet==LABELS[1]: numBrain+=1
+            if classToSet==LABELS[1]: numBrain+=1
             elif classToSet==LABELS[2]: numPenumbra+=1
             elif classToSet==LABELS[3]:
                 numReplication = 6 if DATA_AUGMENTATION else 1
@@ -282,31 +285,32 @@ def fillDataset(train_df, relativePath, patientIndex, timeFolder):
 
     if VERBOSE:
         print("+++++++++++++++++++++++++++++++++++++++++++++++++++++")
-        print("\t\t\t Background: {0}".format(numBack))
+        print("\t\t Background: {0}".format(numBack))
         if not BINARY_CLASSIFICATION:
-            print("\t\t\t Brain: {0}".format(numBrain))
-            print("\t\t\t Penumbra: {0}".format(numPenumbra))
-        print("\t\t\t Core: {0}".format(numCore))
+            print("\t\t Brain: {0}".format(numBrain))
+            print("\t\t Penumbra: {0}".format(numPenumbra))
+        print("\t\t Core: {0}".format(numCore))
         print("+++++++++++++++++++++++++++++++++++++++++++++++++++++")
 
-    backElem = 0
     for d in range(0, len(pixelsList)):
         for x in pixelsList[d].keys():
             for y in pixelsList[d][x].keys():
-                arrayOfVolumeImages = []
+                totalVol = np.empty((M,N,1))
                 for z in sorted(pixelsList[d][x][y].keys()):
                     tmp_pix = np.array(pixelsList[d][x][y][z])
-                    arrayOfVolumeImages.append(tmp_pix)
 
-                totalVol = np.array(arrayOfVolumeImages)
+                    tmp_pix = tmp_pix.reshape(tmp_pix.shape[0], tmp_pix.shape[1], 1)
+                    totalVol = np.append(totalVol, tmp_pix, axis=2)
+
+                totalVol = np.delete(totalVol,0,axis=2) # remove the first element (generate by np.empty)
 
                 # convert the pixels in a (M,N,30) shape
-                zoom_val = NUMBER_OF_IMAGE_PER_SECTION/totalVol.shape[0]
+                zoom_val = NUMBER_OF_IMAGE_PER_SECTION/totalVol.shape[2]
 
-                if totalVol.shape[0] > NUMBER_OF_IMAGE_PER_SECTION:
-                    zoom_val = totalVol.shape[0]/NUMBER_OF_IMAGE_PER_SECTION
+                if totalVol.shape[2] > NUMBER_OF_IMAGE_PER_SECTION:
+                    zoom_val = totalVol.shape[2]/NUMBER_OF_IMAGE_PER_SECTION
 
-                pixels_zoom = ndimage.zoom(totalVol,[zoom_val,1,1])
+                pixels_zoom = ndimage.zoom(totalVol,[1,1,zoom_val])
 
                 ## USE THIS TO CHECK THE VALIDITIY OF THE INTERPOlATION
                 # print(pixels_zoom.shape)
@@ -332,10 +336,90 @@ def fillDataset(train_df, relativePath, patientIndex, timeFolder):
     return train_df
 
 ################################################################################
+def fillDataset3D(train_df, relativePath, patientIndex, timeFolder, folders):
+    global dataset, Z_ARRAY
+
+    timeFoldersToProcess = dict()
+    pivotFolder = ""
+
+    timeIndex = timeFolder.replace(SAVE_REGISTERED_FOLDER+relativePath, '').replace("/", "")
+    if int(timeIndex)==1: Z_ARRAY = [0,0,1] # first slice
+    elif int(timeIndex)==len(folders): Z_ARRAY = [-1,0,0] # last slice
+
+    for z in Z_ARRAY:
+        curr_idx = (int(timeIndex)+z)-1
+
+        if folders[curr_idx] not in timeFoldersToProcess.keys():
+            timeFoldersToProcess[folders[curr_idx]] = {
+                "index":z,
+                "imagesDict":{}
+            }
+        if z==0:
+            pivotFolder = folders[curr_idx]
+            continue
+
+        for imagename in np.sort(glob.glob(folders[curr_idx]+"*.png")): # sort the images !
+            filename = imagename.replace(folders[curr_idx], '')
+            # don't take the first image (the manually annotated one)
+            if "OLDPREPROC_PATIENTS/" in SAVE_REGISTERED_FOLDER and filename == "01.png": continue
+
+            timeFoldersToProcess[folders[curr_idx]]["imagesDict"][filename] = cv2.imread(imagename, 0)
+
+    curr_dt = pd.DataFrame(columns=['patient_id', 'label', 'pixels', 'ground_truth', 'label_code', 'x_y', 'data_aug_idx', 'timeIndex'])
+    reshape_func = lambda x : x.reshape(x.shape[0], x.shape[1], x.shape[2], 1)
+
+    tmp_dt = fillDataset(curr_dt, relativePath, patientIndex, pivotFolder)
+    tmp_dt = tmp_dt.sort_values(by=["x_y"]) # sort based on the coordinates
+    tmp_dt["pixels"] = tmp_dt["pixels"].map(reshape_func) # reshape to (t,x,y,1)
+    curr_dt = tmp_dt.copy()
+
+    for tFold in timeFoldersToProcess.keys():
+        print(tFold)
+        for index, tuple_row in enumerate(curr_dt.iterrows()):
+            row = tuple_row[1]
+            if tFold==pivotFolder: # we are in a special case (append the tmp_df pixels)
+                curr_dt.iloc[index]["pixels"] = np.append(curr_dt.iloc[index]["pixels"], tmp_dt.iloc[index]["pixels"], axis=3)
+            else:
+                if row["x_y"]==curr_dt.iloc[index]["x_y"]: # just a precaution
+                    totalVol = np.empty((M,N,1))
+                    for filename in timeFoldersToProcess[tFold]["imagesDict"].keys():
+                        image = timeFoldersToProcess[tFold]["imagesDict"][filename]
+                        slicingWindow = getSlicingWindow(image, row["x_y"][0], row["x_y"][1], M, N)
+
+                        if row["data_aug_idx"]==1: slicingWindow = np.rot90(slicingWindow) # rotate 90 degree counterclockwise
+                        elif row["data_aug_idx"]==2: slicingWindow = np.rot90(slicingWindow,2) # rotate 180 degree counterclockwise
+                        elif row["data_aug_idx"]==3: slicingWindow = np.rot90(slicingWindow,3) # rotate 270 degree counterclockwise
+                        elif row["data_aug_idx"]==4: slicingWindow = np.flipud(slicingWindow) # flip the matrix up/down
+                        elif row["data_aug_idx"]==5: slicingWindow = np.fliplr(slicingWindow) # flip the matrix left/right
+
+                        slicingWindow = np.array(slicingWindow)
+                        slicingWindow = slicingWindow.reshape(slicingWindow.shape[0], slicingWindow.shape[1], 1)
+                        totalVol = np.append(totalVol, slicingWindow, axis=2)
+                    totalVol = np.delete(totalVol,0,axis=2) # remove the first element (generate by np.empty)
+                    # convert the pixels in a (M,N,30) shape
+                    zoom_val = NUMBER_OF_IMAGE_PER_SECTION/totalVol.shape[2]
+
+                    if totalVol.shape[2] > NUMBER_OF_IMAGE_PER_SECTION:
+                        zoom_val = totalVol.shape[2]/NUMBER_OF_IMAGE_PER_SECTION
+
+                    pixels_zoom = ndimage.zoom(totalVol,[1,1,zoom_val])
+                    pixels_zoom = pixels_zoom.reshape(pixels_zoom.shape[0], pixels_zoom.shape[1], pixels_zoom.shape[2], 1) # reshape to (t,x,y,1)
+                    if  timeFoldersToProcess[tFold]["index"] < 0: # we need to append the pixels before the current ones
+                        curr_dt.iloc[index]["pixels"] = np.append(pixels_zoom, curr_dt.iloc[index]["pixels"], axis=3)
+                    else:
+                        curr_dt.iloc[index]["pixels"] = np.append(curr_dt.iloc[index]["pixels"], pixels_zoom, axis=3)
+                else:
+                    print("*"*200)
+                    print("we are not supposed to be here")
+
+    return curr_dt
+
+################################################################################
 # Function that initialize the dataset: for each subfolder of the patient (section of the brain), it call the `fillDataset` function to get the pixels, save into the dataset and analyze them later.
 def initializeDataset():
     patientFolders = glob.glob(SAVE_REGISTERED_FOLDER+"*/")
     suffix_filename = "_"+str(SLICING_PIXELS)+"_"+str(M)+"x"+str(N)
+    if THREE_D: suffix_filename += "_3D"
 
     for numFold, patientFolder in enumerate(patientFolders): # for each patient
         train_df = pd.DataFrame(columns=['patient_id', 'label', 'pixels', 'ground_truth', 'label_code', 'x_y', 'data_aug_idx', 'timeIndex']) # reset the dataframe for every patient
@@ -344,26 +428,21 @@ def initializeDataset():
         patientIndex = relativePath.replace(IMAGE_SUFFIX, "").replace("/", "")
         # filename_train = SCRIPT_PATH+"patient"+str(patientIndex)+suffix_filename+".hkl"
         filename_train = SCRIPT_PATH+"patient"+str(patientIndex)+suffix_filename+".pkl"
-        subfolders = glob.glob(patientFolder+"*/")
+        subfolders = np.sort(glob.glob(patientFolder+"*/"))
 
         print("[INFO] - Analyzing {0}/{1}; patient folder: {2}...".format(numFold+1, len(patientFolders), relativePath))
         for count, timeFolder in enumerate(subfolders): # for each slicing time
             initializeLabels(patientIndex)
-            print("\t\t Analyzing subfolder {0}".format(timeFolder.replace(SAVE_REGISTERED_FOLDER, '').replace(relativePath, '')))
+            print("\t Analyzing subfolder {0}".format(timeFolder.replace(SAVE_REGISTERED_FOLDER, '').replace(relativePath, '')))
             start = time.time()
 
-            train_df = fillDataset(train_df, relativePath, patientIndex, timeFolder) # insert the data inside the dataset dictionary
-            # print("\t\t Details:", [(key, len(subdataset)) for key, subdataset in dataset[patientIndex].items()])
-            # print("+++++++++++++++++++++++++++++++++++++++++++++++++++++")
-            # print("\t\t Background: {0}".format(str(sum(train_df.label==LABELS[0]))))
-            # print("\t\t Brain: {0}".format(str(sum(train_df.label==LABELS[1]))))
-            # print("\t\t Penumbra: {0}".format(str(sum(train_df.label==LABELS[2]))))
-            # print("\t\t Core: {0}".format(str(sum(train_df.label==LABELS[3]))))
-            # print("+++++++++++++++++++++++++++++++++++++++++++++++++++++")
+            if THREE_D: train_df = fillDataset3D(train_df, relativePath, patientIndex, timeFolder, subfolders)
+            else: train_df = fillDataset(train_df, relativePath, patientIndex, timeFolder) # insert the data inside the dataset dictionary
 
             end = time.time()
-            print("\t\t Processed {0}/{1} subfolders in {2}s.".format(count+1, len(subfolders), round(end-start, 3)))
+            print("\t Processed {0}/{1} subfolders in {2}s.".format(count+1, len(subfolders), round(end-start, 3)))
             if VERBOSE: print("Train shape: ", train_df.shape)
+
         if VERBOSE: print("Saving TRAIN dataframe for patient {1} in {0}...".format(filename_train, str(patientIndex)))
 
         f = open(filename_train, 'wb')

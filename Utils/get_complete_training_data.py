@@ -7,7 +7,6 @@ import cv2, time, glob, os, operator, random, math
 import numpy as np
 import pandas as pd
 import pickle as pkl
-import hickle as hkl # Price et al., (2018). Hickle: A HDF5-based python pickle replacement. Journal of Open Source Software, 3(32), 1115, https://doi.org/10.21105/joss.01115
 from scipy import ndimage
 
 ################################################################################
@@ -37,9 +36,6 @@ LABELS_THRESHOLDS = [234, 135] #[234, 0, 60, 135] # [250, 0 , 30, 100]
 LABELS_REALVALUES = [0, 255] # [255, 0, 76, 150]
 TILE_DIVISION = 8
 
-THREE_D = True
-Z_ARRAY = [-1,0,1]
-
 ################################################################################
 # Master2019 Setting
 ################################################################################
@@ -60,8 +56,6 @@ Z_ARRAY = [-1,0,1]
 # LABELS_REALVALUES = [255, 0, 76, 150]
 # TILE_DIVISION = 16
 
-# THREE_D = True
-# Z_DIMENSION = 3
 
 ################################################################################
 ################################################################################
@@ -69,6 +63,7 @@ Z_ARRAY = [-1,0,1]
 ################################################################################
 DATA_AUGMENTATION = True
 ENTIRE_IMAGE = False # set to false if the tile are NOT the entire image
+THREE_D = True
 VERBOSE = 1
 dataset, listPatientsDataset, trainDatasetList = {}, {}, list()
 
@@ -106,9 +101,9 @@ def getLabelledAreas(patientIndex, timeIndex):
     return cv2.imread(LABELLED_IMAGES_FOLDER_LOCATION+IMAGE_SUFFIX+patientIndex+"/"+timeIndex+".png", 0)
 
 ################################################################################
-# Function that return the slicing window from `img`, starting at pixels `startX` and `startY` with a width of `M` and height of `N`.
-def getSlicingWindow(img, startX, startY, M, N):
-    return img[startX:startX+M,startY:startY+N]
+# Function that return the slicing window from `img`, starting at pixels `startingX` and `startingY` with a width of `M` and height of `N`.
+def getSlicingWindow(img, startingX, startingY, M, N):
+    return img[startingX:startingX+M,startingY:startingY+N]
 
 ################################################################################
 # Function ofr inserting inside `dataset` the pixel areas (slicing windows) found with a slicing area approach (= start from point 0,0 it takes the areas `MxN` and then move on the right or on the bottom by a pre-fixed number of pixels = `SLICING_PIXELS`) and the corresponding area in the images inside the same folder, which are the registered images of the same section of the brain in different time.
@@ -120,7 +115,7 @@ def fillDataset(train_df, relativePath, patientIndex, timeFolder):
 
     labelledMatrix = getLabelledAreas(patientIndex, timeIndex)
 
-    numBack, numBrain, numPenumbra, numCore = 0, 0, 0, 0
+    numBack, numBrain, numPenumbra, numCore, numSkip = 0, 0, 0, 0, 0
     startingX, startingY, count = 0, 0, 0
     tmpListPixels, tmpListClasses, tmpListGroundTruth = list(), list(), list()
     backgroundPixelList, backgroundGroundTruthList = list(), list()
@@ -198,14 +193,13 @@ def fillDataset(train_df, relativePath, patientIndex, timeFolder):
             classToSet = max(valueClasses.items(), key=operator.itemgetter(1))[0]
 
         if classToSet==LABELS[0]:
-            numBack+=1
             if startingY > 0 and startingY%N > 0: # we are in a overlapping tile (Y dimension)
                 jumps = int((startingY%N)/SLICING_PIXELS)
                 for j in range(jumps):
                     prevTileY = (startingY-SLICING_PIXELS%N)-(j*SLICING_PIXELS)
                     if str(startingX) in otherInforList[0].keys() and str(prevTileY) in otherInforList[0][str(startingX)].keys():
                         if  otherInforList[0][str(startingX)][str(prevTileY)]["label_class"] == classToSet:
-                            numBack -= 1
+                            numSkip += 1
                             processTile = False
                             break
             if not processTile and startingX%M > 0: # we are in a overlapping tile (X dimension)
@@ -214,9 +208,10 @@ def fillDataset(train_df, relativePath, patientIndex, timeFolder):
                     prevTileX = (startingX-SLICING_PIXELS%N)-(j*SLICING_PIXELS)
                     if str(prevTileX) in otherInforList[0].keys() and str(startingY) in otherInforList[0][str(prevTileX)].keys():
                         if  otherInforList[0][str(prevTileX)][str(startingY)]["label_class"] == classToSet:
-                            numBack -= 1
+                            numSkip += 1
                             processTile = False
                             break
+            if processTile: numBack+=1
 
         if BINARY_CLASSIFICATION:
             if classToSet!=LABELS[0]:
@@ -290,6 +285,7 @@ def fillDataset(train_df, relativePath, patientIndex, timeFolder):
             print("\t\t Brain: {0}".format(numBrain))
             print("\t\t Penumbra: {0}".format(numPenumbra))
         print("\t\t Core: {0}".format(numCore))
+        print("\t\t SKIP: {0}".format(numSkip))
         print("+++++++++++++++++++++++++++++++++++++++++++++++++++++")
 
     for d in range(0, len(pixelsList)):
@@ -337,7 +333,7 @@ def fillDataset(train_df, relativePath, patientIndex, timeFolder):
 
 ################################################################################
 def fillDataset3D(train_df, relativePath, patientIndex, timeFolder, folders):
-    global dataset, Z_ARRAY
+    global dataset
 
     timeFoldersToProcess = dict()
     pivotFolder = ""
@@ -345,6 +341,7 @@ def fillDataset3D(train_df, relativePath, patientIndex, timeFolder, folders):
     timeIndex = timeFolder.replace(SAVE_REGISTERED_FOLDER+relativePath, '').replace("/", "")
     if int(timeIndex)==1: Z_ARRAY = [0,0,1] # first slice
     elif int(timeIndex)==len(folders): Z_ARRAY = [-1,0,0] # last slice
+    else: Z_ARRAY = [-1,0,1] # normal situation
 
     for z in Z_ARRAY:
         curr_idx = (int(timeIndex)+z)-1
@@ -378,7 +375,10 @@ def fillDataset3D(train_df, relativePath, patientIndex, timeFolder, folders):
         for index, tuple_row in enumerate(curr_dt.iterrows()):
             row = tuple_row[1]
             if tFold==pivotFolder: # we are in a special case (append the tmp_df pixels)
-                curr_dt.iloc[index]["pixels"] = np.append(curr_dt.iloc[index]["pixels"], tmp_dt.iloc[index]["pixels"], axis=3)
+                if Z_ARRAY != [-1,0,1]: curr_dt.iloc[index]["pixels"] = np.append(curr_dt.iloc[index]["pixels"], tmp_dt.iloc[index]["pixels"], axis=3)
+                else:
+                    print("*** skip the current folder")
+                    break
             else:
                 if row["x_y"]==curr_dt.iloc[index]["x_y"]: # just a precaution
                     totalVol = np.empty((M,N,1))
@@ -404,10 +404,9 @@ def fillDataset3D(train_df, relativePath, patientIndex, timeFolder, folders):
 
                     pixels_zoom = ndimage.zoom(totalVol,[1,1,zoom_val])
                     pixels_zoom = pixels_zoom.reshape(pixels_zoom.shape[0], pixels_zoom.shape[1], pixels_zoom.shape[2], 1) # reshape to (t,x,y,1)
-                    if  timeFoldersToProcess[tFold]["index"] < 0: # we need to append the pixels before the current ones
-                        curr_dt.iloc[index]["pixels"] = np.append(pixels_zoom, curr_dt.iloc[index]["pixels"], axis=3)
-                    else:
-                        curr_dt.iloc[index]["pixels"] = np.append(curr_dt.iloc[index]["pixels"], pixels_zoom, axis=3)
+                     # we need to append the pixels before the current ones
+                    if  timeFoldersToProcess[tFold]["index"] < 0: curr_dt.iloc[index]["pixels"] = np.append(pixels_zoom, curr_dt.iloc[index]["pixels"], axis=3)
+                    else: curr_dt.iloc[index]["pixels"] = np.append(curr_dt.iloc[index]["pixels"], pixels_zoom, axis=3)
                 else:
                     print("*"*200)
                     print("we are not supposed to be here")
@@ -426,7 +425,6 @@ def initializeDataset():
 
         relativePath = patientFolder.replace(SAVE_REGISTERED_FOLDER, '')
         patientIndex = relativePath.replace(IMAGE_SUFFIX, "").replace("/", "")
-        # filename_train = SCRIPT_PATH+"patient"+str(patientIndex)+suffix_filename+".hkl"
         filename_train = SCRIPT_PATH+"patient"+str(patientIndex)+suffix_filename+".pkl"
         subfolders = np.sort(glob.glob(patientFolder+"*/"))
 
@@ -441,13 +439,14 @@ def initializeDataset():
 
             end = time.time()
             print("\t Processed {0}/{1} subfolders in {2}s.".format(count+1, len(subfolders), round(end-start, 3)))
-            if VERBOSE: print("Train shape: ", train_df.shape)
+            if VERBOSE:
+                print("Pixel array shape: ", train_df.iloc[0].pixels.shape)
+                print("Train shape: ", train_df.shape)
 
         if VERBOSE: print("Saving TRAIN dataframe for patient {1} in {0}...".format(filename_train, str(patientIndex)))
 
         f = open(filename_train, 'wb')
         pkl.dump(train_df, f)
-        # hkl.dump(train_df, filename_train, mode='w')
 
 ################################################################################
 def divideDataForTrainAndTest():

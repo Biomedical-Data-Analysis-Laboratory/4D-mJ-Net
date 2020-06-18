@@ -81,7 +81,7 @@ def predictImage(that, subfolder, p_id, patientFolder, relativePatientFolder, re
 
     if constants.getVerbose(): print("[INFO] - Analyzing Patient {0}, image {1}.".format(p_id, idx))
     s1 = time.time()
-    filename_test = that.datasetFolder+constants.DATASET_PREFIX+str(p_id)+suffix+".hkl"
+    filename_test = that.datasetFolder+constants.DATASET_PREFIX+str(p_id)+suffix+".pkl"
     test_df = dataset_utils.loadSingleTrainingData(that.da, filename_test, p_id)
     test_df = test_df[test_df.data_aug_idx==0] # get only the rows with data_aug_idx==0 (no rotation or any data augmentation)
     test_df = test_df[test_df.timeIndex==idx]
@@ -205,7 +205,7 @@ def predictImage(that, subfolder, p_id, patientFolder, relativePatientFolder, re
 def evaluateModel(nn, p_id, isAlreadySaved):
     suffix = general_utils.getSuffix()
     if isAlreadySaved:
-        filename_train = nn.datasetFolder+constants.DATASET_PREFIX+str(p_id)+suffix+".hkl"
+        filename_train = nn.datasetFolder+constants.DATASET_PREFIX+str(p_id)+suffix+".pkl"
         nn.train_df = dataset_utils.readFromHickle(filename_train)
         nn.dataset = dataset_utils.getTestDataset(nn.dataset, nn.train_df, p_id, nn.mp)
         nn.dataset["test"]["labels"] = dataset_utils.getLabelsFromIndex(train_df=nn.train_df, indices=nn.dataset["test"]["indices"], to_categ=nn.to_categ, flag="train")

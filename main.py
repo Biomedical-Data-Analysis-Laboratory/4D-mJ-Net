@@ -53,7 +53,7 @@ def main():
                 isAlreadySaved = True
             else:
                 ## GET THE DATASET:
-                # - The dataset is composed of all the .hkl (or .h5) files in the dataset folder!
+                # - The dataset is composed of all the .pkl files in the dataset folder!
                 # if we are using a data augmentation dataset we need to get the dataset differently each time
                 if nn.da: train_df = dataset_utils.getDataset(nn, p_id)
                 else: # Otherwise get dataset only the first time

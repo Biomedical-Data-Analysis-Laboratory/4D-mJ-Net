@@ -5,7 +5,7 @@ import os, glob, random, time
 import multiprocessing
 import pandas as pd
 import numpy as np
-import hickle as hkl # Price et al., (2018). Hickle: A HDF5-based python pickle replacement. Journal of Open Source Software, 3(32), 1115, https://doi.org/10.21105/joss.01115
+import pickle as pkl
 from tensorflow.keras import utils
 import tensorflow as tf
 
@@ -44,12 +44,12 @@ def loadTrainingDataframe(nn, testing_id=None):
 
     frames = [train_df]
     if not nn.mp: # (SINGLE PROCESSING VERSION)
-        for filename_train in glob.glob(nn.datasetFolder+"*"+suffix+".hkl"):
+        for filename_train in glob.glob(nn.datasetFolder+"*"+suffix+".pkl"):
             tmp_df = loadSingleTrainingData(nn.da, filename_train, testing_id)
             frames.append(tmp_df)
     else: # (MULTI PROCESSING VERSION)
         input = []
-        for filename_train in glob.glob(nn.datasetFolder+"*"+suffix+".hkl"):
+        for filename_train in glob.glob(nn.datasetFolder+"*"+suffix+".pkl"):
             input.append((nn.da, filename_train, testing_id))
 
         with multiprocessing.Pool(processes=10) as pool: # auto closing workers
@@ -72,20 +72,14 @@ def loadSingleTrainingData(da, filename_train, testing_id):
         if constants.getVerbose(): print("---> Load normal dataset for patient {0}".format(testing_id))
         suffix= ""
 
-    #tmp_df = readFromHDF(filename_train, suffix)
-    tmp_df = readFromHickle(filename_train) # Faster and less space consuming!
+    tmp_df = readFromPickle(filename_train) # Faster and less space consuming!
 
     return tmp_df
 
 ################################################################################
 # Return the elements in the filename saved as a hickle
-def readFromHickle(filename):
-    return hkl.load(filename)
-
-################################################################################
-# read the elements from filename and specific key
-def readFromHDF(filename_train, suffix):
-    return pd.read_hdf(filename_train, key="X_"+str(constants.getM())+"x"+str(constants.getN())+"_"+str(constants.SLICING_PIXELS) + suffix)
+def readFromPickle(filename):
+    return pkl.load(filename)
 
 ################################################################################
 # Return the dataset based on the patient id

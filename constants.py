@@ -15,6 +15,7 @@ HOT_ONE_WEIGHTS = [[0.2, 1.0, 1.0, 0.1]]
 PREFIX_IMAGES = "PA"
 DATASET_PREFIX = "patient"
 suffix_partial_weights = "__"
+threeD_flag = ""
 
 dataFrameColumns = ['patient_id', 'label', 'pixels', 'ground_truth', 'x_y', 'data_aug_idx', 'timeIndex', 'label_code']
 
@@ -30,6 +31,9 @@ def getM():
 
 def getN():
     return N
+
+def get3DFlag():
+    return threeD_flag
 
 def getRootPath():
     return root_path
@@ -69,8 +73,12 @@ def setImagePerSection(num):
 def setNumberOfClasses(c):
     global N_CLASSES, LABELS, PIXELVALUES, HOT_ONE_WEIGHTS
 
-    if c==2: #
+    if c==2:
         N_CLASSES = c
         LABELS = ["background", "core"]
         PIXELVALUES = [0, 255]
         HOT_ONE_WEIGHTS = [[0.1, 1.0]]
+
+def set3DFlag():
+    global threeD_flag
+    threeD_flag = "_3D"

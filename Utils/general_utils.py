@@ -61,6 +61,7 @@ def setupEnvironment(args, setting):
     constants.setRootPath(setting["root_path"])
 
     if "NUMBER_OF_IMAGE_PER_SECTION" in setting["init"].keys(): constants.setImagePerSection(setting["init"]["NUMBER_OF_IMAGE_PER_SECTION"])
+    if "3D" in setting["init"].keys() and setting["init"]["3D"]: constants.set3DFlag()
 
     experimentFolder = "EXP"+convertExperimentNumberToString(setting["EXPERIMENT"])+"/"
     N_GPU = setupEnvironmentForGPUs(args, setting)
@@ -157,7 +158,7 @@ def getStringPatientIndex(patient_index):
 ################################################################################
 # return the suffix for the model and the patient dataset
 def getSuffix():
-    return "_"+str(constants.SLICING_PIXELS)+"_"+str(constants.getM())+"x"+str(constants.getN())
+    return "_"+str(constants.SLICING_PIXELS)+"_"+str(constants.getM())+"x"+str(constants.getN())+constants.get3DFlag()
 
 ################################################################################
 # get the full directory path, given a relative path

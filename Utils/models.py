@@ -1,9 +1,6 @@
-from Models import arch_mJNet, arch_van_De_Leemput, arch_Ronneberger_UNET
-
-
 import constants
+from Models import arch_mJNet, arch_autoencoder, arch_van_De_Leemput, arch_Ronneberger_UNET
 from Utils import general_utils, spatial_pyramid
-
 
 from tensorflow.keras import layers, models, regularizers, initializers
 import tensorflow.keras.backend as K
@@ -31,6 +28,15 @@ def mJNet_LongJ(X, params, to_categ):
 # mJ-Net model version 2
 def mJNet_v2(X, params, to_categ):
     return arch_mJNet.mJNet(X, params, to_categ, drop=True, longJ=True, v2=True)
+
+################################################################################
+# mJ-Net model version 3D
+def mJNet_3D(X, params, to_categ):
+    return arch_mJNet.mJNet_3D(X, params, to_categ)
+
+################################################################################
+def simple_autoencoder(X, params, to_categ):
+    return arch_autoencoder.simple_autoencoder(X, params, to_categ)
 
 ################################################################################
 # Model from Van De Leemput

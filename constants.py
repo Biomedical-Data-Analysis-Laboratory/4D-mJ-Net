@@ -16,8 +16,9 @@ PREFIX_IMAGES = "PA"
 DATASET_PREFIX = "patient"
 suffix_partial_weights = "__"
 threeD_flag = ""
+ONE_TIME_POINT = ""
 
-dataFrameColumns = ['patient_id', 'label', 'pixels', 'ground_truth', 'x_y', 'data_aug_idx', 'timeIndex', 'label_code']
+dataFrameColumns = ['patient_id', 'label', 'pixels', 'ground_truth', 'x_y', 'data_aug_idx', 'timeIndex', 'sliceIndex', 'label_code']
 
 ################################################################################
 def getVerbose():
@@ -35,9 +36,18 @@ def getN():
 def get3DFlag():
     return threeD_flag
 
+def getONETIMEPOINT():
+    return ONE_TIME_POINT
+
 def getRootPath():
     return root_path
 
+def getPrefixImages():
+    return PREFIX_IMAGES
+
+################################################################################
+################################################################################
+# Functions used to set the various GLOBAl variables
 def setVerbose(v):
     global verbose
     verbose = v
@@ -46,9 +56,6 @@ def setDEBUG(d):
     global DEBUG
     DEBUG = d
 
-################################################################################
-################################################################################
-# Functions used to set the various GLOBAl variables
 def setTileDimension(t):
     global M, N, SLICING_PIXELS
     if t is not None:
@@ -82,3 +89,11 @@ def setNumberOfClasses(c):
 def set3DFlag():
     global threeD_flag
     threeD_flag = "_3D"
+
+def setONETIMEPOINT(timepoint):
+    global ONE_TIME_POINT
+    ONE_TIME_POINT = "_"+timepoint
+
+def setPrefixImagesSUS2020_v2():
+    global PREFIX_IMAGES
+    PREFIX_IMAGES = "CTP_"

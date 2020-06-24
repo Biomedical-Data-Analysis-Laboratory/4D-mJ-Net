@@ -21,7 +21,7 @@ def predictAndSaveImages(that, p_id):
     start = time.time()
     stats = {}
 
-    relativePatientFolder = constants.PREFIX_IMAGES+p_id+"/"
+    relativePatientFolder = constants.getPrefixImages()+p_id+"/"
     relativePatientFolderHeatMap = relativePatientFolder + "HEATMAP/"
     relativePatientFolderTMP = relativePatientFolder + "TMP/"
     patientFolder = that.patientsFolder+relativePatientFolder
@@ -193,6 +193,7 @@ def predictImage(that, subfolder, p_id, patientFolder, relativePatientFolder, re
                         stats[func.__name__][classToEval][idxE] = (tn[classToEval][idxE], fn[classToEval][idxE], fp[classToEval][idxE], tp[classToEval][idxE])
         s2 = time.time()
         if constants.getVerbose(): print("stats time: {}".format(round(s2-s1, 3)))
+
     end = time.time()
     if constants.getVerbose():
         print("[INFO] - Time: {0}s for image {1}.".format(round(end-start, 3), idx))
@@ -206,9 +207,9 @@ def evaluateModel(nn, p_id, isAlreadySaved):
     suffix = general_utils.getSuffix()
     if isAlreadySaved:
         filename_train = nn.datasetFolder+constants.DATASET_PREFIX+str(p_id)+suffix+".pkl"
-        nn.train_df = dataset_utils.readFromHickle(filename_train)
+        nn.train_df = dataset_utils.readFromPickle(filename_train)
         nn.dataset = dataset_utils.getTestDataset(nn.dataset, nn.train_df, p_id, nn.mp)
-        nn.dataset["test"]["labels"] = dataset_utils.getLabelsFromIndex(train_df=nn.train_df, indices=nn.dataset["test"]["indices"], to_categ=nn.to_categ, flag="train")
+        nn.dataset["test"]["labels"] = dataset_utils.getLabelsFromIndex(train_df=nn.train_df, dataset=nn.dataset["test"], modelname=nn.name, to_categ=nn.to_categ, flag="train")
         nn.compileModel() # compile the model and then evaluate
 
     sample_weights = nn.getSampleWeights("test")

@@ -7,6 +7,7 @@
   "OVERRIDE_MODELS_ID_PATH": "", %% path for overriding the model ID
   "init": { %% basic flag for init the process
     "NUMBER_OF_IMAGE_PER_SECTION": 64, %% change the number of image per section (optional)
+    "3D": 1, %% flag for the 3D dataset (optional)
     "TF_CPP_MIN_LOG_LEVEL": "3",
     "per_process_gpu_memory_fraction": 0.5,
     "allow_growth": 1,

@@ -36,7 +36,8 @@ def main():
         listOfPatientsToTest = setting["PATIENT_TO_TEST"]
         if listOfPatientsToTest[0] == "ALL": # flag that states: runn the test on all the patients in the "patient" folder
             mainPatsFolder = os.path.join(constants.getRootPath(),nn.patientsFolder)
-            listOfPatientsToTest = [int(d[len(constants.PREFIX_IMAGES):]) for d in os.listdir(mainPatsFolder) if os.path.isdir(os.path.join(mainPatsFolder, d))]
+            if "SUS2020_v2" in nn.datasetFolder: listOfPatientsToTest = [d[len(constants.getPrefixImages()):] for d in os.listdir(mainPatsFolder) if os.path.isdir(os.path.join(mainPatsFolder, d))]
+            else: listOfPatientsToTest = [int(d[len(constants.getPrefixImages()):]) for d in os.listdir(mainPatsFolder) if os.path.isdir(os.path.join(mainPatsFolder, d))]
 
         for testPatient in listOfPatientsToTest:
             p_id = general_utils.getStringPatientIndex(testPatient)

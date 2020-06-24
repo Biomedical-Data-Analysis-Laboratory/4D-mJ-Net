@@ -62,6 +62,7 @@ def setupEnvironment(args, setting):
 
     if "NUMBER_OF_IMAGE_PER_SECTION" in setting["init"].keys(): constants.setImagePerSection(setting["init"]["NUMBER_OF_IMAGE_PER_SECTION"])
     if "3D" in setting["init"].keys() and setting["init"]["3D"]: constants.set3DFlag()
+    if "ONE_TIME_POINT" in setting["init"].keys() and setting["init"]["ONE_TIME_POINT"]: constants.setONETIMEPOINT(getStringPatientIndex(setting["init"]["ONE_TIME_POINT"]))
 
     experimentFolder = "EXP"+convertExperimentNumberToString(setting["EXPERIMENT"])+"/"
     N_GPU = setupEnvironmentForGPUs(args, setting)
@@ -115,9 +116,11 @@ def getEpochFromPartialWeightFilename(partialWeightsPath):
 ################################################################################
 # Get the loss defined in the settings
 def getLoss(name):
+    general_losses = ["binary_crossentropy", "categorical_crossentropy", "sparse_categorical_crossentropy", "mean_squared_error"]
     loss = {}
 
-    loss["loss"] = getattr(losses, name)
+    if name in general_losses: loss["loss"] = name
+    else: loss["loss"] = getattr(losses, name)
     loss["name"] = name
 
     if constants.getVerbose():
@@ -158,7 +161,7 @@ def getStringPatientIndex(patient_index):
 ################################################################################
 # return the suffix for the model and the patient dataset
 def getSuffix():
-    return "_"+str(constants.SLICING_PIXELS)+"_"+str(constants.getM())+"x"+str(constants.getN())+constants.get3DFlag()
+    return "_"+str(constants.SLICING_PIXELS)+"_"+str(constants.getM())+"x"+str(constants.getN())+constants.get3DFlag()+constants.getONETIMEPOINT()
 
 ################################################################################
 # get the full directory path, given a relative path

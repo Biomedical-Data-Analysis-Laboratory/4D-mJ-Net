@@ -16,17 +16,17 @@ def initTestingDataFrame():
     testingList = []
     for sample in range(0, 1000):
         if sample<500:
-            rand_pixels = np.random.randint(low=0, high=50, size=(constants.NUMBER_OF_IMAGE_PER_SECTION, constants.getM(), constants.getN()))
-            # rand_pixels = np.random.randint(low=0, high=50, size=(constants.getM(), constants.getN(), random.randrange(1,70)))
+            # rand_pixels = np.random.randint(low=0, high=50, size=(constants.NUMBER_OF_IMAGE_PER_SECTION, constants.getM(), constants.getN()))
+            rand_pixels = np.random.randint(low=0, high=50, size=(constants.getM(), constants.getN(), 32))
             label = constants.LABELS[0]
-            ground_truth = np.zeros(shape=(constants.getM(), constants.getN()))
+            ground_truth = np.zeros(shape=(constants.getM(), constants.getN(), 32))
         else:
-            rand_pixels = np.random.randint(low=180, high=255, size=(constants.NUMBER_OF_IMAGE_PER_SECTION, constants.getM(), constants.getN()))
-            # rand_pixels = np.random.randint(low=180, high=255, size=(constants.getM(), constants.getN(), random.randrange(1,70)))
+            # rand_pixels = np.random.randint(low=180, high=255, size=(constants.NUMBER_OF_IMAGE_PER_SECTION, constants.getM(), constants.getN()))
+            rand_pixels = np.random.randint(low=180, high=255, size=(constants.getM(), constants.getN(), 32))
             label = constants.LABELS[1]
-            ground_truth = np.ones(shape=(constants.getM(), constants.getN()))*255
+            ground_truth = np.ones(shape=(constants.getM(), constants.getN(), 32))*255
 
-        testingList.append((random.choice(patientList), label, rand_pixels, ground_truth, (0,0)), sort=True)
+        testingList.append((random.choice(patientList), label, rand_pixels, ground_truth, (0,0), 0, 0))
 
     np.random.shuffle(testingList)
     train_df = pd.DataFrame(testingList, columns=constants.dataFrameColumns[:len(constants.dataFrameColumns)-1])
@@ -77,9 +77,10 @@ def loadSingleTrainingData(da, filename_train, testing_id):
     return tmp_df
 
 ################################################################################
-# Return the elements in the filename saved as a hickle
+# Return the elements in the filename saved as a pickle
 def readFromPickle(filename):
-    return pkl.load(filename)
+    file = open(filename, "rb")
+    return pkl.load(file)
 
 ################################################################################
 # Return the dataset based on the patient id
@@ -131,10 +132,12 @@ def prepareDataset(nn, p_id, listOfPatientsToTest):
                 if "indices" not in nn.dataset["test"].keys(): nn.dataset["test"]["indices"] = list()
                 nn.dataset["test"]["indices"].extend(np.nonzero((nn.train_df.patient_id.values == current_pid))[0])
 
-        nn.dataset["test"]["data"] = getDataFromIndex(nn.train_df, nn.dataset["test"]["indices"], "test", nn.mp)
+        if nn.supervised: nn.dataset["test"]["data"] = getDataFromIndex(nn.train_df, nn.dataset["test"]["indices"], "test", nn.mp)
 
         all_indices = np.nonzero((nn.train_df.label_code.values >= 0))[0]
-        nn.dataset["train"]["indices"] = list(set(all_indices)-set(nn.dataset["val"]["indices"])-set(nn.dataset["test"]["indices"]))
+
+        if nn.supervised: nn.dataset["train"]["indices"] = list(set(all_indices)-set(nn.dataset["val"]["indices"])-set(nn.dataset["test"]["indices"]))
+        else: nn.dataset["train"]["indices"] = list(set(all_indices)-set(nn.dataset["val"]["indices"]))
 
     else:
         # train indices are ALL except the one = p_id
@@ -146,8 +149,7 @@ def prepareDataset(nn, p_id, listOfPatientsToTest):
             nn.dataset["val"]["indices"] = np.nonzero((train_val_dataset%val_mod == 0))[0]
         else:
             # do NOT use a patient(s) as a validation set because maybe it doesn't have
-            # too much information about core and penumbra.
-            # Instead, get a percentage from each class!
+            # too much information about core and/or penumbra. Instead, get a percentage from each class!
             for classLabelName in constants.LABELS:
                 random.seed(0)
                 classIndices = np.nonzero((nn.train_df.label.values[train_val_dataset]==classLabelName))[0]
@@ -203,9 +205,14 @@ def getSingleLabelFromIndexCateg(singledata):
 
 ################################################################################
 # Return the labels given the indices
-def getLabelsFromIndex(train_df, indices, to_categ, flag):
+def getLabelsFromIndex(train_df, dataset, modelname, to_categ, flag):
     start = time.time()
     labels = None
+    indices = dataset["indices"]
+
+    # if we are using an autoencoder, the labels are the same as the data!
+    if modelname.find("autoencoder")>-1: return dataset["data"]
+
 
     data = [a for a in np.array(train_df.ground_truth.values[indices])]
     if to_categ:

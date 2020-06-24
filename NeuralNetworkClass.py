@@ -82,6 +82,8 @@ class NeuralNetwork(object):
         # epsiloList is the same list of epsilons multiply for the percentage (thresholding) involved to calculate ROC
         self.epsiloList = list(range(0,110, 10)) if self.calculate_ROC else [(None)]
 
+        if "SUS2020_v2" in self.datasetFolder: constants.setPrefixImagesSUS2020_v2()
+        
 ################################################################################
 # Initialize the callbacks
     def setCallbacks(self, p_id, sample_weights=None):
@@ -169,14 +171,11 @@ class NeuralNetwork(object):
     def compileModel(self):
         # set the optimizer (or reset)
         self.optimizer = training.getOptimizer(optInfo=self.optimizerInfo)
-        sample_weight_mode = None
-        # if constants.N_CLASSES == 2: sample_weight_mode = "temporal"
 
         self.model.compile(
             optimizer=self.optimizer,
             loss=self.loss["loss"],
-            weighted_metrics=[self.metricFuncs],
-            sample_weight_mode=sample_weight_mode
+            weighted_metrics=[self.metricFuncs]
         )
 
 ################################################################################
@@ -186,9 +185,9 @@ class NeuralNetwork(object):
             general_utils.printSeparation("*", 50)
             print("[INFO] - Start runTraining function.")
 
-        self.dataset["train"]["labels"] = dataset_utils.getLabelsFromIndex(train_df=self.train_df, indices=self.dataset["train"]["indices"], to_categ=self.to_categ, flag="train")
-        self.dataset["val"]["labels"] = None if self.val["validation_perc"]==0 else dataset_utils.getLabelsFromIndex(train_df=self.train_df, indices=self.dataset["val"]["indices"], to_categ=self.to_categ, flag="val")
-        if self.supervised: self.dataset["test"]["labels"] = dataset_utils.getLabelsFromIndex(train_df=self.train_df, indices=self.dataset["test"]["indices"], to_categ=self.to_categ, flag="test")
+        self.dataset["train"]["labels"] = dataset_utils.getLabelsFromIndex(train_df=self.train_df, dataset=self.dataset["train"], modelname=self.name, to_categ=self.to_categ, flag="train")
+        self.dataset["val"]["labels"] = None if self.val["validation_perc"]==0 else dataset_utils.getLabelsFromIndex(train_df=self.train_df, dataset=self.dataset["val"], modelname=self.name, to_categ=self.to_categ, flag="val")
+        if self.supervised: self.dataset["test"]["labels"] = dataset_utils.getLabelsFromIndex(train_df=self.train_df, dataset=self.dataset["test"], modelname=self.name, to_categ=self.to_categ, flag="test")
 
         if self.getVerbose():
             general_utils.printSeparation("-", 50)
@@ -206,7 +205,13 @@ class NeuralNetwork(object):
 
         if self.getVerbose() and self.summaryFlag==0:
             print(self.model.summary())
-            plot_model(self.model, to_file=general_utils.getFullDirectoryPath(self.savedModelFolder)+self.getNNID("model")+".png", show_shapes=True)
+
+            plot_model(
+                self.model,
+                to_file=general_utils.getFullDirectoryPath(self.savedModelFolder)+self.getNNID("model")+".png",
+                show_shapes=True,
+                rankdir='LR'
+            )
             self.summaryFlag+=1
 
         # check if the model has some saved weights to load...

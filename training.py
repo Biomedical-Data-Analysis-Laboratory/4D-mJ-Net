@@ -66,7 +66,9 @@ def fitModel(model, dataset, batch_size, epochs, listOfCallbacks, sample_weights
     validation_data = None
     if dataset["val"]["data"] is not None and dataset["val"]["labels"] is not None: validation_data = (dataset["val"]["data"], dataset["val"]["labels"])
 
-    
+    # print(dataset["train"]["data"].shape)
+    # print(dataset["train"]["labels"].shape)
+    # print(dataset["val"]["data"].shape, dataset["val"]["labels"].shape)
 
     training = model.fit(dataset["train"]["data"],
                 dataset["train"]["labels"],
@@ -88,14 +90,39 @@ def fitModel(model, dataset, batch_size, epochs, listOfCallbacks, sample_weights
     return training
 
 ################################################################################
+# Train the model only with a single batch
+def trainOnBatch(model, x, y, sample_weights):
+    ret = model.train_on_batch(
+        x,
+        y,
+        sample_weight=sample_weights,
+        reset_metrics=False
+    )
+    return model, ret
+
+################################################################################
 # For plotting the loss and accuracy of the trained model
 def plotLossAndAccuracy(nn, p_id):
-
     for key in nn.train.history.keys():
         fig, ax = plt.subplots(nrows=1, ncols=1)  # create figure & 1 axis
         ax.plot(nn.train.history[key],'r',linewidth=3.0)
         ax.legend([key],fontsize=10)
         ax.set_xlabel('Epochs ', fontsize=16)
+        ax.set_ylabel(key, fontsize=16)
+        ax.set_title(key + 'Curves', fontsize=16)
+
+        fig.savefig(nn.savePlotFolder+nn.getNNID(p_id)+"_"+key+"_"+str(constants.SLICING_PIXELS)+"_"+str(constants.getM())+"x"+str(constants.getN())+".png")
+        plt.close(fig)
+
+################################################################################
+# For plotting the loss and accuracy of the trained model
+def plotMetrics(p_id, dict_metrics):
+    for metric_idx in dict_metrics:
+        key = dict_metrics[metric_idx]["name"]
+        fig, ax = plt.subplots(nrows=1, ncols=1)  # create figure & 1 axis
+        ax.plot(dict_metrics[metric_idx]["val"],'r',linewidth=3.0)
+        ax.legend([key],fontsize=10)
+        ax.set_xlabel('Batch ', fontsize=16)
         ax.set_ylabel(key, fontsize=16)
         ax.set_title(key + 'Curves', fontsize=16)
 

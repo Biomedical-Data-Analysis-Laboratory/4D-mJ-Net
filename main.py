@@ -35,9 +35,14 @@ def main():
 
         listOfPatientsToTest = setting["PATIENT_TO_TEST"]
         if listOfPatientsToTest[0] == "ALL": # flag that states: runn the test on all the patients in the "patient" folder
-            mainPatsFolder = os.path.join(constants.getRootPath(),nn.patientsFolder)
-            if "SUS2020_v2" in nn.datasetFolder: listOfPatientsToTest = [d[len(constants.getPrefixImages()):] for d in os.listdir(mainPatsFolder) if os.path.isdir(os.path.join(mainPatsFolder, d))]
-            else: listOfPatientsToTest = [int(d[len(constants.getPrefixImages()):]) for d in os.listdir(mainPatsFolder) if os.path.isdir(os.path.join(mainPatsFolder, d))]
+            # mainPatsFolder = os.path.join(constants.getRootPath(),nn.patientsFolder)
+            manual_annotationsFolder = os.path.join(constants.getRootPath(),nn.labeledImagesFolder)
+
+            # different for SUS2020_v2 dataset since the dataset is not complete and the prefix is different
+            if "SUS2020_v2" in nn.datasetFolder:
+                listOfPatientsToTest = [d[len(constants.getPrefixImages()):] for d in os.listdir(manual_annotationsFolder) if os.path.isdir(os.path.join(manual_annotationsFolder, d))]
+            else:
+                listOfPatientsToTest = [int(d[len(constants.getPrefixImages()):]) for d in os.listdir(manual_annotationsFolder) if os.path.isdir(os.path.join(manual_annotationsFolder, d))]
 
         for testPatient in listOfPatientsToTest:
             p_id = general_utils.getStringPatientIndex(testPatient)
@@ -62,7 +67,8 @@ def main():
                 ## PREPARE DATASET
                 nn.prepareDataset(train_df, p_id, listOfPatientsToTest)
                 ## SET THE CALLBACKS, RUN TRAINING & SAVE THE MODELS WEIGHTS
-                nn.runTraining(p_id, n_gpu)
+                if nn.train_on_batch: nn.runTrainingOnBatch(p_id, n_gpu)
+                else: nn.runTraining(p_id, n_gpu)
                 nn.saveModelAndWeight(p_id)
 
             ## PERFORM TESTING

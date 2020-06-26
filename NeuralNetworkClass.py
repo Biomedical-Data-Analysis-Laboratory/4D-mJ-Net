@@ -15,24 +15,25 @@ from tensorflow.keras.utils import multi_gpu_model, plot_model
 class NeuralNetwork(object):
     """docstring for NeuralNetwork."""
 
-    def __init__(self, info, setting):
+    def __init__(self, modelInfo, setting):
         super(NeuralNetwork, self).__init__()
         self.summaryFlag = 0
 
         # Used to override the path for the saved model in order to test patients with a specific model
         self.OVERRIDE_MODELS_ID_PATH = setting["OVERRIDE_MODELS_ID_PATH"] if setting["OVERRIDE_MODELS_ID_PATH"]!="" else False
 
-        self.name = info["name"]
-        self.epochs = info["epochs"]
-        self.batch_size = info["batch_size"] if "batch_size" in info.keys() else 32
+        self.name = modelInfo["name"]
+        self.epochs = modelInfo["epochs"]
+        self.train_on_batch = modelInfo["train_on_batch"]
+        self.batch_size = modelInfo["batch_size"] if "batch_size" in modelInfo.keys() else 32
 
         self.val = {
-            "validation_perc": info["val"]["validation_perc"],
-            "random_validation_selection": info["val"]["random_validation_selection"],
-            "number_patients_for_validation": info["val"]["number_patients_for_validation"] if "number_patients_for_validation" in info["val"].keys() else 0,
-            "number_patients_for_testing": info["val"]["number_patients_for_testing"] if "number_patients_for_testing" in info["val"].keys() else 0
+            "validation_perc": modelInfo["val"]["validation_perc"],
+            "random_validation_selection": modelInfo["val"]["random_validation_selection"],
+            "number_patients_for_validation": modelInfo["val"]["number_patients_for_validation"] if "number_patients_for_validation" in modelInfo["val"].keys() else 0,
+            "number_patients_for_testing": modelInfo["val"]["number_patients_for_testing"] if "number_patients_for_testing" in modelInfo["val"].keys() else 0
         }
-        self.test_steps = info["test_steps"]
+        self.test_steps = modelInfo["test_steps"]
 
         self.dataset = {
             "train": {},
@@ -41,24 +42,24 @@ class NeuralNetwork(object):
         }
 
         # get parameter for the model
-        self.optimizerInfo = info["optimizer"]
-        self.params = info["params"]
-        self.loss = general_utils.getLoss(info["loss"])
-        self.classes_to_evaluate = info["classes_to_evaluate"]
-        self.metricFuncs = general_utils.getStatisticFunctions(info["metrics"])
-        self.statistics = general_utils.getStatisticFunctions(info["statistics"])
+        self.optimizerInfo = modelInfo["optimizer"]
+        self.params = modelInfo["params"]
+        self.loss = general_utils.getLoss(modelInfo["loss"])
+        self.classes_to_evaluate = modelInfo["classes_to_evaluate"]
+        self.metricFuncs = general_utils.getStatisticFunctions(modelInfo["metrics"])
+        self.statistics = general_utils.getStatisticFunctions(modelInfo["statistics"])
 
         # FLAGS for the model
-        self.to_categ = True if info["to_categ"]==1 else False
-        self.save_images = True if info["save_images"]==1 else False
-        self.save_statistics = True if info["save_statistics"]==1 else False
-        self.use_background_in_statistics = True if info["use_background_in_statistics"]==1 else False
-        self.calculate_ROC = True if info["calculate_ROC"]==1 else False
-        self.da = True if info["data_augmentation"]==1 else False
-        self.train_again = True if info["train_again"]==1 else False
-        self.cross_validation = True if info["cross_validation"]==1 else False
-        self.supervised = True if info["supervised"]==1 else False
-        self.save_activation_filter = True if info["save_activation_filter"]==1 else False
+        self.to_categ = True if modelInfo["to_categ"]==1 else False
+        self.save_images = True if modelInfo["save_images"]==1 else False
+        self.save_statistics = True if modelInfo["save_statistics"]==1 else False
+        self.use_background_in_statistics = True if modelInfo["use_background_in_statistics"]==1 else False
+        self.calculate_ROC = True if modelInfo["calculate_ROC"]==1 else False
+        self.da = True if modelInfo["data_augmentation"]==1 else False
+        self.train_again = True if modelInfo["train_again"]==1 else False
+        self.cross_validation = True if modelInfo["cross_validation"]==1 else False
+        self.supervised = True if modelInfo["supervised"]==1 else False
+        self.save_activation_filter = True if modelInfo["save_activation_filter"]==1 else False
 
         # paths
         self.rootPath = setting["root_path"]
@@ -74,7 +75,8 @@ class NeuralNetwork(object):
         self.saveTextFolder = self.experimentFolder+setting["relative_paths"]["save"]["text"]
         self.intermediateActivationFolder = self.experimentFolder+setting["relative_paths"]["save"]["intermediate_activation"] if "intermediate_activation" in setting["relative_paths"]["save"].keys() else None
 
-        self.infoCallbacks = info["callbacks"]
+        self.infoCallbacks = modelInfo["callbacks"]
+        self.model = None
 
         if constants.N_CLASSES == 4: self.epsilons = [(63.75-constants.PIXELVALUES[1]-1, 127.5-constants.PIXELVALUES[2], 191.25-constants.PIXELVALUES[3])]
         else: self.epsilons = [(63.75-constants.PIXELVALUES[1]-1)]
@@ -83,7 +85,7 @@ class NeuralNetwork(object):
         self.epsiloList = list(range(0,110, 10)) if self.calculate_ROC else [(None)]
 
         if "SUS2020_v2" in self.datasetFolder: constants.setPrefixImagesSUS2020_v2()
-        
+
 ################################################################################
 # Initialize the callbacks
     def setCallbacks(self, p_id, sample_weights=None):
@@ -185,10 +187,6 @@ class NeuralNetwork(object):
             general_utils.printSeparation("*", 50)
             print("[INFO] - Start runTraining function.")
 
-        self.dataset["train"]["labels"] = dataset_utils.getLabelsFromIndex(train_df=self.train_df, dataset=self.dataset["train"], modelname=self.name, to_categ=self.to_categ, flag="train")
-        self.dataset["val"]["labels"] = None if self.val["validation_perc"]==0 else dataset_utils.getLabelsFromIndex(train_df=self.train_df, dataset=self.dataset["val"], modelname=self.name, to_categ=self.to_categ, flag="val")
-        if self.supervised: self.dataset["test"]["labels"] = dataset_utils.getLabelsFromIndex(train_df=self.train_df, dataset=self.dataset["test"], modelname=self.name, to_categ=self.to_categ, flag="test")
-
         if self.getVerbose():
             general_utils.printSeparation("-", 50)
             print("[INFO] - Getting model {0} with {1} optimizer...".format(self.name, self.optimizerInfo["name"]))
@@ -227,6 +225,10 @@ class NeuralNetwork(object):
         # Set the callbacks
         self.setCallbacks(p_id, sample_weights)
 
+        self.dataset["train"]["labels"] = dataset_utils.getLabelsFromIndex(train_df=self.train_df, dataset=self.dataset["train"], modelname=self.name, to_categ=self.to_categ, flag="train")
+        self.dataset["val"]["labels"] = None if self.val["validation_perc"]==0 else dataset_utils.getLabelsFromIndex(train_df=self.train_df, dataset=self.dataset["val"], modelname=self.name, to_categ=self.to_categ, flag="val")
+        if self.supervised: self.dataset["test"]["labels"] = dataset_utils.getLabelsFromIndex(train_df=self.train_df, dataset=self.dataset["test"], modelname=self.name, to_categ=self.to_categ, flag="test")
+
         # fit and train the model
         self.train = training.fitModel(
                 model=self.model,
@@ -244,28 +246,113 @@ class NeuralNetwork(object):
         training.plotLossAndAccuracy(self, p_id)
 
 ################################################################################
+# Run the training for every batch and LOAD only the necessary dataset (one patient at the time)
+    def runTrainingOnBatch(self, p_id, n_gpu):
+        suffix = general_utils.getSuffix() # es == "_4_16x16"
+        dict_metrics = list()
+        filename = self.getSavedInformation(p_id, path=self.savePartialModelFolder)
+
+        if self.getVerbose():
+            general_utils.printSeparation("*", 50)
+            print("[WARNING] - Using train_on_batch flag!")
+            print("[INFO] - Start runTrainingOnBatch function.")
+
+        if self.getVerbose():
+            general_utils.printSeparation("-", 50)
+            print("[INFO] - Getting model {0} with {1} optimizer...".format(self.name, self.optimizerInfo["name"]))
+
+        # based on the number of GPUs availables
+        # call the function called self.name in models.py
+        if n_gpu==1:
+            self.model = getattr(models, self.name)(self.dataset["val"]["data"], params=self.params, to_categ=self.to_categ)
+        else:
+            # TODO: problems during the load of the model (?)
+            with tf.device('/cpu:0'):
+                self.model = getattr(models, self.name)(self.dataset["val"]["data"], params=self.params, to_categ=self.to_categ)
+            self.model = multi_gpu_model(self.model, gpus=n_gpu)
+
+        if self.getVerbose():
+            print(self.model.summary())
+
+        # plot_model(
+        #     self.model,
+        #     to_file=general_utils.getFullDirectoryPath(self.savedModelFolder)+self.getNNID("model")+".png",
+        #     show_shapes=True,
+        #     rankdir='LR'
+        # )
+
+        # check if the model has some saved weights to load...
+        self.initial_epoch = 0
+        if self.arePartialWeightsSaved(p_id): self.loadModelFromPartialWeights(p_id)
+
+        # compile the model with optimizer, loss function and metrics
+        self.compileModel()
+
+        sample_weights = self.getSampleWeights("train")
+
+        self.dataset["val"]["labels"] = None if self.val["validation_perc"]==0 else dataset_utils.getLabelsFromIndex(train_df=self.train_df, dataset=self.dataset["val"], modelname=self.name, to_categ=self.to_categ, flag="val")
+        if self.supervised: self.dataset["test"]["labels"] = dataset_utils.getLabelsFromIndex(train_df=self.train_df, dataset=self.dataset["test"], modelname=self.name, to_categ=self.to_categ, flag="test")
+
+        for metric_name in self.model.metrics_names: dict_metrics.append({"name":metric_name, "val":list()})
+
+        for epoch in range(self.initial_epoch, self.epochs+1):
+            print("Epoch: {}".format(epoch+1))
+            count_trained_elements = 0
+
+            while count_trained_elements<len(self.dataset["train"]["indices"]): # going over all the element in the dataset
+                indices = self.dataset["train"]["indices"][count_trained_elements:count_trained_elements+self.batch_size]
+                x = [a for a in np.array(self.train_df.pixels.values[indices], dtype=object)]
+                y = [a for a in np.array(self.train_df.ground_truth.values[indices])]
+                if type(x) is not np.array: x = np.array(x)
+                if type(y) is not np.array: y = np.array(y)
+                y = y.astype("float32")
+                y /= 255 # convert the label in [0, 1] values
+
+                w = sample_weights[count_trained_elements:count_trained_elements+self.batch_size]
+
+                self.model, ret = training.trainOnBatch(self.model, x, y, w)
+
+                for i, r in enumerate(ret): dict_metrics[i]["val"].append(r)
+                if count_trained_elements%200==0 and count_trained_elements!=0: print(ret) #print the values every 200 batches
+
+                count_trained_elements += self.batch_size
+
+            if epoch%2==0 and epoch!=0: self.model.save_weights(filename+constants.suffix_partial_weights+"{:02d}.h5".format(epoch)) # save the model weights every 2 epochs
+
+            tmpSavedModels = glob.glob(filename+constants.suffix_partial_weights+"*.h5")
+            if len(tmpSavedModels) > 1: # just to be sure and not delete everything
+                for file in tmpSavedModels:
+                    if filename+constants.suffix_partial_weights in file:
+                        tmpEpoch = general_utils.getEpochFromPartialWeightFilename(file)
+                        if tmpEpoch < epoch: # Remove the old saved weights
+                            os.remove(file)
+
+        # plot the loss and accuracy of the training
+        training.plotMetrics(p_id, dict_metrics)
+
+################################################################################
 # Get the sample weight from the dataset
     def getSampleWeights(self, flag):
         ret = None
+
         if constants.N_CLASSES==4:
-            sample_weights = self.train_df.label.map({
-                constants.LABELS[0]:1, #0.1, #((background_weight-min_weight)/(max_weight-min_weight)),
-                constants.LABELS[1]:1, #1, #((brain_weight-min_weight)/(max_weight-min_weight)),
-                constants.LABELS[2]:50, #((penumbra_weight-min_weight)/(max_weight-min_weight))*100,
-                constants.LABELS[3]:100 #((core_weight-min_weight)/(max_weight-min_weight))*100
-            })
-            ret = np.array(sample_weights.values[self.dataset[flag]["indices"]])
+            if constants.getM()>=512: # we have only one label
+                f = lambda x : np.sum(np.where(np.array(x)==constants.PIXELVALUES[2],50,np.where(np.array(x)==constants.PIXELVALUES[3],7,1)))
+
+                sample_weights = self.train_df.ground_truth.map(f)
+                sample_weights = sample_weights/(constants.getM()*constants.getN())
+            else:
+                sample_weights = self.train_df.label.map({
+                    constants.LABELS[0]:1, #0.1, #((background_weight-min_weight)/(max_weight-min_weight)),
+                    constants.LABELS[1]:1, #1, #((brain_weight-min_weight)/(max_weight-min_weight)),
+                    constants.LABELS[2]:50, #((penumbra_weight-min_weight)/(max_weight-min_weight))*100,
+                    constants.LABELS[3]:100 #((core_weight-min_weight)/(max_weight-min_weight))*100
+                })
         else: # we are in a binary class problem
             f = lambda x : np.sum(np.array(x))
-            # f = lambda x : (np.sum(x)>0 and np.sum(x) or 0)
             sample_weights = self.train_df.ground_truth.map(f)
-            ret = np.array(sample_weights.values[self.dataset[flag]["indices"]])
 
-            # res = [sum(i) for i in zip(*self.train_df.ground_truth.values.tolist())]
-            # res = np.array(res)
-            # res = res.reshape(1, res.shape[0], res.shape[1])
-            # res = res/len(self.train_df.ground_truth.values)
-            # ret = np.concatenate((res,)*len(self.dataset[flag]["indices"]))
+        ret = np.array(sample_weights.values[self.dataset[flag]["indices"]])
 
         return ret
 

@@ -29,7 +29,7 @@
       "train_on_batch": 1,
       "loss": "mod_dice_coef_loss",
       "metrics": ["mod_dice_coef","dice_coef"],
-      "epochs": 50,
+      "epochs": 200,
       "batch_size":12,
       "classes_to_evaluate": ["penumbra","core","penumbracore"],
       "statistics": ["sensitivity", "specificity", "precision", "f1", "accuracy", "jaccard_index"],

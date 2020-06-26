@@ -3,6 +3,7 @@ from Utils import general_utils, spatial_pyramid
 
 from tensorflow.keras import layers, models, regularizers, initializers
 import tensorflow.keras.backend as K
+from tensorflow.keras.applications import NASNetLarge
 
 
 ################################################################################
@@ -205,10 +206,86 @@ def mJNet(X, params, to_categ, drop=False, longJ=False, v2=False):
 ################################################################################
 # mJ-Net model version 2
 def mJNet_3D(X, params, to_categ):
-    print(X.shape)
+    activ_func = 'relu'
+    l1_l2_reg = None
     input_shape = X.shape[1:]
-    input_x = layers.Input(shape=input_shape, sparse=False)
-    general_utils.print_int_shape(input_x) # (None, 30, M, N, 1)
+    kernel_init = "glorot_uniform" # Xavier uniform initializer.
 
-    model = models.Model(inputs=input_x, outputs=y)
+    # Create base model
+    # base_model = NASNetLarge(
+    #     include_top=False,
+    #     weights='imagenet'
+    # )
+    # # Freeze base model
+    # base_model.trainable = False
+
+    x = layers.Input(shape=input_shape, sparse=False)
+    general_utils.print_int_shape(x) # (None, M, N, 3, 1)
+    # x = base_model(x, training=False)
+    # general_utils.print_int_shape(x) # (None, 16, 16, 4032)
+
+    conv_1 = layers.Conv2D(16, kernel_size=(3,3), activation=activ_func, padding='same', kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init)(x)
+    conv_1 = layers.BatchNormalization()(conv_1)
+    general_utils.print_int_shape(conv_1) # (None, M, N, 3, 16)
+    pool_drop_1 = layers.AveragePooling2D((2,2), padding='same')(conv_1)
+    general_utils.print_int_shape(pool_drop_1) # (None, M/2, N/2, 3, 16)
+
+    conv_2 = layers.Conv2D(16, (3,3), activation=activ_func, padding='same', kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init)(pool_drop_1)
+    conv_2 = layers.BatchNormalization()(conv_2)
+    general_utils.print_int_shape(conv_2) # (None, M/2, N/2, 3, 16)
+    conv_2 = layers.Conv2D(32, (3,3), activation=activ_func, padding='same', kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init)(conv_2)
+    conv_2 = layers.BatchNormalization()(conv_2)
+    general_utils.print_int_shape(conv_2) # (None, M/2, N/2, 3, 32)
+    pool_drop_2 = layers.MaxPooling2D((2,2))(conv_2)
+    general_utils.print_int_shape(pool_drop_2) # (None, M/4, N/4, 3, 32)
+
+    conv_3 = layers.Conv2D(32, (3,3), activation=activ_func, padding='same', kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init)(pool_drop_2)
+    conv_3 = layers.BatchNormalization()(conv_3)
+    general_utils.print_int_shape(conv_3) # (None, M/4, N/4, 3, 32)
+    conv_3 = layers.Conv2D(64, (3,3), activation=activ_func, padding='same', kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init)(conv_3)
+    conv_3 = layers.BatchNormalization()(conv_3)
+    general_utils.print_int_shape(conv_3) # (None, M/4, N/4, 3, 64)
+    pool_drop_3 = layers.MaxPooling2D((2,2))(conv_3)
+    general_utils.print_int_shape(pool_drop_3) # (None, M/8, N/8, 3, 64)
+
+    conv_4 = layers.Conv2D(64, (3,3), activation=activ_func, padding='same', kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init)(pool_drop_3)
+    conv_4 = layers.BatchNormalization()(conv_4)
+    general_utils.print_int_shape(conv_4)# (None, M/8, N/8, 3, 64)
+    conv_4 = layers.Conv2D(128, (3,3), activation=activ_func, padding='same', kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init)(conv_4)
+    conv_4 = layers.BatchNormalization()(conv_4)
+    general_utils.print_int_shape(conv_4) # (None, M/8, N/8, 3, 128)
+
+    up_1 = layers.concatenate([layers.UpSampling2D(size=(2, 2))(conv_4), conv_3], axis=-1)
+    general_utils.print_int_shape(up_1) # (None, M/4, N/4, 3, 128)
+    conv_5 = layers.Conv2D(128, (3,3), activation=activ_func, padding='same', kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init)(up_1)
+    conv_5 = layers.BatchNormalization()(conv_5)
+    general_utils.print_int_shape(conv_5) # (None, M/4, N/4, 3, 128)
+    conv_5 = layers.Conv2D(64, (3,3), activation=activ_func, padding='same', kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init)(conv_5)
+    conv_5 = layers.BatchNormalization()(conv_5)
+    general_utils.print_int_shape(conv_5) # (None, M/4, N/4, 3, 64)
+
+    up_2 = layers.concatenate([layers.UpSampling2D(size=(2, 2))(conv_5), conv_2], axis=-1)
+    general_utils.print_int_shape(up_2) # (None, M/2, N/2, 3, 32)
+    conv_6 = layers.Conv2D(32, (3,3), activation=activ_func, padding='same', kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init)(up_2)
+    conv_6 = layers.BatchNormalization()(conv_6)
+    general_utils.print_int_shape(conv_6) # (None, M/2, N/2, 3, 32)
+    conv_6 = layers.Conv2D(16, (3,3), activation=activ_func, padding='same', kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init)(conv_6)
+    pool_drop_5 = layers.BatchNormalization()(conv_6)
+    general_utils.print_int_shape(pool_drop_5) # (None, M/2, N/2, 3, 16)
+
+    up_3 = layers.concatenate([layers.UpSampling2D(size=(2, 2))(pool_drop_5), conv_1], axis=-1)
+    general_utils.print_int_shape(up_2) # (None, M, N, 3, 32)
+    conv_7 = layers.Conv2D(32, (3,3), activation=activ_func, padding='same', kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init)(up_3)
+    conv_7 = layers.BatchNormalization()(conv_7)
+    general_utils.print_int_shape(conv_7) # (None, M, N, 3, 16)
+    conv_8 = layers.Conv2D(16, (3,3), activation=activ_func, padding='same', kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init)(conv_7)
+    pool_drop_6 = layers.BatchNormalization()(conv_8)
+    general_utils.print_int_shape(pool_drop_5) # (None, M, N, 3, 16)
+
+    conv_9 = layers.Conv2D(1, (1,1), activation="sigmoid", padding='same', kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init)(pool_drop_6)
+    general_utils.print_int_shape(conv_9) # (None, M, N, 1)
+    y = layers.Reshape((constants.getM(),constants.getN()))(conv_9)
+    general_utils.print_int_shape(y) # (None, M, N)
+
+    model = models.Model(inputs=x, outputs=y)
     return model

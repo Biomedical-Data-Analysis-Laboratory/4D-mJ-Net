@@ -14,19 +14,19 @@ import tensorflow as tf
 def initTestingDataFrame():
     patientList = ["02", "03", "04", "05", "06", "07", "08", "09", "10", "11"]
     testingList = []
-    for sample in range(0, 1000):
-        if sample<500:
+    for sample in range(100):
+        if sample<50:
             # rand_pixels = np.random.randint(low=0, high=50, size=(constants.NUMBER_OF_IMAGE_PER_SECTION, constants.getM(), constants.getN()))
-            rand_pixels = np.random.randint(low=0, high=50, size=(constants.getM(), constants.getN(), 32))
+            rand_pixels = np.random.randint(low=0, high=50, size=(constants.getM(), constants.getN(), 3))
             label = constants.LABELS[0]
-            ground_truth = np.zeros(shape=(constants.getM(), constants.getN(), 32))
+            ground_truth = np.zeros(shape=(constants.getM(), constants.getN()))
         else:
             # rand_pixels = np.random.randint(low=180, high=255, size=(constants.NUMBER_OF_IMAGE_PER_SECTION, constants.getM(), constants.getN()))
-            rand_pixels = np.random.randint(low=180, high=255, size=(constants.getM(), constants.getN(), 32))
+            rand_pixels = np.random.randint(low=180, high=255, size=(constants.getM(), constants.getN(), 3))
             label = constants.LABELS[1]
-            ground_truth = np.ones(shape=(constants.getM(), constants.getN(), 32))*255
+            ground_truth = np.ones(shape=(constants.getM(), constants.getN()))*255
 
-        testingList.append((random.choice(patientList), label, rand_pixels, ground_truth, (0,0), 0, 0))
+        testingList.append((random.choice(patientList), label, rand_pixels, ground_truth, (0,0), 0, 0, 0))
 
     np.random.shuffle(testingList)
     train_df = pd.DataFrame(testingList, columns=constants.dataFrameColumns[:len(constants.dataFrameColumns)-1])
@@ -43,14 +43,15 @@ def loadTrainingDataframe(nn, testing_id=None):
     suffix = general_utils.getSuffix() # es == "_4_16x16"
 
     frames = [train_df]
+    listOfFolders = glob.glob(nn.datasetFolder+"*"+suffix+".pkl")
     if not nn.mp: # (SINGLE PROCESSING VERSION)
-        for filename_train in glob.glob(nn.datasetFolder+"*"+suffix+".pkl"):
-            tmp_df = loadSingleTrainingData(nn.da, filename_train, testing_id)
+        for idx, filename_train in enumerate(listOfFolders):
+            tmp_df = loadSingleTrainingData(nn.da, filename_train, testing_id, idx, len(listOfFolders))
             frames.append(tmp_df)
     else: # (MULTI PROCESSING VERSION)
         input = []
-        for filename_train in glob.glob(nn.datasetFolder+"*"+suffix+".pkl"):
-            input.append((nn.da, filename_train, testing_id))
+        for idx, filename_train in enumerate(listOfFolders):
+            input.append((nn.da, filename_train, testing_id, idx, len(listOfFolders)))
 
         with multiprocessing.Pool(processes=10) as pool: # auto closing workers
             frames = pool.starmap(loadSingleTrainingData, input)
@@ -61,11 +62,10 @@ def loadTrainingDataframe(nn, testing_id=None):
 
 ################################################################################
 # Function to load a single dataframe from a patient index
-def loadSingleTrainingData(da, filename_train, testing_id):
+def loadSingleTrainingData(da, filename_train, testing_id, idx, n_folds):
     index = filename_train[-5:-3]
     p_id = general_utils.getStringPatientIndex(index)
-
-    if constants.getVerbose(): print('[INFO] - Loading dataframe from {}...'.format(filename_train))
+    if constants.getVerbose(): print('[INFO] - {0}/{1} Loading dataframe from {2}...'.format(idx+1, n_folds, filename_train))
     suffix = "_DATA_AUGMENTATION" if da else ""
     if testing_id==p_id:
          # take the normal dataset for the testing patient instead the augmented one...
@@ -159,7 +159,7 @@ def prepareDataset(nn, p_id, listOfPatientsToTest):
 
             if nn.supervised: nn.dataset = getTestDataset(nn.dataset, nn.train_df, p_id, nn.mp)
 
-    nn.dataset["train"]["data"] = getDataFromIndex(nn.train_df, nn.dataset["train"]["indices"], "train", nn.mp)
+    if not nn.train_on_batch: nn.dataset["train"]["data"] = getDataFromIndex(nn.train_df, nn.dataset["train"]["indices"], "train", nn.mp)
     nn.dataset["val"]["data"] = None if nn.val["validation_perc"]==0 else getDataFromIndex(nn.train_df, nn.dataset["val"]["indices"], "val", nn.mp)
 
     end = time.time()
@@ -179,9 +179,12 @@ def getTestDataset(dataset, train_df, p_id, mp):
 def getDataFromIndex(train_df, indices, flag, mp):
     start = time.time()
 
-    input = [a for a in np.array(train_df.pixels.values[indices], dtype=object)]
-    with multiprocessing.Pool(processes=10) as pool: # auto closing workers
-        data = pool.map(getSingleDataFromIndex, input)
+    if constants.get3DFlag(): data = [a for a in np.array(train_df.pixels.values[indices], dtype=object)]
+    else:
+        input = [a for a in np.array(train_df.pixels.values[indices], dtype=object)]
+
+        with multiprocessing.Pool(processes=10) as pool: # auto closing workers
+            data = pool.map(getSingleDataFromIndex, input)
 
     if type(data) is not np.array: data = np.array(data)
 
@@ -213,17 +216,26 @@ def getLabelsFromIndex(train_df, dataset, modelname, to_categ, flag):
     # if we are using an autoencoder, the labels are the same as the data!
     if modelname.find("autoencoder")>-1: return dataset["data"]
 
-
     data = [a for a in np.array(train_df.ground_truth.values[indices])]
+
+    # if to_categ:
+    #     labels = [np.array(utils.to_categorical(np.trunc(np.array((a/256)*len(constants.LABELS), dtype="float32")), num_classes=len(constants.LABELS))) for a in data]
+    #     if type(labels) is not np.array: labels = np.array(labels)
+    # else:
+    #     labels = [np.array(a).reshape(constants.getM(),constants.getN()) for a in data]
+    #     if type(labels) is not np.array: labels = np.array(labels)
+    #     labels = labels.astype("float32")
+    #     labels /= 255 # convert the label in [0, 1] values
+
     if to_categ:
-        with multiprocessing.Pool(processes=10) as pool: # auto closing workers
+        with multiprocessing.Pool(processes=1) as pool: # auto closing workers
             labels = pool.map(getSingleLabelFromIndexCateg, data)
         if type(labels) is not np.array: labels = np.array(labels)
     else:
-        with multiprocessing.Pool(processes=10) as pool: # auto closing workers
-            labels = pool.map(getSingleLabelFromIndex, data)
-        if type(labels) is not np.array: labels = np.array(labels)
-        labels = labels.astype("float32")
+        # with multiprocessing.Pool(processes=1) as pool: # auto closing workers
+        #     labels = pool.map(getSingleLabelFromIndex, data)
+        if type(data) is not np.array: data = np.array(data)
+        labels = data.astype("float32")
         labels /= 255 # convert the label in [0, 1] values
 
     end = time.time()

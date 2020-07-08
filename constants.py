@@ -85,6 +85,11 @@ def setNumberOfClasses(c):
         LABELS = ["background", "core"]
         PIXELVALUES = [0, 255]
         HOT_ONE_WEIGHTS = [[0.1, 1.0]]
+    elif c==3:
+        N_CLASSES = c
+        LABELS = ["background", "penumbra", "core"]
+        PIXELVALUES = [0, 76, 255]
+        HOT_ONE_WEIGHTS = [[0.1, 1.0, 1.0]]
 
 def set3DFlag():
     global threeD_flag

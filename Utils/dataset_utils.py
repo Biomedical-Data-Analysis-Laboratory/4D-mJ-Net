@@ -12,7 +12,8 @@ import tensorflow as tf
 ################################################################################
 # Function to test the model `NOT USED OTHERWISE`
 def initTestingDataFrame():
-    patientList = ["02", "03", "04", "05", "06", "07", "08", "09", "10", "11"]
+    # patientList = ["02", "03", "04", "05", "06", "07", "08", "09", "10", "11"]
+    patientList = ["00_001", "00_002", "01_008", "01_005", "01_016", "01_017", "02_008", "01_049", "02_010", "00_011"]
     testingList = []
     for sample in range(100):
         if sample<50:
@@ -36,7 +37,7 @@ def initTestingDataFrame():
 
 ################################################################################
 # Function to load the saved dataframe
-def loadTrainingDataframe(nn, testing_id=None):
+def loadTrainingDataframe(nn, patients, testing_id=None):
     cpu_count = multiprocessing.cpu_count()
     train_df = pd.DataFrame(columns=constants.dataFrameColumns)
     # get the suffix based on the SLICING_PIXELS, the M and N
@@ -44,14 +45,22 @@ def loadTrainingDataframe(nn, testing_id=None):
 
     frames = [train_df]
     listOfFolders = glob.glob(nn.datasetFolder+"*"+suffix+".pkl")
+
     if not nn.mp: # (SINGLE PROCESSING VERSION)
-        for idx, filename_train in enumerate(listOfFolders):
-            tmp_df = loadSingleTrainingData(nn.da, filename_train, testing_id, idx, len(listOfFolders))
+        idx = 1
+        for filename_train in listOfFolders:
+            start_index = filename_train.rfind("/")+len(constants.DATASET_PREFIX)+1
+            patient_id = filename_train[start_index:start_index+len(patients[0])]
+            if patient_id not in patients: continue
+
+            if constants.getVerbose(): print('[INFO] - {0}/{1} Loading dataframe from {2}...'.format(idx, len(patients), filename_train))
+            tmp_df = loadSingleTrainingData(nn.da, filename_train, testing_id)
             frames.append(tmp_df)
+            idx+=1
     else: # (MULTI PROCESSING VERSION)
         input = []
-        for idx, filename_train in enumerate(listOfFolders):
-            input.append((nn.da, filename_train, testing_id, idx, len(listOfFolders)))
+        for filename_train in listOfFolders:
+            input.append((nn.da, filename_train, testing_id))
 
         with multiprocessing.Pool(processes=10) as pool: # auto closing workers
             frames = pool.starmap(loadSingleTrainingData, input)
@@ -62,10 +71,9 @@ def loadTrainingDataframe(nn, testing_id=None):
 
 ################################################################################
 # Function to load a single dataframe from a patient index
-def loadSingleTrainingData(da, filename_train, testing_id, idx, n_folds):
+def loadSingleTrainingData(da, filename_train, testing_id):
     index = filename_train[-5:-3]
-    p_id = general_utils.getStringPatientIndex(index)
-    if constants.getVerbose(): print('[INFO] - {0}/{1} Loading dataframe from {2}...'.format(idx+1, n_folds, filename_train))
+    p_id = general_utils.getStringFromIndex(index)
     suffix = "_DATA_AUGMENTATION" if da else ""
     if testing_id==p_id:
          # take the normal dataset for the testing patient instead the augmented one...
@@ -85,7 +93,7 @@ def readFromPickle(filename):
 ################################################################################
 # Return the dataset based on the patient id
 # First function that is been called to create the train_df
-def getDataset(nn, p_id=None):
+def getDataset(nn, patients, p_id=None):
     start = time.time()
     train_df = pd.DataFrame(columns=constants.dataFrameColumns)
 
@@ -99,8 +107,8 @@ def getDataset(nn, p_id=None):
         # no debugging and no data augmentation
         if nn.da:
             print("[WARNING] - Data augmented training/testing... load the dataset differently for each patient")
-            train_df = loadTrainingDataframe(nn, testing_id=p_id)
-        else: train_df = loadTrainingDataframe(nn)
+            train_df = loadTrainingDataframe(nn, testing_id=p_id, patients=patients)
+        else: train_df = loadTrainingDataframe(nn, patients=listOfPatientsToTest)
 
     end = time.time()
     print("[INFO] - Total time to load the Dataset: {0}s".format(round(end-start, 3)))
@@ -116,18 +124,24 @@ def prepareDataset(nn, p_id, listOfPatientsToTest):
     nn.dataset["train"]["indices"] = list()
     nn.dataset["val"]["indices"] = list()
 
+    if nn.getVerbose(): print("[INFO] - Preparing Dataset for patient {}...".format(p_id))
+
     if not nn.cross_validation and nn.val["number_patients_for_validation"]>0 and nn.val["number_patients_for_testing"]>0:
         # here only if: NO cross-validation and the flags for number of patients (test/val) is > 0
         validation_list = listOfPatientsToTest[:nn.val["number_patients_for_validation"]]
         val_indices = set()
         test_list = listOfPatientsToTest[nn.val["number_patients_for_validation"]:nn.val["number_patients_for_validation"]+nn.val["number_patients_for_testing"]]
 
+        if nn.getVerbose():
+            print("[WARNING] - validation list: {}".format(validation_list))
+            print("[WARNING] - test list: {}".format(test_list))
+
         for val_p in validation_list:
-            current_pid = general_utils.getStringPatientIndex(val_p)
+            current_pid = general_utils.getStringFromIndex(val_p)
             nn.dataset["val"]["indices"].extend(np.nonzero((nn.train_df.patient_id.values == current_pid))[0])
 
         for test_p in test_list:
-            current_pid = general_utils.getStringPatientIndex(test_p)
+            current_pid = general_utils.getStringFromIndex(test_p)
             if nn.supervised:
                 if "indices" not in nn.dataset["test"].keys(): nn.dataset["test"]["indices"] = list()
                 nn.dataset["test"]["indices"].extend(np.nonzero((nn.train_df.patient_id.values == current_pid))[0])
@@ -179,7 +193,7 @@ def getTestDataset(dataset, train_df, p_id, mp):
 def getDataFromIndex(train_df, indices, flag, mp):
     start = time.time()
 
-    if constants.get3DFlag(): data = [a for a in np.array(train_df.pixels.values[indices], dtype=object)]
+    if constants.get3DFlag()!="": data = [a for a in np.array(train_df.pixels.values[indices], dtype=object)]
     else:
         input = [a for a in np.array(train_df.pixels.values[indices], dtype=object)]
 
@@ -218,15 +232,6 @@ def getLabelsFromIndex(train_df, dataset, modelname, to_categ, flag):
 
     data = [a for a in np.array(train_df.ground_truth.values[indices])]
 
-    # if to_categ:
-    #     labels = [np.array(utils.to_categorical(np.trunc(np.array((a/256)*len(constants.LABELS), dtype="float32")), num_classes=len(constants.LABELS))) for a in data]
-    #     if type(labels) is not np.array: labels = np.array(labels)
-    # else:
-    #     labels = [np.array(a).reshape(constants.getM(),constants.getN()) for a in data]
-    #     if type(labels) is not np.array: labels = np.array(labels)
-    #     labels = labels.astype("float32")
-    #     labels /= 255 # convert the label in [0, 1] values
-
     if to_categ:
         with multiprocessing.Pool(processes=1) as pool: # auto closing workers
             labels = pool.map(getSingleLabelFromIndexCateg, data)
@@ -234,6 +239,10 @@ def getLabelsFromIndex(train_df, dataset, modelname, to_categ, flag):
     else:
         # with multiprocessing.Pool(processes=1) as pool: # auto closing workers
         #     labels = pool.map(getSingleLabelFromIndex, data)
+        if constants.N_CLASSES==3:
+            for i,_ in enumerate(data):
+                data[i][data[i]==255] = constants.PIXELVALUES[0] # remove one class from the ground truth
+                data[i][data[i]==150] = constants.PIXELVALUES[2] # change the class for core
         if type(data) is not np.array: data = np.array(data)
         labels = data.astype("float32")
         labels /= 255 # convert the label in [0, 1] values

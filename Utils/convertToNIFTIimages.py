@@ -23,7 +23,7 @@ if config["train_data"]==True:
 config["thres"] = 200 # # TODO: check the value
 
 ################################################################################
-def getStringPatientIndex(patient_index):
+def getStringFromIndex(patient_index):
     p_id = str(patient_index)
     if len(p_id)==1: p_id = "0"+p_id
 
@@ -70,7 +70,7 @@ def main():
         validation_indices = [i for i in range(1,95)]
 
     for i in validation_indices:
-        caseID = getStringPatientIndex(i)
+        caseID = getStringFromIndex(i)
         subject_folder = os.path.join(config["data_folder"],"case_" + str(i) + "/")
         print("[INFO] - Subject folder: " + subject_folder)
         subsave_folder = os.path.join(config["save_folder"],"PA" + caseID + "/")

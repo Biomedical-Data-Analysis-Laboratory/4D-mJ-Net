@@ -33,7 +33,7 @@ def main():
     for nn in networks:
         stats = {}
 
-        listOfPatientsToTest = setting["PATIENT_TO_TEST"]
+        listOfPatientsToTest = setting["PATIENT_TO_USE"]
         if listOfPatientsToTest[0] == "ALL": # flag that states: runn the test on all the patients in the "patient" folder
             # mainPatsFolder = os.path.join(constants.getRootPath(),nn.patientsFolder)
             manual_annotationsFolder = os.path.join(constants.getRootPath(),nn.labeledImagesFolder)
@@ -45,7 +45,7 @@ def main():
                 listOfPatientsToTest = [int(d[len(constants.getPrefixImages()):]) for d in os.listdir(manual_annotationsFolder) if os.path.isdir(os.path.join(manual_annotationsFolder, d))]
 
         for testPatient in listOfPatientsToTest:
-            p_id = general_utils.getStringPatientIndex(testPatient)
+            p_id = general_utils.getStringFromIndex(testPatient)
             isAlreadySaved = False
 
             # set the multi/single PROCESSING
@@ -61,9 +61,9 @@ def main():
                 ## GET THE DATASET:
                 # - The dataset is composed of all the .pkl files in the dataset folder!
                 # if we are using a data augmentation dataset we need to get the dataset differently each time
-                if nn.da: train_df = dataset_utils.getDataset(nn, p_id)
+                if nn.da: train_df = dataset_utils.getDataset(nn, listOfPatientsToTest, p_id=p_id)
                 else: # Otherwise get dataset only the first time
-                    if train_df is None: train_df = dataset_utils.getDataset(nn)
+                    if train_df is None: train_df = dataset_utils.getDataset(nn, istOfPatientsToTest)
                 ## PREPARE DATASET
                 nn.prepareDataset(train_df, p_id, listOfPatientsToTest)
                 ## SET THE CALLBACKS, RUN TRAINING & SAVE THE MODELS WEIGHTS
@@ -72,8 +72,7 @@ def main():
                 nn.saveModelAndWeight(p_id)
 
             ## PERFORM TESTING
-            if nn.supervised:
-                nn.evaluateModelWithCategorics(p_id, isAlreadySaved)
+            if nn.supervised: nn.evaluateModelWithCategorics(p_id, isAlreadySaved)
             # predict and save the images
             tmpStats = nn.predictAndSaveImages(p_id)
 
@@ -87,7 +86,7 @@ def main():
                                 if idxE not in stats[func.__name__][classToEval].keys(): stats[func.__name__][classToEval][idxE] = []
                                 stats[func.__name__][classToEval][idxE].extend(tmpStats[func.__name__][classToEval][idxE])
 
-        if nn.save_statistics: nn.saveStats(stats, "PATIENT_TO_TEST")
+        if nn.save_statistics: nn.saveStats(stats, "PATIENT_TO_USE")
 
 ################################################################################
 ################################################################################

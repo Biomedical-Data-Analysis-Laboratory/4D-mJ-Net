@@ -22,7 +22,7 @@ def getCommandLineArguments():
     parser.add_argument("-s", "--sname", help="Pass the setting filename")
     parser.add_argument("-t", "--tile", help="Set the tile pixels dimension (MxM)", type=int)
     parser.add_argument("-dim", "--dimension", help="Set the dimension of the input images (widthXheight)", type=int)
-    parser.add_argument("-c", "--classes", help="Set the # of classe involved (default = 4)", default=4, type=int, choices=[2,4])
+    parser.add_argument("-c", "--classes", help="Set the # of classe involved (default = 4)", default=4, type=int, choices=[2,3,4])
     parser.add_argument("gpu", help="Give the id of gpu (or a list of the gpus) to use")
     args = parser.parse_args()
 
@@ -62,7 +62,7 @@ def setupEnvironment(args, setting):
 
     if "NUMBER_OF_IMAGE_PER_SECTION" in setting["init"].keys(): constants.setImagePerSection(setting["init"]["NUMBER_OF_IMAGE_PER_SECTION"])
     if "3D" in setting["init"].keys() and setting["init"]["3D"]: constants.set3DFlag()
-    if "ONE_TIME_POINT" in setting["init"].keys() and setting["init"]["ONE_TIME_POINT"]: constants.setONETIMEPOINT(getStringPatientIndex(setting["init"]["ONE_TIME_POINT"]))
+    if "ONE_TIME_POINT" in setting["init"].keys() and setting["init"]["ONE_TIME_POINT"]: constants.setONETIMEPOINT(getStringFromIndex(setting["init"]["ONE_TIME_POINT"]))
 
     experimentFolder = "EXP"+convertExperimentNumberToString(setting["EXPERIMENT"])+"/"
     N_GPU = setupEnvironmentForGPUs(args, setting)
@@ -152,10 +152,9 @@ def getStatisticFunctions(listStats):
 
 ################################################################################
 # get the string of the patient id given the integer
-def getStringPatientIndex(patient_index):
-    p_id = str(patient_index)
+def getStringFromIndex(index):
+    p_id = str(index)
     if len(p_id)==1: p_id = "0"+p_id
-
     return p_id
 
 ################################################################################

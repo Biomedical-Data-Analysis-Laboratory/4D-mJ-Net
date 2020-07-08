@@ -2,7 +2,7 @@
   "EXPERIMENT": 15,
   "root_path": "/home/stud/lucat/PhD_Project/Stroke_segmentation/",
   "dataset_path": "/local/home/lucat/DATASET/SUS2020_v2/",
-  "PATIENT_TO_TEST": ["ALL"],
+  "PATIENT_TO_USE": ["ALL"],
   "OVERRIDE_MODELS_ID_PATH": "",
   "init": {
     "3D": 1,
@@ -29,14 +29,14 @@
       "train_on_batch": 1,
       "loss": "mod_dice_coef_loss",
       "metrics": ["mod_dice_coef","dice_coef"],
-      "epochs": 200,
+      "epochs": 10,
       "batch_size":12,
       "classes_to_evaluate": ["penumbra","core","penumbracore"],
       "statistics": ["sensitivity", "specificity", "precision", "f1", "accuracy", "jaccard_index"],
       "val":{
         "validation_perc": 5,
-        "number_patients_for_validation": 5,
-        "number_patients_for_testing": 0,
+        "number_patients_for_validation": 9,
+        "number_patients_for_testing": 1,
         "random_validation_selection": 0
       },
       "test_steps":1,

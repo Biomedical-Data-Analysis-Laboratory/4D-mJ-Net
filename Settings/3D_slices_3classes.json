@@ -1,19 +1,21 @@
 {
-  "EXPERIMENT": 11,
+  "EXPERIMENT": 17,
   "root_path": "/home/stud/lucat/PhD_Project/Stroke_segmentation/",
-  "dataset_path": "/local/home/lucat/DATASET/ISLES2018/Two_classes/",
+  "dataset_path": "/local/home/lucat/DATASET/SUS2020_v2/",
   "PATIENT_TO_USE": ["ALL"],
+  "__PATIENT_TO_USE": ["00_002","00_006","01_001","01_002","01_003","01_004","01_005","01_006","01_007","01_008","01_009","01_010",
+    "02_001","02_002","02_003","02_004","02_005","02_006","02_007","02_008","02_009","02_010","03_001","03_002","03_003","03_004","03_005"],
   "OVERRIDE_MODELS_ID_PATH": "",
   "init": {
-    "NUMBER_OF_IMAGE_PER_SECTION": 64,
+    "3D": 1,
     "TF_CPP_MIN_LOG_LEVEL": "3",
-    "per_process_gpu_memory_fraction": 0.5,
+    "per_process_gpu_memory_fraction": 1,
     "allow_growth": 1,
     "MULTIPROCESSING": 0
   },
   "relative_paths": {
-    "labeled_images": "PATIENTS/ISLES2018/NEW_TRAINING/Binary_Ground_Truth/",
-    "patients": "PATIENTS/ISLES2018/NEW_TRAINING/FINAL/",
+    "labeled_images": "PATIENTS/SUS2020_v2/FINALIZE_PM/",
+    "patients": "PATIENTS/SUS2020_v2/FINAL/",
     "save": {
       "model": "MODELS/",
       "partial_model": "TMP_MODELS/",
@@ -25,17 +27,18 @@
   },
   "models": [
      {
-      "name": "mJNet_v2",
-      "loss": "weighted_categorical_cross_entropy_loss",
-      "metrics": ["weighted_categorical_cross_entropy", "mod_dice_coef", "dice_coef"],
-      "epochs": 100,
+      "name": "mJNet_3D",
+      "train_on_batch": 0,
+      "loss": "mod_dice_coef_loss",
+      "metrics": ["mod_dice_coef","dice_coef"],
+      "epochs": 350,
       "batch_size":2,
-      "classes_to_evaluate": ["core"],
+      "classes_to_evaluate": ["penumbra","core","penumbracore"],
       "statistics": ["sensitivity", "specificity", "precision", "f1", "accuracy", "jaccard_index"],
       "val":{
         "validation_perc": 5,
-        "number_patients_for_validation": 5,
-        "number_patients_for_testing": 5,
+        "number_patients_for_validation": 10,
+        "number_patients_for_testing": 0,
         "random_validation_selection": 0
       },
       "test_steps":1,
@@ -46,45 +49,27 @@
         "momentum":0.9,
         "nesterov":"True"
       },
-      "params":{
-        "dropout":{
-          "long.1":0,
-          "1":0,
-          "2":0,
-          "3":0,
-          "3.1":0.5,
-          "3.2":0.5,
-          "3.3":0,
-          "3.4":0,
-          "4":0,
-          "5":0
-        },
-        "max_pool":{
-          "long.1":4,
-          "long.2":4,
-          "long.3":4
-        }
-      },
+      "params":{},
       "callbacks":{
         "ModelCheckpoint": {
-          "monitor": "weighted_weighted_categorical_cross_entropy",
+          "monitor": "weighted_mod_dice_coef",
           "mode": "max",
           "period": 1
         },
         "EarlyStopping": {
-          "monitor": "weighted_weighted_categorical_cross_entropy",
-          "min_delta": 0.0001,
-          "patience": 10
+          "monitor": "loss",
+          "min_delta": 0.00001,
+          "patience": 20
         },
         "LearningRateScheduler": {
-          "decay_step": 5,
+          "decay_step": 50,
           "decay_rate": 0.1
         },
         "CollectBatchStats": {
-          "acc":"weighted_weighted_categorical_cross_entropy"
+          "acc":"weighted_mod_dice_coef"
         }
       },
-      "to_categ":1,
+      "to_categ":0,
       "save_images": 1,
       "save_statistics":1,
       "use_background_in_statistics":0,
@@ -93,7 +78,7 @@
       "cross_validation": 0,
       "train_again": 0,
       "supervised": 1,
-      "save_activation_filter": 1
+      "save_activation_filter": 0
     }
   ]
 }

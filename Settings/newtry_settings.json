@@ -2,7 +2,7 @@
   "EXPERIMENT": 6,
   "root_path": "/home/stud/lucat/PhD_Project/Stroke_segmentation/",
   "dataset_path": "/local/home/lucat/DATASET/Master2019/",
-  "PATIENT_TO_TEST": [12,13,14,15,16],
+  "PATIENT_TO_USE": [12,13,14,15,16],
   "OVERRIDE_MODELS_ID_PATH": "mJNet_DA_ADAM_VAL5_02",
   "init": {
     "TF_CPP_MIN_LOG_LEVEL": "3",

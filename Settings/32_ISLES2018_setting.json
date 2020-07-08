@@ -2,7 +2,7 @@
   "EXPERIMENT": 13,
   "root_path": "/home/stud/lucat/PhD_Project/Stroke_segmentation/",
   "dataset_path": "/local/home/lucat/DATASET/ISLES2018/Two_classes/",
-  "PATIENT_TO_TEST": ["ALL"],
+  "PATIENT_TO_USE": ["ALL"],
   "OVERRIDE_MODELS_ID_PATH": "",
   "init": {
     "NUMBER_OF_IMAGE_PER_SECTION": 64,

@@ -159,10 +159,6 @@ class NeuralNetwork(object):
     def prepareDataset(self, train_df, p_id, listOfPatientsToTest):
         # set the dataset inside the class
         self.train_df = train_df
-        if self.getVerbose():
-            general_utils.printSeparation("+", 50)
-            print("[INFO] - Preparing Dataset for patient {}...".format(p_id))
-
         # get the dataset
         self.dataset = dataset_utils.prepareDataset(self, p_id, listOfPatientsToTest)
         # get the number of element per class in the dataset
@@ -204,12 +200,12 @@ class NeuralNetwork(object):
         if self.getVerbose() and self.summaryFlag==0:
             print(self.model.summary())
 
-            plot_model(
-                self.model,
-                to_file=general_utils.getFullDirectoryPath(self.savedModelFolder)+self.getNNID("model")+".png",
-                show_shapes=True,
-                rankdir='LR'
-            )
+            # plot_model(
+            #     self.model,
+            #     to_file=general_utils.getFullDirectoryPath(self.savedModelFolder)+self.getNNID("model")+".png",
+            #     show_shapes=True,
+            #     rankdir='LR'
+            # )
             self.summaryFlag+=1
 
         # check if the model has some saved weights to load...
@@ -290,12 +286,15 @@ class NeuralNetwork(object):
 
         sample_weights = self.getSampleWeights("train")
 
+        # Set the callbacks
+        self.setCallbacks(p_id, sample_weights)
+
         self.dataset["val"]["labels"] = None if self.val["validation_perc"]==0 else dataset_utils.getLabelsFromIndex(train_df=self.train_df, dataset=self.dataset["val"], modelname=self.name, to_categ=self.to_categ, flag="val")
         if self.supervised: self.dataset["test"]["labels"] = dataset_utils.getLabelsFromIndex(train_df=self.train_df, dataset=self.dataset["test"], modelname=self.name, to_categ=self.to_categ, flag="test")
 
         for metric_name in self.model.metrics_names: dict_metrics.append({"name":metric_name, "val":list()})
 
-        for epoch in range(self.initial_epoch, self.epochs+1):
+        for epoch in range(self.initial_epoch, self.epochs):
             print("Epoch: {}".format(epoch+1))
             count_trained_elements = 0
 
@@ -317,7 +316,7 @@ class NeuralNetwork(object):
 
                 count_trained_elements += self.batch_size
 
-            if epoch%2==0 and epoch!=0: self.model.save_weights(filename+constants.suffix_partial_weights+"{:02d}.h5".format(epoch)) # save the model weights every 2 epochs
+            if (epoch+1)%2==0 and epoch!=0: self.model.save_weights(filename+constants.suffix_partial_weights+"{:02d}.h5".format(epoch)) # save the model weights every 2 epochs
 
             tmpSavedModels = glob.glob(filename+constants.suffix_partial_weights+"*.h5")
             if len(tmpSavedModels) > 1: # just to be sure and not delete everything
@@ -328,7 +327,9 @@ class NeuralNetwork(object):
                             os.remove(file)
 
         # plot the loss and accuracy of the training
-        training.plotMetrics(p_id, dict_metrics)
+        training.plotMetrics(self, p_id, dict_metrics)
+        # save the activation filters
+        if self.save_activation_filter: training.saveActivationFilter(self.model, shape=tuple(self.train_df.pixels.values[0].shape), intermediate_activation_path=self.intermediateActivationFolder)
 
 ################################################################################
 # Get the sample weight from the dataset
@@ -337,7 +338,8 @@ class NeuralNetwork(object):
 
         if constants.N_CLASSES==4:
             if constants.getM()>=512: # we have only one label
-                f = lambda x : np.sum(np.where(np.array(x)==constants.PIXELVALUES[2],50,np.where(np.array(x)==constants.PIXELVALUES[3],7,1)))
+                # function that map each PIXELVALUES[2] with 150, PIXELVALUES[3] with 20 and the rest with 0.1 and sum them
+                f = lambda x : np.sum(np.where(np.array(x)==constants.PIXELVALUES[2],150,np.where(np.array(x)==constants.PIXELVALUES[3],20,0.1)))
 
                 sample_weights = self.train_df.ground_truth.map(f)
                 sample_weights = sample_weights/(constants.getM()*constants.getN())
@@ -348,6 +350,13 @@ class NeuralNetwork(object):
                     constants.LABELS[2]:50, #((penumbra_weight-min_weight)/(max_weight-min_weight))*100,
                     constants.LABELS[3]:100 #((core_weight-min_weight)/(max_weight-min_weight))*100
                 })
+        elif constants.N_CLASSES==3:
+            if constants.getM()>=512: # we have only one label
+                # function that map each PIXELVALUES[2] with 150, PIXELVALUES[3] with 20 and the rest with 0.1 and sum them
+                f = lambda x : np.sum(np.where(np.array(x)==150,150,np.where(np.array(x)==76,20,0.1)))
+
+                sample_weights = self.train_df.ground_truth.map(f)
+                sample_weights = sample_weights/(constants.getM()*constants.getN())
         else: # we are in a binary class problem
             f = lambda x : np.sum(np.array(x))
             sample_weights = self.train_df.ground_truth.map(f)
@@ -362,7 +371,7 @@ class NeuralNetwork(object):
         saved_modelname = self.getSavedModel(p_id)
         saved_weightname = self.getSavedWeight(p_id)
 
-        p_id = general_utils.getStringPatientIndex(p_id)
+        p_id = general_utils.getStringFromIndex(p_id)
         # serialize model to JSON
         model_json = self.model.to_json()
         with open(saved_modelname, "w") as json_file:
@@ -390,7 +399,7 @@ class NeuralNetwork(object):
 # Function to save in a file the statistic for the test patients
     def saveStats(self, stats, p_id):
         suffix = general_utils.getSuffix()
-        if p_id == "PATIENT_TO_TEST":
+        if p_id == "ALL":
             with open(general_utils.getFullDirectoryPath(self.saveTextFolder)+self.getNNID(p_id)+suffix+".txt", "a+") as text_file:
                 text_file.write("====================================================\n")
                 text_file.write("====================================================\n")

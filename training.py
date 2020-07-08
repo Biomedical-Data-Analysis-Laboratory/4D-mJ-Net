@@ -82,10 +82,7 @@ def fitModel(model, dataset, batch_size, epochs, listOfCallbacks, sample_weights
                 verbose=constants.getVerbose(),
                 use_multiprocessing=use_multiprocessing)
 
-    if save_activation_filter:
-        x = np.random.uniform(size=(1,)+tuple(np.array(dataset["train"]["data"][0].shape)))
-        activations = keract.get_activations(model, x) # call to fetch the activations of the model.
-        keract.display_activations(activations, save=True, directory=intermediate_activation_path)
+    if save_activation_filter: saveActivationFilter(model, shape=tuple(np.array(dataset["train"]["data"][0].shape)), intermediate_activation_path=intermediate_activation_path)
 
     return training
 
@@ -98,7 +95,15 @@ def trainOnBatch(model, x, y, sample_weights):
         sample_weight=sample_weights,
         reset_metrics=False
     )
+
     return model, ret
+
+################################################################################
+#
+def saveActivationFilter(model, shape, intermediate_activation_path):
+    x = np.random.uniform(size=(1,)+shape)
+    activations = keract.get_activations(model, x) # call to fetch the activations of the model.
+    keract.display_activations(activations, save=True, directory=intermediate_activation_path)
 
 ################################################################################
 # For plotting the loss and accuracy of the trained model
@@ -116,11 +121,11 @@ def plotLossAndAccuracy(nn, p_id):
 
 ################################################################################
 # For plotting the loss and accuracy of the trained model
-def plotMetrics(p_id, dict_metrics):
-    for metric_idx in dict_metrics:
-        key = dict_metrics[metric_idx]["name"]
+def plotMetrics(nn, p_id, list_metrics):
+    for metric in list_metrics:
+        key = metric["name"]
         fig, ax = plt.subplots(nrows=1, ncols=1)  # create figure & 1 axis
-        ax.plot(dict_metrics[metric_idx]["val"],'r',linewidth=3.0)
+        ax.plot(metric["val"],'r',linewidth=3.0)
         ax.legend([key],fontsize=10)
         ax.set_xlabel('Batch ', fontsize=16)
         ax.set_ylabel(key, fontsize=16)

@@ -76,16 +76,16 @@ BINARY_CLASSIFICATION = False # to extract only two classes
 LABELS = ["background", "brain", "penumbra", "core"]
 LABELS_THRESHOLDS = [234, 0, 60, 135] # [250, 0 , 30, 100]
 LABELS_REALVALUES = [255, 0, 76, 150]
-TILE_DIVISION = 1
+TILE_DIVISION = 32 # set to >1 if the tile are NOT the entire image
 
 
 ################################################################################
 ################################################################################
 ################################################################################
 ################################################################################
+ORIGINAL_SHAPE = True # the one from the master thesis
 DATA_AUGMENTATION = True
-ENTIRE_IMAGE = True # set to false if the tile are NOT the entire image
-THREE_D = True
+THREE_D = False
 FOUR_D = False
 ONE_TIME_POINT = -1 # -1 if you dont want to use it
 VERBOSE = 1
@@ -162,7 +162,7 @@ def fillDatasetOverTime(train_df, relativePath, patientIndex, timeFolder):
         otherInforList.append(dict())
 
     while True:
-        if ENTIRE_IMAGE:
+        if TILE_DIVISION==1:
             count += 1
             if count > 1: break
         else:
@@ -243,7 +243,7 @@ def fillDatasetOverTime(train_df, relativePath, patientIndex, timeFolder):
                 numReplication = 6 if DATA_AUGMENTATION else 1
                 numCore+=numReplication
 
-            if ENTIRE_IMAGE and DATA_AUGMENTATION: numReplication = 6
+            if TILE_DIVISION==1 and DATA_AUGMENTATION: numReplication = 6
         else:
             if classToSet==LABELS[1]: numBrain+=1
             elif classToSet==LABELS[2]: numPenumbra+=1
@@ -314,25 +314,33 @@ def fillDatasetOverTime(train_df, relativePath, patientIndex, timeFolder):
         print("\t\t SKIP: {0}".format(numSkip))
         print("+++++++++++++++++++++++++++++++++++++++++++++++++++++")
 
+    axis = 2
+    if ORIGINAL_SHAPE: axis = 0
+
     for d in range(0, len(pixelsList)):
         for x in pixelsList[d].keys():
             for y in pixelsList[d][x].keys():
-                totalVol = np.empty((M,N,1))
+
+                if ORIGINAL_SHAPE: totalVol = np.empty((1,M,N))
+                else: totalVol = np.empty((M,N,1))
+
                 for z in sorted(pixelsList[d][x][y].keys()):
                     tmp_pix = np.array(pixelsList[d][x][y][z])
 
-                    tmp_pix = tmp_pix.reshape(tmp_pix.shape[0], tmp_pix.shape[1], 1)
-                    totalVol = np.append(totalVol, tmp_pix, axis=2)
+                    if ORIGINAL_SHAPE: tmp_pix = tmp_pix.reshape(1, tmp_pix.shape[0], tmp_pix.shape[1])
+                    else: tmp_pix = tmp_pix.reshape(tmp_pix.shape[0], tmp_pix.shape[1], 1)
+                    totalVol = np.append(totalVol, tmp_pix, axis=axis)
 
-                totalVol = np.delete(totalVol,0,axis=2) # remove the first element (generate by np.empty)
+                totalVol = np.delete(totalVol,0,axis=axis) # remove the first element (generate by np.empty)
 
-                # convert the pixels in a (M,N,30) shape
-                zoom_val = NUMBER_OF_IMAGE_PER_SECTION/totalVol.shape[2]
+                # convert the pixels in a (M,N,30) shape (or (30,M,N) if ORIGINAL_SHAPE==True)
+                zoom_val = NUMBER_OF_IMAGE_PER_SECTION/totalVol.shape[axis]
 
-                if totalVol.shape[2] > NUMBER_OF_IMAGE_PER_SECTION:
-                    zoom_val = totalVol.shape[2]/NUMBER_OF_IMAGE_PER_SECTION
+                if totalVol.shape[axis] > NUMBER_OF_IMAGE_PER_SECTION:
+                    zoom_val = totalVol.shape[axis]/NUMBER_OF_IMAGE_PER_SECTION
 
-                pixels_zoom = ndimage.zoom(totalVol,[1,1,zoom_val])
+                if ORIGINAL_SHAPE: pixels_zoom = ndimage.zoom(totalVol,[zoom_val,1,1])
+                else: pixels_zoom = ndimage.zoom(totalVol,[1,1,zoom_val])
 
                 ## USE THIS TO CHECK THE VALIDITIY OF THE INTERPOlATION
                 # print(pixels_zoom.shape)
@@ -430,7 +438,6 @@ def fillDataset4D(train_df, relativePath, patientIndex, timeFolder, folders):
                  # we need to append the pixels before the current ones
                 if  timeFoldersToProcess[tFold]["index"] < 0: curr_dt.iloc[index]["pixels"] = np.append(pixels_zoom, curr_dt.iloc[index]["pixels"], axis=3)
                 else: curr_dt.iloc[index]["pixels"] = np.append(curr_dt.iloc[index]["pixels"], pixels_zoom, axis=3)
-
 
     return curr_dt
 
@@ -558,6 +565,11 @@ def initializeDataset():
         relativePath = patientFolder.replace(SAVE_REGISTERED_FOLDER, '')
         patientIndex = relativePath.replace(IMAGE_SUFFIX, "").replace("/", "")
         filename_train = SCRIPT_PATH+"patient"+str(patientIndex)+suffix_filename+".pkl"
+
+        if os.path.isfile(filename_train):
+            print("File {} already exist, continue...".format(filename_train))
+            continue
+
         subfolders = np.sort(glob.glob(patientFolder+"*/"))
 
         print("[INFO] - Analyzing {0}/{1}; patient folder: {2}...".format(numFold+1, len(patientFolders), relativePath))

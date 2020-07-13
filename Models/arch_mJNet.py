@@ -25,9 +25,9 @@ def mJNet(X, params, to_categ, drop=False, longJ=False, v2=False):
         # Hu initializer
         kernel_init = initializers.VarianceScaling(scale=(9/5), mode='fan_in', distribution='normal', seed=None)
 
-        # channels = [16,32,32,64,64,128,128,32,64,128,256,512,1024,512,1024,512,1024,-1,512,256,-1,128,64]
-        channels = [16,32,32,64,64,128,128,16,32,32,64,64,128,128,128,256,128,-1,128,64,-1,64,32]
-        channels = [int(ch/2) for ch in channels] # implemented due to memory issues
+        channels = [16,32,32,64,64,128,128,32,64,128,256,512,1024,512,1024,512,1024,-1,512,256,-1,128,64]
+        # channels = [16,32,32,64,64,128,128,16,32,32,64,64,128,128,128,256,128,-1,128,64,-1,64,32]
+        # channels = [int(ch/2) for ch in channels] # implemented due to memory issues
 
         # input_shape = (None,constants.getM(),constants.getN(),1)
         ## TODO: input_shape = (constants.NUMBER_OF_IMAGE_PER_SECTION,None,None,1)

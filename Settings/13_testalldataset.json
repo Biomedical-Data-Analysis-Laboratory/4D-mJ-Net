@@ -1,0 +1,81 @@
+{
+  "EXPERIMENT": 13,
+  "root_path": "/home/stud/lucat/PhD_Project/Stroke_segmentation/",
+  "dataset_path": "/local/home/lucat/DATASET/SUS2020_v2/",
+  "_PATIENT_TO_USE": ["ALL"],
+  "PATIENT_TO_USE" : ["00_002","00_006","00_007","00_009","01_073","01_071","01_068","01_066","01_059","01_057"],
+  "OVERRIDE_MODELS_ID_PATH": "",
+  "init": {
+    "TF_CPP_MIN_LOG_LEVEL": "3",
+    "per_process_gpu_memory_fraction": 0.5,
+    "allow_growth": 1,
+    "MULTIPROCESSING": 0
+  },
+  "relative_paths": {
+    "labeled_images": "PATIENTS/SUS2020_v2/FINALIZE_PM/",
+    "patients": "PATIENTS/SUS2020_v2/FINAL/",
+    "save": {
+      "model": "MODELS/",
+      "partial_model": "TMP_MODELS/",
+      "plot": "PLOTS/",
+      "images": "IMAGES/",
+      "text": "TEXT/",
+      "intermediate_activation": "intermediate_activation/"
+    }
+  },
+  "models": [
+     {
+      "name": "mJNet",
+      "loss": "weighted_categorical_cross_entropy_loss",
+      "metrics": ["weighted_categorical_cross_entropy","mod_dice_coef","dice_coef"],
+      "epochs": 100,
+      "batch_size": 256,
+      "classes_to_evaluate": ["penumbra","core","penumbracore"],
+      "statistics": ["sensitivity", "specificity", "precision", "f1", "accuracy", "jaccard_index"],
+      "val":{
+        "validation_perc": 5,
+        "number_patients_for_validation": 1,
+        "number_patients_for_testing": 0,
+        "random_validation_selection": 0
+      },
+      "test_steps":1,
+      "optimizer": {
+        "name": "SGD",
+        "learning_rate": 0.01,
+        "decay": 1e-6,
+        "momentum":0.9,
+        "nesterov":"True"
+      },
+      "params":{},
+      "callbacks":{
+        "ModelCheckpoint": {
+          "monitor": "weighted_categorical_cross_entropy",
+          "mode": "max",
+          "period": 1
+        },
+        "EarlyStopping": {
+          "monitor": "loss",
+          "min_delta": 0.00001,
+          "patience": 15
+        },
+        "LearningRateScheduler": {
+          "decay_step": 10,
+          "decay_rate": 0.1
+        },
+        "CollectBatchStats": {
+          "acc":"weighted_categorical_cross_entropy"
+        }
+      },
+      "to_categ":1,
+      "save_images": 1,
+      "save_statistics": 1,
+      "use_background_in_statistics": 0,
+      "calculate_ROC": 0,
+      "data_augmentation": 1,
+      "cross_validation": 0,
+      "train_again": 0,
+      "supervised": 1,
+      "save_activation_filter": 0
+    }
+  ]
+}

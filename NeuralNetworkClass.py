@@ -24,7 +24,7 @@ class NeuralNetwork(object):
 
         self.name = modelInfo["name"]
         self.epochs = modelInfo["epochs"]
-        self.train_on_batch = modelInfo["train_on_batch"]
+        self.train_on_batch = modelInfo["train_on_batch"] if "train_on_batch" in modelInfo.keys() else 0
         self.batch_size = modelInfo["batch_size"] if "batch_size" in modelInfo.keys() else 32
 
         self.val = {
@@ -82,8 +82,9 @@ class NeuralNetwork(object):
         else: self.epsilons = [(63.75-constants.PIXELVALUES[1]-1)]
 
         # epsiloList is the same list of epsilons multiply for the percentage (thresholding) involved to calculate ROC
-        self.epsiloList = list(range(0,110, 10)) if self.calculate_ROC else [(None)]
+        self.epsiloList = list(range(0,110, 10)) if self.calculate_ROC else [None]
 
+        # change the prefix if SUS2020_v2 is in the dataset name
         if "SUS2020_v2" in self.datasetFolder: constants.setPrefixImagesSUS2020_v2()
 
 ################################################################################
@@ -173,7 +174,7 @@ class NeuralNetwork(object):
         self.model.compile(
             optimizer=self.optimizer,
             loss=self.loss["loss"],
-            weighted_metrics=[self.metricFuncs]
+            metrics=[self.metricFuncs]
         )
 
 ################################################################################
@@ -347,7 +348,7 @@ class NeuralNetwork(object):
                 sample_weights = self.train_df.label.map({
                     constants.LABELS[0]:1, #0.1, #((background_weight-min_weight)/(max_weight-min_weight)),
                     constants.LABELS[1]:1, #1, #((brain_weight-min_weight)/(max_weight-min_weight)),
-                    constants.LABELS[2]:50, #((penumbra_weight-min_weight)/(max_weight-min_weight))*100,
+                    constants.LABELS[2]:10, #((penumbra_weight-min_weight)/(max_weight-min_weight))*100,
                     constants.LABELS[3]:100 #((core_weight-min_weight)/(max_weight-min_weight))*100
                 })
         elif constants.N_CLASSES==3:
@@ -442,7 +443,7 @@ class NeuralNetwork(object):
             general_utils.printSeparation("+", 50)
             print("[INFO] - Evaluating the model for patient {}".format(p_id))
 
-        self.testing_score = testing.evaluateModel(self, p_id, isAlreadySaved)
+        if self.val["number_patients_for_testing"]>0: self.testing_score = testing.evaluateModel(self, p_id, isAlreadySaved)
 
 ################################################################################
 # set the flag for single/multi PROCESSING

@@ -19,6 +19,7 @@ def getCommandLineArguments():
     parser = argparse.ArgumentParser()
     parser.add_argument("-v", "--verbose", help="Increase output verbosity", action="store_true")
     parser.add_argument("-d", "--debug", help="DEBUG mode", action="store_true")
+    parser.add_argument("-o", "--original", help="ORIGINAL_SHAPE flag", action="store_true")
     parser.add_argument("-s", "--sname", help="Pass the setting filename")
     parser.add_argument("-t", "--tile", help="Set the tile pixels dimension (MxM)", type=int)
     parser.add_argument("-dim", "--dimension", help="Set the dimension of the input images (widthXheight)", type=int)
@@ -28,6 +29,7 @@ def getCommandLineArguments():
 
     constants.setVerbose(args.verbose)
     constants.setDEBUG(args.debug)
+    constants.setOriginalShape(args.original)
     constants.setTileDimension(args.tile)
     constants.setImageDimension(args.dimension)
     constants.setNumberOfClasses(args.classes)

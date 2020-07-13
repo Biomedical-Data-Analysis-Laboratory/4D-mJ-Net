@@ -92,8 +92,8 @@ def main():
 ################################################################################
 if __name__ == '__main__':
     """
-    Usage: python main.py [-h] [-v] [-d] [-s SNAME] [-t TILE] [-dim DIMENSION] [-c {2,4}]
-               gpu
+    Usage: python main.py gpu
+                [-h] [-v] [-d] [-o] [-s SETTING_FILENAME] [-t TILE] [-dim DIMENSION] [-c {2,3,4}]
 
     positional arguments:
       gpu                   Give the id of gpu (or a list of the gpus) to use
@@ -102,12 +102,13 @@ if __name__ == '__main__':
       -h, --help            show this help message and exit
       -v, --verbose         Increase output verbosity
       -d, --debug           DEBUG mode
-      -s SNAME, --sname SNAME
+      -o, --original        Set the shape of the testing dataset to be compatible with the original shape (T,M,N) [time in front]
+      -s SETTING_FILENAME, --sname SETTING_FILENAME
                             Pass the setting filename
       -t TILE, --tile TILE  Set the tile pixels dimension (MxM)
       -dim DIMENSION, --dimension DIMENSION
                             Set the dimension of the input images (widthXheight)
-      -c {2,4}, --classes {2,4}
+      -c {2,3,4}, --classes {2,3,4}
                             Set the # of classe involved (default = 4)
     """
     main()

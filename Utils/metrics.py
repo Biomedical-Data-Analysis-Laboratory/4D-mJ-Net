@@ -246,8 +246,9 @@ def thresholding(y_true, y_pred, use_background_in_statistics, epsilons, percEps
 
     y_true_new = np.empty([0])
     y_pred_new = np.empty_like(y_true_new)
+
     # REMOVE BACKGROUND FROM y_true & y_pred
-    for row in range(0,y_true.shape[0]):
+    for row in range(0,y_true.shape[0]-1):
         index_back = np.where(y_true[row]==0)[0]
 
         if not use_background_in_statistics:

@@ -1,4 +1,7 @@
 verbose = False
+DEBUG = False
+ORIGINAL_SHAPE = False
+
 root_path = ""
 
 default_setting_filename = "Settings/defaults_settings.json"
@@ -55,6 +58,10 @@ def setVerbose(v):
 def setDEBUG(d):
     global DEBUG
     DEBUG = d
+
+def setOriginalShape(o):
+    global ORIGINAL_SHAPE
+    ORIGINAL_SHAPE = o
 
 def setTileDimension(t):
     global M, N, SLICING_PIXELS

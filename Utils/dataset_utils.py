@@ -36,7 +36,7 @@ def initTestingDataFrame():
     return train_df
 
 ################################################################################
-# Function to load the saved dataframe
+# Function to load the saved dataframes based on the list of patients
 def loadTrainingDataframe(nn, patients, testing_id=None):
     cpu_count = multiprocessing.cpu_count()
     train_df = pd.DataFrame(columns=constants.dataFrameColumns)
@@ -46,43 +46,19 @@ def loadTrainingDataframe(nn, patients, testing_id=None):
     frames = [train_df]
     listOfFolders = glob.glob(nn.datasetFolder+"*"+suffix+".pkl")
 
-    if not nn.mp: # (SINGLE PROCESSING VERSION)
-        idx = 1
-        for filename_train in listOfFolders:
-            start_index = filename_train.rfind("/")+len(constants.DATASET_PREFIX)+1
-            patient_id = filename_train[start_index:start_index+len(patients[0])]
-            if patient_id not in patients: continue
+    idx = 1
+    for filename_train in listOfFolders:
+        # don't load the dataframe if patient_id NOT in the list of patients
+        if not general_utils.isFilenameInListOfPatient(filename_train, patients): continue
 
-            if constants.getVerbose(): print('[INFO] - {0}/{1} Loading dataframe from {2}...'.format(idx, len(patients), filename_train))
-            tmp_df = loadSingleTrainingData(nn.da, filename_train, testing_id)
-            frames.append(tmp_df)
-            idx+=1
-    else: # (MULTI PROCESSING VERSION)
-        input = []
-        for filename_train in listOfFolders:
-            input.append((nn.da, filename_train, testing_id))
+        if constants.getVerbose(): print('[INFO] - {0}/{1} Loading dataframe from {2}...'.format(idx, len(patients), filename_train))
+        tmp_df = readFromPickle(filename_train)
+        frames.append(tmp_df)
 
-        with multiprocessing.Pool(processes=10) as pool: # auto closing workers
-            frames = pool.starmap(loadSingleTrainingData, input)
+        idx+=1
 
-    train_df = pd.concat(frames, sort=True)
-
+    train_df = pd.concat(frames, sort=False)
     return train_df
-
-################################################################################
-# Function to load a single dataframe from a patient index
-def loadSingleTrainingData(da, filename_train, testing_id):
-    index = filename_train[-5:-3]
-    p_id = general_utils.getStringFromIndex(index)
-    suffix = "_DATA_AUGMENTATION" if da else ""
-    if testing_id==p_id:
-         # take the normal dataset for the testing patient instead the augmented one...
-        if constants.getVerbose(): print("---> Load normal dataset for patient {0}".format(testing_id))
-        suffix= ""
-
-    tmp_df = readFromPickle(filename_train) # Faster and less space consuming!
-
-    return tmp_df
 
 ################################################################################
 # Return the elements in the filename saved as a pickle
@@ -93,26 +69,23 @@ def readFromPickle(filename):
 ################################################################################
 # Return the dataset based on the patient id
 # First function that is been called to create the train_df
-def getDataset(nn, patients, p_id=None):
+def getDataset(nn, patients):
     start = time.time()
-    train_df = pd.DataFrame(columns=constants.dataFrameColumns)
 
     if constants.getVerbose():
         general_utils.printSeparation("-",50)
         if nn.mp: print("[INFO] - Loading Dataset using MULTIprocessing...")
         else: print("[INFO] - Loading Dataset using SINGLEprocessing...")
 
+    # Load the debug dataframe if we have set a debug flag or the real ones,
+    # based on the list of patients
     if constants.getDEBUG(): train_df = initTestingDataFrame()
-    else:
-        # no debugging and no data augmentation
-        if nn.da:
-            print("[WARNING] - Data augmented training/testing... load the dataset differently for each patient")
-            train_df = loadTrainingDataframe(nn, testing_id=p_id, patients=patients)
-        else: train_df = loadTrainingDataframe(nn, patients=listOfPatientsToTest)
+    else: train_df = loadTrainingDataframe(nn, patients=patients)
 
     end = time.time()
     print("[INFO] - Total time to load the Dataset: {0}s".format(round(end-start, 3)))
-    generateDatasetSummary(train_df)
+    generateDatasetSummary(train_df) # summary of the label in the dataset
+
     return train_df
 
 ################################################################################
@@ -121,40 +94,40 @@ def getDataset(nn, patients, p_id=None):
 def prepareDataset(nn, p_id, listOfPatientsToTest):
     start = time.time()
 
-    nn.dataset["train"]["indices"] = list()
-    nn.dataset["val"]["indices"] = list()
+    for flag in ["train", "val", "test"]:
+        nn.dataset[flag]["indices"] = list()
 
-    if nn.getVerbose(): print("[INFO] - Preparing Dataset for patient {}...".format(p_id))
+    if not nn.cross_validation:
+        # here only if: NO cross-validation set
+        validation_list, test_list = list(), list()
 
-    if not nn.cross_validation and nn.val["number_patients_for_validation"]>0 and nn.val["number_patients_for_testing"]>0:
-        # here only if: NO cross-validation and the flags for number of patients (test/val) is > 0
-        validation_list = listOfPatientsToTest[:nn.val["number_patients_for_validation"]]
-        val_indices = set()
-        test_list = listOfPatientsToTest[nn.val["number_patients_for_validation"]:nn.val["number_patients_for_validation"]+nn.val["number_patients_for_testing"]]
+        # We have set a number of validation patient(s)
+        if nn.val["number_patients_for_validation"]>0:
+            validation_list = listOfPatientsToTest[:nn.val["number_patients_for_validation"]]
+            if nn.getVerbose(): print("[INFO] - VALIDATION list: {}".format(validation_list))
 
-        if nn.getVerbose():
-            print("[WARNING] - validation list: {}".format(validation_list))
-            print("[WARNING] - test list: {}".format(test_list))
+            for val_p in validation_list:
+                val_pid = general_utils.getStringFromIndex(val_p)
+                nn.dataset["val"]["indices"].extend(np.nonzero((nn.train_df.patient_id.values == val_pid))[0])
 
-        for val_p in validation_list:
-            current_pid = general_utils.getStringFromIndex(val_p)
-            nn.dataset["val"]["indices"].extend(np.nonzero((nn.train_df.patient_id.values == current_pid))[0])
+            # We have set a number of testing patient(s) and we are inside a supervised learning
+            if nn.val["number_patients_for_testing"]>0 and nn.supervised:
+                test_list = listOfPatientsToTest[nn.val["number_patients_for_validation"]:nn.val["number_patients_for_validation"]+nn.val["number_patients_for_testing"]]
+                if nn.getVerbose(): print("[INFO] - TEST list: {}".format(test_list))
 
-        for test_p in test_list:
-            current_pid = general_utils.getStringFromIndex(test_p)
-            if nn.supervised:
-                if "indices" not in nn.dataset["test"].keys(): nn.dataset["test"]["indices"] = list()
-                nn.dataset["test"]["indices"].extend(np.nonzero((nn.train_df.patient_id.values == current_pid))[0])
+                for test_p in test_list:
+                    test_pid = general_utils.getStringFromIndex(test_p)
+                    nn.dataset["test"]["indices"].extend(np.nonzero((nn.train_df.patient_id.values == test_pid))[0])
+                # DEFINE the data for the dataset TEST
+                nn.dataset["test"]["data"] = getDataFromIndex(nn.train_df, nn.dataset["test"]["indices"], "test", nn.mp)
 
-        if nn.supervised: nn.dataset["test"]["data"] = getDataFromIndex(nn.train_df, nn.dataset["test"]["indices"], "test", nn.mp)
-
+        # set the indices for the train dataset as the difference between all_indices, the validation indices and the test indices
         all_indices = np.nonzero((nn.train_df.label_code.values >= 0))[0]
+        nn.dataset["train"]["indices"] = list(set(all_indices)-set(nn.dataset["val"]["indices"])-set(nn.dataset["test"]["indices"]))
 
-        if nn.supervised: nn.dataset["train"]["indices"] = list(set(all_indices)-set(nn.dataset["val"]["indices"])-set(nn.dataset["test"]["indices"]))
-        else: nn.dataset["train"]["indices"] = list(set(all_indices)-set(nn.dataset["val"]["indices"]))
-
-    else:
-        # train indices are ALL except the one = p_id
+    else: # We are doing a cross-validation!
+        # train/val indices are ALL except the one = p_id
+        if nn.getVerbose(): print("[INFO] - VALIDATION patient: {}".format(p_id))
         train_val_dataset = np.nonzero((nn.train_df.patient_id.values != p_id))[0]
 
         if nn.val["random_validation_selection"]: # perform a random selection of the validation
@@ -165,16 +138,17 @@ def prepareDataset(nn, p_id, listOfPatientsToTest):
             # do NOT use a patient(s) as a validation set because maybe it doesn't have
             # too much information about core and/or penumbra. Instead, get a percentage from each class!
             for classLabelName in constants.LABELS:
-                random.seed(0)
+                random.seed(0) # use ALWAYS the same random indices
                 classIndices = np.nonzero((nn.train_df.label.values[train_val_dataset]==classLabelName))[0]
                 classValIndices = [] if nn.val["validation_perc"]==0 else random.sample(list(classIndices), int((len(classIndices)*nn.val["validation_perc"])/100))
                 nn.dataset["train"]["indices"].extend(list(set(classIndices)-set(classValIndices)))
-                if nn.val["validation_perc"]!=0: nn.dataset["val"]["indices"].extend(classValIndices)
+                if nn.val["validation_perc"]>0: nn.dataset["val"]["indices"].extend(classValIndices)
 
             if nn.supervised: nn.dataset = getTestDataset(nn.dataset, nn.train_df, p_id, nn.mp)
 
+    # set the train data only if we have NOT set the train_on_batch flag
     if not nn.train_on_batch: nn.dataset["train"]["data"] = getDataFromIndex(nn.train_df, nn.dataset["train"]["indices"], "train", nn.mp)
-    nn.dataset["val"]["data"] = None if nn.val["validation_perc"]==0 else getDataFromIndex(nn.train_df, nn.dataset["val"]["indices"], "val", nn.mp)
+    nn.dataset["val"]["data"] = None if nn.val["validation_perc"]==0 or nn.val["number_patients_for_validation"]==0 else getDataFromIndex(nn.train_df, nn.dataset["val"]["indices"], "val", nn.mp)
 
     end = time.time()
     if constants.getVerbose(): print("[INFO] - Total time to prepare the Dataset: {}s".format(round(end-start, 3)))
@@ -194,13 +168,12 @@ def getDataFromIndex(train_df, indices, flag, mp):
     start = time.time()
 
     if constants.get3DFlag()!="": data = [a for a in np.array(train_df.pixels.values[indices], dtype=object)]
-    else:
-        input = [a for a in np.array(train_df.pixels.values[indices], dtype=object)]
+    else:  # do this when NO 3D flag is set
+        # reshape the data adding a last (1,)
+        data = [a.reshape(a.shape + (1,)) for a in np.array(train_df.pixels.values[indices], dtype=object)]
 
-        with multiprocessing.Pool(processes=10) as pool: # auto closing workers
-            data = pool.map(getSingleDataFromIndex, input)
-
-    if type(data) is not np.array: data = np.array(data)
+    # convert the data into an np.ndarray
+    if type(data) is not np.ndarray: data = np.array(data)
 
     end = time.time()
     if constants.getVerbose():
@@ -210,13 +183,12 @@ def getDataFromIndex(train_df, indices, flag, mp):
     return data
 
 ################################################################################
-
-def getSingleDataFromIndex(singledata):
-    return singledata.reshape(singledata.shape + (1,))
-
+# Fuction that reshape the data in a MxN tile
 def getSingleLabelFromIndex(singledata):
     return singledata.reshape(constants.getM(),constants.getN())
 
+################################################################################
+# Fuction that convert the data into a categorical array based on the number of classes
 def getSingleLabelFromIndexCateg(singledata):
     return np.array(utils.to_categorical(np.trunc((singledata/256)*len(constants.LABELS)), num_classes=len(constants.LABELS)))
 
@@ -237,12 +209,10 @@ def getLabelsFromIndex(train_df, dataset, modelname, to_categ, flag):
             labels = pool.map(getSingleLabelFromIndexCateg, data)
         if type(labels) is not np.array: labels = np.array(labels)
     else:
-        # with multiprocessing.Pool(processes=1) as pool: # auto closing workers
-        #     labels = pool.map(getSingleLabelFromIndex, data)
         if constants.N_CLASSES==3:
-            for i,_ in enumerate(data):
-                data[i][data[i]==255] = constants.PIXELVALUES[0] # remove one class from the ground truth
-                data[i][data[i]==150] = constants.PIXELVALUES[2] # change the class for core
+            for i,curr_data in enumerate(data):
+                data[i][curr_data==255] = constants.PIXELVALUES[0] # remove one class from the ground truth
+                data[i][curr_data==150] = constants.PIXELVALUES[2] # change the class for core
         if type(data) is not np.array: data = np.array(data)
         labels = data.astype("float32")
         labels /= 255 # convert the label in [0, 1] values

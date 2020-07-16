@@ -11,7 +11,7 @@ from tensorflow.keras.applications import NASNetLarge
 def mJNet(X, params, to_categ, drop=False, longJ=False, v2=False):
     # from (30,M,N) to (1,M,N)
 
-    size_two = (1,2,2)
+    size_two = (2,2,1) #(1,2,2)
     activ_func = 'relu'
     l1_l2_reg = None
     channels = [16,32,16,32,16,32,16,32,64,64,128,128,256,-1,-1,-1,-1,128,128,64,64,32,16]
@@ -26,8 +26,8 @@ def mJNet(X, params, to_categ, drop=False, longJ=False, v2=False):
         kernel_init = initializers.VarianceScaling(scale=(9/5), mode='fan_in', distribution='normal', seed=None)
 
         channels = [16,32,32,64,64,128,128,32,64,128,256,512,1024,512,1024,512,1024,-1,512,256,-1,128,64]
-        # channels = [16,32,32,64,64,128,128,16,32,32,64,64,128,128,128,256,128,-1,128,64,-1,64,32]
-        # channels = [int(ch/2) for ch in channels] # implemented due to memory issues
+        channels = [16,32,32,64,64,128,128,16,32,32,64,64,128,128,128,256,128,-1,128,64,-1,64,32]
+        channels = [int(ch/2) for ch in channels] # implemented due to memory issues
 
         # input_shape = (None,constants.getM(),constants.getN(),1)
         ## TODO: input_shape = (constants.NUMBER_OF_IMAGE_PER_SECTION,None,None,1)
@@ -45,7 +45,8 @@ def mJNet(X, params, to_categ, drop=False, longJ=False, v2=False):
         conv_01 = layers.BatchNormalization()(conv_01)
         general_utils.print_int_shape(conv_01) # (None, 30, M, N, 32)
 
-        pool_drop_01 = layers.MaxPooling3D((params["max_pool"]["long.1"],1,1))(conv_01)
+        # pool_drop_01 = layers.MaxPooling3D((params["max_pool"]["long.1"],1,1))(conv_01)
+        pool_drop_01 = layers.MaxPooling3D((1,1,params["max_pool"]["long.1"]))(conv_01)
         general_utils.print_int_shape(pool_drop_01) # (None, 15, M, N, 32)
         conv_02 = layers.Conv3D(channels[2], kernel_size=(3,3,3), activation=activ_func, padding='same', kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init)(pool_drop_01)
         if v2: conv_02 = layers.LeakyReLU(alpha=0.33)(conv_02)
@@ -56,7 +57,8 @@ def mJNet(X, params, to_categ, drop=False, longJ=False, v2=False):
         conv_02 = layers.BatchNormalization()(conv_02)
         general_utils.print_int_shape(conv_02) # (None, 15, M, N, 64)
 
-        pool_drop_02 = layers.MaxPooling3D((params["max_pool"]["long.2"],1,1))(conv_02)
+        # pool_drop_02 = layers.MaxPooling3D((params["max_pool"]["long.2"],1,1))(conv_02)
+        pool_drop_02 = layers.MaxPooling3D((1,1,params["max_pool"]["long.2"]))(conv_02)
         general_utils.print_int_shape(pool_drop_02) # (None, 5, M, N, 64)
         conv_03 = layers.Conv3D(channels[4], kernel_size=(3,3,3), activation=activ_func, padding='same', kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init)(pool_drop_02)
         if v2: conv_03 = layers.LeakyReLU(alpha=0.33)(conv_03)
@@ -66,26 +68,30 @@ def mJNet(X, params, to_categ, drop=False, longJ=False, v2=False):
         if v2: conv_03 = layers.LeakyReLU(alpha=0.33)(conv_03)
         conv_03 = layers.BatchNormalization()(conv_03)
         general_utils.print_int_shape(conv_03) # (None, 5, M, N, 128)
-        pool_drop_1 = layers.MaxPooling3D((params["max_pool"]["long.3"],1,1))(conv_03)
+
+        # pool_drop_1 = layers.MaxPooling3D((params["max_pool"]["long.3"],1,1))(conv_03)
+        pool_drop_1 = layers.MaxPooling3D((1,1,params["max_pool"]["long.3"]))(conv_03)
         general_utils.print_int_shape(pool_drop_1) # (None, 1, M, N, 128)
         if drop: pool_drop_1 = layers.Dropout(params["dropout"]["long.1"])(pool_drop_1)
     else:
         # conv_1 = layers.Conv3D(channels[6], kernel_size=(constants.NUMBER_OF_IMAGE_PER_SECTION,3,3), activation=activ_func, padding='same', kernel_regularizer=l1_l2_reg)(input_x)
-        conv_1 = layers.Conv3D(channels[6], kernel_size=(3,3,3), activation=activ_func, padding='same', kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init)(input_x)
+        conv_1 = layers.Conv3D(channels[6], kernel_size=(3,3,constants.NUMBER_OF_IMAGE_PER_SECTION), activation=activ_func, padding='same', kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init)(input_x)
         if v2: conv_1 = layers.LeakyReLU(alpha=0.33)(conv_1)
         conv_1 = layers.BatchNormalization()(conv_1)
         general_utils.print_int_shape(conv_1) # (None, 30, M, N, 128)
-        pool_drop_1 = layers.AveragePooling3D((constants.NUMBER_OF_IMAGE_PER_SECTION,1,1))(conv_1)
+        # TODO: make this dynamic based on the original flag
+        # pool_drop_1 = layers.AveragePooling3D((constants.NUMBER_OF_IMAGE_PER_SECTION,1,1))(conv_1)
+        pool_drop_1 = layers.AveragePooling3D((1,1,constants.NUMBER_OF_IMAGE_PER_SECTION))(conv_1)
         # pool_drop_1 = spatial_pyramid.SPP3D([1,2,4], input_shape=(channels[6],None,None,None))(conv_1)
         general_utils.print_int_shape(pool_drop_1) # (None, 1, M, N, 128)
         if drop: pool_drop_1 = layers.Dropout(params["dropout"]["1"])(pool_drop_1)
 
     # from (1,M,N) to (1,M/2,N/2)
-    conv_2 = layers.Conv3D(channels[7], (3,3,3), activation=activ_func, padding='same', kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init)(pool_drop_1)
+    conv_2 = layers.Conv3D(channels[7], (3,3,1), activation=activ_func, padding='same', kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init)(pool_drop_1)
     if v2: conv_2 = layers.LeakyReLU(alpha=0.33)(conv_2)
     conv_2 = layers.BatchNormalization()(conv_2)
     general_utils.print_int_shape(conv_2) # (None, 1, M, N, 32)
-    conv_2 = layers.Conv3D(channels[8], (3,3,3), activation=activ_func, padding='same', kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init)(conv_2)
+    conv_2 = layers.Conv3D(channels[8], (3,3,1), activation=activ_func, padding='same', kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init)(conv_2)
     if v2: conv_2 = layers.LeakyReLU(alpha=0.33)(conv_2)
     conv_2 = layers.BatchNormalization()(conv_2)
     general_utils.print_int_shape(conv_2) # (None, 1, M, N, 64)
@@ -94,11 +100,11 @@ def mJNet(X, params, to_categ, drop=False, longJ=False, v2=False):
     if drop: pool_drop_2 = layers.Dropout(params["dropout"]["2"])(pool_drop_2)
 
     # from (1,M/2,N/2) to (1,M/4,N/4)
-    conv_3 = layers.Conv3D(channels[9], (3,3,3), activation=activ_func, padding='same', kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init)(pool_drop_2)
+    conv_3 = layers.Conv3D(channels[9], (3,3,1), activation=activ_func, padding='same', kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init)(pool_drop_2)
     if v2: conv_3 = layers.LeakyReLU(alpha=0.33)(conv_3)
     conv_3 = layers.BatchNormalization()(conv_3)
     general_utils.print_int_shape(conv_3) # (None, 1, M/2, N/2, 128)
-    conv_3 = layers.Conv3D(channels[10], (3,3,3), activation=activ_func, padding='same', kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init)(conv_3)
+    conv_3 = layers.Conv3D(channels[10], (3,3,1), activation=activ_func, padding='same', kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init)(conv_3)
     if v2: conv_3 = layers.LeakyReLU(alpha=0.33)(conv_3)
     conv_3 = layers.BatchNormalization()(conv_3)
     general_utils.print_int_shape(conv_3) # (None, 1, M/2, N/2, 256)
@@ -107,11 +113,11 @@ def mJNet(X, params, to_categ, drop=False, longJ=False, v2=False):
     if drop: pool_drop_3 = layers.Dropout(params["dropout"]["3"])(pool_drop_3)
 
     # from (1,M/4,N/4) to (1,M/8,N/8)
-    conv_4 = layers.Conv3D(channels[11], (3,3,3), activation=activ_func, padding='same', kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init)(pool_drop_3)
+    conv_4 = layers.Conv3D(channels[11], (3,3,1), activation=activ_func, padding='same', kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init)(pool_drop_3)
     if v2: conv_4 = layers.LeakyReLU(alpha=0.33)(conv_4)
     conv_4 = layers.BatchNormalization()(conv_4)
     general_utils.print_int_shape(conv_4) # (None, 1, M/4, N/4, 512)
-    conv_4 = layers.Conv3D(channels[12], (3,3,3), activation=activ_func, padding='same', kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init)(conv_4)
+    conv_4 = layers.Conv3D(channels[12], (3,3,1), activation=activ_func, padding='same', kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init)(conv_4)
     if v2: conv_4 = layers.LeakyReLU(alpha=0.33)(conv_4)
     conv_4 = layers.BatchNormalization()(conv_4)
     general_utils.print_int_shape(conv_4) # (None, 1, M/4, N/4, 1024)
@@ -157,14 +163,14 @@ def mJNet(X, params, to_categ, drop=False, longJ=False, v2=False):
         up_1 = layers.concatenate([up_02, addconv_3])
     else:
         # first UP-convolutional layer: from (1,M/4,N/4) to (2M/2,N/2)
-        up_1 = layers.concatenate([layers.Conv3DTranspose(channels[17], kernel_size=size_two, strides=size_two, activation=activ_func, padding='same', kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init)(conv_4), conv_3], axis=1)
+        up_1 = layers.concatenate([layers.Conv3DTranspose(channels[17], kernel_size=size_two, strides=size_two, activation=activ_func, padding='same', kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init)(conv_4), conv_3], axis=3)
 
     general_utils.print_int_shape(up_1) # (None, 1, M/2, N/2, 1024)
-    conv_5 = layers.Conv3D(channels[18], (3,3,3), activation=activ_func, padding='same', kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init)(up_1)
+    conv_5 = layers.Conv3D(channels[18], (3,3,1), activation=activ_func, padding='same', kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init)(up_1)
     if v2: conv_5 = layers.LeakyReLU(alpha=0.33)(conv_5)
     conv_5 = layers.BatchNormalization()(conv_5)
     general_utils.print_int_shape(conv_5) # (None, 1, M/2, N/2, 512)
-    conv_5 = layers.Conv3D(channels[19], (3,3,3), activation=activ_func, padding='same', kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init)(conv_5)
+    conv_5 = layers.Conv3D(channels[19], (3,3,1), activation=activ_func, padding='same', kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init)(conv_5)
     if v2: conv_5 = layers.LeakyReLU(alpha=0.33)(conv_5)
     conv_5 = layers.BatchNormalization()(conv_5)
     general_utils.print_int_shape(conv_5) # (None, 1, M/2, N/2, 256)
@@ -183,25 +189,25 @@ def mJNet(X, params, to_categ, drop=False, longJ=False, v2=False):
             addconv_2 = layers.concatenate([addconv_2, addconv_2])
         up_2 = layers.concatenate([up_03, addconv_2])
     else:
-        pool_drop_4 = layers.MaxPooling3D((2,1,1))(conv_5)
+        pool_drop_4 = layers.MaxPooling3D((1,1,2))(conv_5)
         general_utils.print_int_shape(pool_drop_4) # (None, 1, M/2, N/2, 512)
         if drop: pool_drop_4 = layers.Dropout(params["dropout"]["4"])(pool_drop_4)
         # second UP-convolutional layer: from (2,M/2,N/2,2) to (2,M,N)
-        up_2 = layers.concatenate([layers.Conv3DTranspose(channels[20], kernel_size=size_two, strides=size_two, activation=activ_func, padding='same', kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init)(pool_drop_4), conv_2], axis=1)
+        up_2 = layers.concatenate([layers.Conv3DTranspose(channels[20], kernel_size=size_two, strides=size_two, activation=activ_func, padding='same', kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init)(pool_drop_4), conv_2], axis=3)
 
     general_utils.print_int_shape(up_2) # (None, X, M, N, 1024)
-    conv_6 = layers.Conv3D(channels[21], (3,3,3), activation=activ_func, padding='same', kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init)(up_2)
+    conv_6 = layers.Conv3D(channels[21], (3,3,1), activation=activ_func, padding='same', kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init)(up_2)
     if v2: conv_6 = layers.LeakyReLU(alpha=0.33)(conv_6)
     conv_6 = layers.BatchNormalization()(conv_6)
     general_utils.print_int_shape(conv_6) # (None, X, M, N, 128)
-    conv_6 = layers.Conv3D(channels[22], (3,3,3), activation=activ_func, padding='same', kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init)(conv_6)
+    conv_6 = layers.Conv3D(channels[22], (3,3,1), activation=activ_func, padding='same', kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init)(conv_6)
     if v2: conv_6 = layers.LeakyReLU(alpha=0.33)(conv_6)
     pool_drop_5 = layers.BatchNormalization()(conv_6)
     general_utils.print_int_shape(pool_drop_5) # (None, X, M, N, 64)
 
     if not v2:
         # from (2,M,N)  to (1,M,N)
-        pool_drop_5 = layers.MaxPooling3D((2,1,1))(pool_drop_5)
+        pool_drop_5 = layers.MaxPooling3D((1,1,2))(pool_drop_5)
         general_utils.print_int_shape(pool_drop_5) # (None, 1, M, N, 16)
         if drop: pool_drop_5 = layers.Dropout(params["dropout"]["5"])(pool_drop_5)
 

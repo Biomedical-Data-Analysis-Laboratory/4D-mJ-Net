@@ -100,8 +100,7 @@ class NeuralNetwork(object):
             filename=self.getSavedInformation(p_id, path=self.savePartialModelFolder),
             textFolderPath=self.saveTextFolder,
             dataset=self.dataset,
-            #model=self.model,
-            sample_weights=sample_weights
+            sample_weights=sample_weights # only for ROC callback (NOT working)
         )
 
 ################################################################################
@@ -201,12 +200,12 @@ class NeuralNetwork(object):
         if self.getVerbose() and self.summaryFlag==0:
             print(self.model.summary())
 
-            # plot_model(
-            #     self.model,
-            #     to_file=general_utils.getFullDirectoryPath(self.savedModelFolder)+self.getNNID("model")+".png",
-            #     show_shapes=True,
-            #     rankdir='LR'
-            # )
+            plot_model(
+                self.model,
+                to_file=general_utils.getFullDirectoryPath(self.savedModelFolder)+self.getNNID("model")+".png",
+                show_shapes=True,
+                rankdir='LR'
+            )
             self.summaryFlag+=1
 
         # check if the model has some saved weights to load...
@@ -225,6 +224,11 @@ class NeuralNetwork(object):
         self.dataset["train"]["labels"] = dataset_utils.getLabelsFromIndex(train_df=self.train_df, dataset=self.dataset["train"], modelname=self.name, to_categ=self.to_categ, flag="train")
         self.dataset["val"]["labels"] = None if self.val["validation_perc"]==0 else dataset_utils.getLabelsFromIndex(train_df=self.train_df, dataset=self.dataset["val"], modelname=self.name, to_categ=self.to_categ, flag="val")
         if self.supervised: self.dataset["test"]["labels"] = dataset_utils.getLabelsFromIndex(train_df=self.train_df, dataset=self.dataset["test"], modelname=self.name, to_categ=self.to_categ, flag="test")
+
+        # deallocate memory
+        for flag in ["train", "val", "test"]:
+            del self.dataset[flag]["indices"]
+        del self.train_df
 
         # fit and train the model
         self.train = training.fitModel(
@@ -345,11 +349,12 @@ class NeuralNetwork(object):
                 sample_weights = self.train_df.ground_truth.map(f)
                 sample_weights = sample_weights/(constants.getM()*constants.getN())
             else:
+                # see: "ISBI 2019 C-NMC Challenge: Classification in Cancer Cell Imaging" section 4.1 pag 68
                 sample_weights = self.train_df.label.map({
-                    constants.LABELS[0]:1, #0.1, #((background_weight-min_weight)/(max_weight-min_weight)),
-                    constants.LABELS[1]:1, #1, #((brain_weight-min_weight)/(max_weight-min_weight)),
-                    constants.LABELS[2]:10, #((penumbra_weight-min_weight)/(max_weight-min_weight))*100,
-                    constants.LABELS[3]:100 #((core_weight-min_weight)/(max_weight-min_weight))*100
+                    constants.LABELS[0]: self.N_TOT/(constants.N_CLASSES*self.N_BACKGROUND), # N_TOT/N_BACKGROUND,
+                    constants.LABELS[1]: self.N_TOT/(constants.N_CLASSES*self.N_BRAIN), # N_TOT/N_BRAIN,
+                    constants.LABELS[2]: self.N_TOT/(constants.N_CLASSES*self.N_PENUMBRA), # N_TOT/N_PENUMBRA,
+                    constants.LABELS[3]: self.N_TOT/(constants.N_CLASSES*self.N_CORE), # N_TOT/N_CORE
                 })
         elif constants.N_CLASSES==3:
             if constants.getM()>=512: # we have only one label
@@ -358,6 +363,13 @@ class NeuralNetwork(object):
 
                 sample_weights = self.train_df.ground_truth.map(f)
                 sample_weights = sample_weights/(constants.getM()*constants.getN())
+            else:
+                # see: "ISBI 2019 C-NMC Challenge: Classification in Cancer Cell Imaging" section 4.1 pag 68
+                sample_weights = self.train_df.label.map({
+                    constants.LABELS[0]: self.N_TOT/(constants.N_CLASSES*(self.N_BACKGROUND+self.N_BRAIN)), # N_TOT/N_BACKGROUND,
+                    constants.LABELS[1]: self.N_TOT/(constants.N_CLASSES*self.N_PENUMBRA), # N_TOT/N_PENUMBRA,
+                    constants.LABELS[2]: self.N_TOT/(constants.N_CLASSES*self.N_CORE), # N_TOT/N_CORE
+                })
         else: # we are in a binary class problem
             f = lambda x : np.sum(np.array(x))
             sample_weights = self.train_df.ground_truth.map(f)

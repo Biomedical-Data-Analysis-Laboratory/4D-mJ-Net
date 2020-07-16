@@ -17,14 +17,14 @@ def mod_dice_coef(y_true, y_pred, epsilon=1e-6):
     ref: https://arxiv.org/pdf/1606.04797v1.pdf
     """
 
-    axes = tuple(range(1, len(y_pred.shape)-1))
-    numerator = 2. * K.sum(K.abs(y_pred * y_true), axis=axes)
-    denominator = (K.sum(K.square(y_pred) + K.square(y_true), axis=axes) + epsilon)
-    return (numerator/denominator)
+    # axes = tuple(range(1, len(y_pred.shape)-1))
+    # numerator = 2. * K.sum(K.abs(y_pred * y_true), axis=axes)
+    # denominator = (K.sum(K.square(y_pred) + K.square(y_true), axis=axes) + epsilon)
+    # return (numerator/denominator)
 
-    # intersection = K.sum(K.abs(y_true * y_pred), axis=-1)
-    # denom = (K.sum(K.square(y_true),-1) + K.sum(K.square(y_pred),-1) + 1)
-    # return (2. * intersection + 1) / denom
+    intersection = K.sum(K.abs(y_true * y_pred), axis=-1)
+    denom = (K.sum(K.square(y_true),-1) + K.sum(K.square(y_pred),-1) + 1)
+    return (2. * intersection + 1) / denom
 
 ################################################################################
 # REAL Dice coefficient = (2*|X & Y|)/ (|X|+ |Y|)

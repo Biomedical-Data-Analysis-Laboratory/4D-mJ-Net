@@ -83,10 +83,10 @@ TILE_DIVISION = 32 # set to >1 if the tile are NOT the entire image
 ################################################################################
 ################################################################################
 ################################################################################
-ORIGINAL_SHAPE = True # the one from the master thesis
+ORIGINAL_SHAPE = False # the one from the master thesis
 DATA_AUGMENTATION = True
 THREE_D = False
-FOUR_D = False
+FOUR_D = True
 ONE_TIME_POINT = -1 # -1 if you dont want to use it
 VERBOSE = 1
 dataset, listPatientsDataset, trainDatasetList = {}, {}, list()
@@ -401,14 +401,14 @@ def fillDataset4D(train_df, relativePath, patientIndex, timeFolder, folders):
     tmp_dt = fillDatasetOverTime(curr_dt, relativePath, patientIndex, pivotFolder)
     tmp_dt = tmp_dt.sort_values(by=["x_y"]) # sort based on the coordinates
     tmp_dt["pixels"] = tmp_dt["pixels"].map(reshape_func) # reshape to (t,x,y,1)
+    print(tmp_dt["pixels"][0].shape)
     curr_dt = tmp_dt.copy()
 
     for tFold in timeFoldersToProcess.keys():
-        print(tFold)
-        for index, tuple_row in enumerate(curr_dt.iterrows()):
-            row = tuple_row[1]
+        print(tFold, Z_ARRAY)
+        for index, row in enumerate(curr_dt.itertuples()):
             if tFold==pivotFolder: # we are in a special case (append the tmp_df pixels)
-                if Z_ARRAY != [-1,0,1]: curr_dt.iloc[index]["pixels"] = np.append(curr_dt.iloc[index]["pixels"], tmp_dt.iloc[index]["pixels"], axis=3)
+                if Z_ARRAY != [-1,0,1]: curr_dt["pixels"][index] = np.append(curr_dt["pixels"][index], tmp_dt["pixels"][index], axis=3)
                 else:
                     print("*** skip the current folder")
                     break
@@ -416,13 +416,13 @@ def fillDataset4D(train_df, relativePath, patientIndex, timeFolder, folders):
                 totalVol = np.empty((M,N,1))
                 for filename in timeFoldersToProcess[tFold]["imagesDict"].keys():
                     image = timeFoldersToProcess[tFold]["imagesDict"][filename]
-                    slicingWindow = getSlicingWindow(image, row["x_y"][0], row["x_y"][1], M, N)
+                    slicingWindow = getSlicingWindow(image, row.x_y[0], row.x_y[1], M, N)
 
-                    if row["data_aug_idx"]==1: slicingWindow = np.rot90(slicingWindow) # rotate 90 degree counterclockwise
-                    elif row["data_aug_idx"]==2: slicingWindow = np.rot90(slicingWindow,2) # rotate 180 degree counterclockwise
-                    elif row["data_aug_idx"]==3: slicingWindow = np.rot90(slicingWindow,3) # rotate 270 degree counterclockwise
-                    elif row["data_aug_idx"]==4: slicingWindow = np.flipud(slicingWindow) # flip the matrix up/down
-                    elif row["data_aug_idx"]==5: slicingWindow = np.fliplr(slicingWindow) # flip the matrix left/right
+                    if row.data_aug_idx==1: slicingWindow = np.rot90(slicingWindow) # rotate 90 degree counterclockwise
+                    elif row.data_aug_idx==2: slicingWindow = np.rot90(slicingWindow,2) # rotate 180 degree counterclockwise
+                    elif row.data_aug_idx==3: slicingWindow = np.rot90(slicingWindow,3) # rotate 270 degree counterclockwise
+                    elif row.data_aug_idx==4: slicingWindow = np.flipud(slicingWindow) # flip the matrix up/down
+                    elif row.data_aug_idx==5: slicingWindow = np.fliplr(slicingWindow) # flip the matrix left/right
 
                     # slicingWindow = np.array(slicingWindow)
                     slicingWindow = slicingWindow.reshape(slicingWindow.shape[0], slicingWindow.shape[1], 1)
@@ -436,8 +436,8 @@ def fillDataset4D(train_df, relativePath, patientIndex, timeFolder, folders):
                 pixels_zoom = ndimage.zoom(totalVol,[1,1,zoom_val])
                 pixels_zoom = pixels_zoom.reshape(pixels_zoom.shape[0], pixels_zoom.shape[1], pixels_zoom.shape[2], 1) # reshape to (t,x,y,1)
                  # we need to append the pixels before the current ones
-                if  timeFoldersToProcess[tFold]["index"] < 0: curr_dt.iloc[index]["pixels"] = np.append(pixels_zoom, curr_dt.iloc[index]["pixels"], axis=3)
-                else: curr_dt.iloc[index]["pixels"] = np.append(curr_dt.iloc[index]["pixels"], pixels_zoom, axis=3)
+                if  timeFoldersToProcess[tFold]["index"] < 0: curr_dt["pixels"][index] = np.append(pixels_zoom, curr_dt["pixels"][index], axis=3)
+                else: curr_dt["pixels"][index] = np.append(curr_dt["pixels"][index], pixels_zoom, axis=3)
 
     return curr_dt
 
@@ -474,8 +474,7 @@ def fillDataset3D(train_df, relativePath, patientIndex, timeFolder, folders):
 
     for tFold in timeFoldersToProcess.keys():
         print(tFold)
-        for index, tuple_row in enumerate(tmp_dt.iterrows()):
-            row = tuple_row[1]
+        for index, row in enumerate(tmp_dt.itertuples()):
 
             for timeIndexFilename in range(tmp_dt.iloc[index]["pixels"].shape[2]):
                 pixels = tmp_dt.iloc[index]["pixels"][:,:,timeIndexFilename,:]  # take the corresponding timepoint pixels
@@ -552,12 +551,13 @@ def fillDataset3DOneTimePoint(train_df, relativePath, patientIndex, timeFolder, 
 def initializeDataset():
     patientFolders = glob.glob(SAVE_REGISTERED_FOLDER+"*/")
     suffix_filename = "_"+str(SLICING_PIXELS)+"_"+str(M)+"x"+str(N)
-    if THREE_D:
-        suffix_filename += "_3D"
-        if ONE_TIME_POINT>0:
-            timeIndex = str(ONE_TIME_POINT)
-            if len(timeIndex)==1: timeIndex="0"+timeIndex
-            suffix_filename += ("_"+timeIndex)
+    if THREE_D: suffix_filename += "_3D"
+    elif FOUR_D: suffix_filename += "_4D"
+
+    if ONE_TIME_POINT>0:
+        timeIndex = str(ONE_TIME_POINT)
+        if len(timeIndex)==1: timeIndex="0"+timeIndex
+        suffix_filename += ("_"+timeIndex)
 
     for numFold, patientFolder in enumerate(patientFolders): # for each patient
         train_df = pd.DataFrame(columns=COLUMNS) # reset the dataframe for every patient
@@ -604,7 +604,7 @@ def initializeDataset():
                     pat_pixels = np.empty((M,N,len(listofrows))) # empty array for the pixels
                     pat_gt = np.empty((M,N,len(listofrows))) # empty array for the ground truth
 
-                    for _,row in listofrows.iterrows():
+                    for row in listofrows.itertuples():
                         pos = int(row["timeIndex"])-1
                         pat_pixels[:,:,pos] = row["pixels"]
                         pat_gt[:,:,pos] = row["ground_truth"]

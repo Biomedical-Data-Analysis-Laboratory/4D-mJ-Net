@@ -144,6 +144,17 @@ def getStatisticFunctions(listStats):
     return statisticFuncs
 
 ################################################################################
+# Return a flag to check if the filename (partial) is inside the list of patients
+def isFilenameInListOfPatient(filename, patients):
+    ret = False
+    start_index = filename.rfind("/")+len(constants.DATASET_PREFIX)+1
+    patient_id = filename[start_index:start_index+len(patients[0])]
+    # don't load the dataframe if patient_id NOT in the list of patients
+    if patient_id in patients: ret = True
+
+    return ret
+
+################################################################################
 ################################################################################
 ################################################################################
 ########################### GENERAL UTILS ######################################
@@ -177,7 +188,7 @@ def createDir(dir_path):
         os.makedirs(dir_path)
 
 ################################################################################
-# print a separation
+# print a separation for verbose purpose
 def printSeparation(what, howmuch):
     print(what*howmuch)
 

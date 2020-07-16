@@ -66,10 +66,6 @@ def fitModel(model, dataset, batch_size, epochs, listOfCallbacks, sample_weights
     validation_data = None
     if dataset["val"]["data"] is not None and dataset["val"]["labels"] is not None: validation_data = (dataset["val"]["data"], dataset["val"]["labels"])
 
-    # print(dataset["train"]["data"].shape)
-    # print(dataset["train"]["labels"].shape)
-    # print(dataset["val"]["data"].shape, dataset["val"]["labels"].shape)
-
     training = model.fit(dataset["train"]["data"],
                 dataset["train"]["labels"],
                 batch_size=batch_size,

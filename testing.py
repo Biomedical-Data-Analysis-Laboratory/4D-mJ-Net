@@ -22,7 +22,9 @@ def predictAndSaveImages(nn, p_id):
     stats = {}
     suffix = general_utils.getSuffix() ## es == "_4_16x16"
 
-    filename_test = nn.datasetFolder+constants.DATASET_PREFIX+str(p_id)+suffix+".pkl"
+    suffix_filename = ".pkl"
+    if nn.use_hickle: suffix_filename = ".hkl"
+    filename_test = nn.datasetFolder+constants.DATASET_PREFIX+str(p_id)+suffix+suffix_filename
 
     relativePatientFolder = constants.getPrefixImages()+p_id+"/"
     relativePatientFolderHeatMap = relativePatientFolder + "HEATMAP/"
@@ -126,7 +128,7 @@ def predictImage(nn, subfolder, p_id, patientFolder, relativePatientFolder, rela
             if constants.getVerbose(): print("[WARNING] - File {} does NOT exist".format(filename_test))
             return stats
 
-        test_df = dataset_utils.readFromPickle(filename_test)
+        test_df = dataset_utils.readFromPickleOrHickle(filename_test, nn.use_hickle)
         test_df = test_df[test_df.data_aug_idx==0] # get only the rows with data_aug_idx==0 (no rotation or any data augmentation)
         test_df = test_df[test_df.timeIndex==idx]
         imagePredicted, YTRUEToEvaluate, YPREDToEvaluate = generateTimeImagesAndConsensus(nn, test_df, YTRUEToEvaluate, YPREDToEvaluate, relativePatientFolderTMP, idx)
@@ -311,12 +313,16 @@ def generateTimeImagesAndConsensus(nn, test_df, YTRUEToEvaluate, YPREDToEvaluate
 # Test the model with the selected patient
 def evaluateModel(nn, p_id, isAlreadySaved):
     suffix = general_utils.getSuffix()
+
     if isAlreadySaved:
-        filename_train = nn.datasetFolder+constants.DATASET_PREFIX+str(p_id)+suffix+".pkl"
+        suffix_filename = ".pkl"
+        if nn.use_hickle: suffix_filename = ".hkl"
+        filename_train = nn.datasetFolder+constants.DATASET_PREFIX+str(p_id)+suffix+suffix_filename
 
         if not os.path.exists(filename_train): return
 
-        nn.train_df = dataset_utils.readFromPickle(filename_train)
+        nn.train_df = dataset_utils.readFromPickleOrHickle(filename_train, nn.use_hickle)
+
         nn.dataset = dataset_utils.getTestDataset(nn.dataset, nn.train_df, p_id, nn.mp)
         nn.dataset["test"]["labels"] = dataset_utils.getLabelsFromIndex(train_df=nn.train_df, dataset=nn.dataset["test"], modelname=nn.name, to_categ=nn.to_categ, flag="test")
         nn.compileModel() # compile the model and then evaluate it

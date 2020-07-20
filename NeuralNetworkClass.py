@@ -60,6 +60,7 @@ class NeuralNetwork(object):
         self.cross_validation = True if modelInfo["cross_validation"]==1 else False
         self.supervised = True if modelInfo["supervised"]==1 else False
         self.save_activation_filter = True if modelInfo["save_activation_filter"]==1 else False
+        self.use_hickle = True if "use_hickle" in modelInfo.keys() and modelInfo["use_hickle"]==1 else False
 
         # paths
         self.rootPath = setting["root_path"]
@@ -226,8 +227,7 @@ class NeuralNetwork(object):
         if self.supervised: self.dataset["test"]["labels"] = dataset_utils.getLabelsFromIndex(train_df=self.train_df, dataset=self.dataset["test"], modelname=self.name, to_categ=self.to_categ, flag="test")
 
         # deallocate memory
-        for flag in ["train", "val", "test"]:
-            del self.dataset[flag]["indices"]
+        for flag in ["train", "val", "test"]: del self.dataset[flag]["indices"]
         del self.train_df
 
         # fit and train the model
@@ -245,6 +245,11 @@ class NeuralNetwork(object):
 
         # plot the loss and accuracy of the training
         training.plotLossAndAccuracy(self, p_id)
+
+        # deallocate memory
+        for flag in ["train", "val", "test"]:
+            for type in ["labels", "data"]:
+                if type in self.dataset[flag]: del self.dataset[flag][type]
 
 ################################################################################
 # Run the training for every batch and LOAD only the necessary dataset (one patient at the time)

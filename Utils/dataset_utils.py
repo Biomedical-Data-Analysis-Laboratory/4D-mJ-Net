@@ -6,6 +6,8 @@ import multiprocessing
 import pandas as pd
 import numpy as np
 import pickle as pkl
+import hickle as hkl
+import sklearn
 from tensorflow.keras import utils
 import tensorflow as tf
 
@@ -44,7 +46,10 @@ def loadTrainingDataframe(nn, patients, testing_id=None):
     suffix = general_utils.getSuffix() # es == "_4_16x16"
 
     frames = [train_df]
-    listOfFolders = glob.glob(nn.datasetFolder+"*"+suffix+".pkl")
+
+    suffix_filename = ".pkl"
+    if nn.use_hickle: suffix_filename = ".hkl"
+    listOfFolders = glob.glob(nn.datasetFolder+"*"+suffix+suffix_filename)
 
     idx = 1
     for filename_train in listOfFolders:
@@ -52,7 +57,8 @@ def loadTrainingDataframe(nn, patients, testing_id=None):
         if not general_utils.isFilenameInListOfPatient(filename_train, patients): continue
 
         if constants.getVerbose(): print('[INFO] - {0}/{1} Loading dataframe from {2}...'.format(idx, len(patients), filename_train))
-        tmp_df = readFromPickle(filename_train)
+
+        tmp_df = readFromPickleOrHickle(filename_train, nn.use_hickle)
         frames.append(tmp_df)
 
         idx+=1
@@ -61,10 +67,12 @@ def loadTrainingDataframe(nn, patients, testing_id=None):
     return train_df
 
 ################################################################################
-# Return the elements in the filename saved as a pickle
-def readFromPickle(filename):
-    file = open(filename, "rb")
-    return pkl.load(file)
+# Return the elements in the filename saved as a pickle or as hickle (depending on the flag)
+def readFromPickleOrHickle(filename, flagHickle):
+    if flagHickle: return sklearn.utils.shuffle(hkl.load(filename))
+    else:
+        file = open(filename, "rb")
+        return sklearn.utils.shuffle(pkl.load(file))
 
 ################################################################################
 # Return the dataset based on the patient id
@@ -84,7 +92,7 @@ def getDataset(nn, patients):
 
     end = time.time()
     print("[INFO] - Total time to load the Dataset: {0}s".format(round(end-start, 3)))
-    generateDatasetSummary(train_df) # summary of the label in the dataset
+    if constants.getVerbose(): generateDatasetSummary(train_df) # summary of the dataset
 
     return train_df
 
@@ -177,6 +185,9 @@ def getDataFromIndex(train_df, indices, flag, mp):
 
     end = time.time()
     if constants.getVerbose():
+        setPatients = set(train_df.patient_id.values[indices])
+        print("[INFO] - patients: {0}".format(setPatients))
+        for p in setPatients: print("\t {0}: # {1} elements".format(p, len(train_df.values[indices][train_df.patient_id.values[indices] == p])))
         print("[INFO] - *getDataFromIndex* Time: {}s".format(round(end-start, 3)))
         print("[INFO] - {0} shape; # {1}".format(data.shape, flag))
 
@@ -229,14 +240,15 @@ def getLabelsFromIndex(train_df, dataset, modelname, to_categ, flag):
 def generateDatasetSummary(train_df):
     N_BACKGROUND, N_BRAIN, N_PENUMBRA, N_CORE, N_TOT = getNumberOfElements(train_df)
 
-    general_utils.printSeparation('+', 90)
+    general_utils.printSeparation('+', 100)
     print("DATASET SUMMARY: \n")
     print("\t N. Background: {0}".format(N_BACKGROUND))
     print("\t N. Brain: {0}".format(N_BRAIN))
     print("\t N. Penumbra: {0}".format(N_PENUMBRA))
     print("\t N. Core: {0}".format(N_CORE))
     print("\t Tot: {0}".format(N_TOT))
-    general_utils.printSeparation('+', 90)
+    print("\t Patients: {0}".format(set(train_df.patient_id)))
+    general_utils.printSeparation('+', 100)
 
 ################################################################################
 # Return the number of element per class of the dataset

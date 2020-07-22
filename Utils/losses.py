@@ -13,36 +13,25 @@ def dice_coef_loss(y_true, y_pred):
     return 1-metrics.dice_coef(y_true, y_pred)
 
 ################################################################################
-# Ref: salehi17, "Twersky loss function for image segmentation using 3D FCDN"
-# -> the score is computed for each class separately and then summed
-# alpha=beta=0.5 : dice coefficient
-# alpha=beta=1   : tanimoto coefficient (also known as jaccard)
-# alpha+beta=1   : produces set of F*-scores
-# implemented by E. Moebel, 06/04/18
+# Tversky loss.
+# Based on this paper: https://arxiv.org/abs/1706.05721
 def tversky_loss(y_true, y_pred):
-    alpha = 0.5
-    beta  = 0.5
+    return 1-metrics.tversky(y_true, y_pred)
 
-    ones = K.ones(K.shape(y_true))
-    p0 = y_pred      # proba that voxels are class i
-    p1 = ones-y_pred # proba that voxels are not class i
-    g0 = y_true
-    g1 = ones-y_true
+################################################################################
+# Focal Tversky loss: a generalisation of the tversky loss.
+# From this paper: https://arxiv.org/abs/1810.07842
+def focal_tversky_loss(y_true, y_pred, gamma=0.75):
+    tv = metrics.tversky(y_true, y_pred)
+    return K.pow((1 - tv), gamma)
 
-    num = K.sum(p0*g0, (0,1,2))
-    den = num + alpha*K.sum(p0*g1,(0,1,2)) + beta*K.sum(p1*g0,(0,1,2))
-
-    T = K.sum(num/den) # when summing over classes, T has dynamic range [0 Ncl]
-
-    Ncl = K.cast(K.shape(y_true)[-1], 'float32')
-
-    return Ncl-T
-
-# TODO:
+################################################################################
+# TODO: implement
 def generalized_dice_loss(y_true, y_pred):
     return 1-metrics.generalized_dice_coeff(y_true, y_pred)
 
-# TODO:
+################################################################################
+# TODO: implement
 def dice_coef_binary_loss(y_true, y_pred):
     '''
     Dice loss to minimize. Pass to model as loss during compile statement

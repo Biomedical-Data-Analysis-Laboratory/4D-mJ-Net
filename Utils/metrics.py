@@ -23,7 +23,8 @@ def mod_dice_coef(y_true, y_pred, epsilon=1e-6):
     # return (numerator/denominator)
 
     intersection = K.sum(K.abs(y_true * y_pred), axis=-1)
-    denom = (K.sum(K.square(y_true),-1) + K.sum(K.square(y_pred),-1) + 1)
+    denom = (K.sum(K.square(y_true), axis=-1) + K.sum(K.square(y_pred), axis=-1) + 1)
+
     return (2. * intersection + 1) / denom
 
 ################################################################################
@@ -35,6 +36,18 @@ def dice_coef(y_true, y_pred, epsilon=1e-6):
     intersection = 2. * K.sum(K.abs(y_true * y_pred), axis=axes)
     denom = (K.sum(K.abs(y_true) + K.abs(y_pred), axis=axes) + epsilon)
     return  (intersection/denom)
+
+################################################################################
+# Implementation of the Tversky Index (TI),
+# which is a asymmetric similarity measure that is a generalisation of the dice coefficient and the Jaccard index.
+# Function taken and modified from here: https://github.com/robinvvinod/unet/
+def tversky(y_true, y_pred, smooth=1, alpha=0.7):
+    beta = 1-alpha
+    true_pos = K.sum(y_true * y_pred, axis=-1)
+    false_neg = K.sum(y_true * (1 - y_pred), axis=-1)
+    false_pos = K.sum((1 - y_true) * y_pred, axis=-1)
+
+    return (true_pos + smooth) / (true_pos + alpha * false_neg + beta * false_pos + smooth)
 
 ################################################################################
 # Function to calculate the Jaccard similarity

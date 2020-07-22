@@ -1,5 +1,5 @@
 {
-  "EXPERIMENT": 19,
+  "EXPERIMENT": 21,
   "root_path": "/home/stud/lucat/PhD_Project/Stroke_segmentation/",
   "dataset_path": "/local/home/lucat/DATASET/SUS2020_tmp/",
   "PATIENT_TO_USE": ["99_017","99_018","99_073","99_006","99_007","99_009","99_002","99_071","99_068","99_066","99_059","99_057"],
@@ -25,10 +25,10 @@
   "models": [
      {
       "name": "mJNet_LongJ_Drop",
-      "loss": "mod_dice_coef_loss",
-      "metrics": ["mod_dice_coef","dice_coef"],
+      "loss": "tversky_loss",
+      "metrics": ["mod_dice_coef","tversky"],
       "epochs": 150,
-      "batch_size": 3072,
+      "batch_size": 1024,
       "classes_to_evaluate": ["penumbra","core","penumbracore"],
       "statistics": ["sensitivity", "specificity", "precision", "f1", "accuracy", "jaccard_index"],
       "val":{
@@ -57,27 +57,31 @@
           "1":0.3,
           "2":0.3,
           "3":0.3,
+          "3.1":0.3,
+          "3.2":0.3,
+          "3.3":0.3,
+          "3.4":0.3,
           "4":0.3,
           "5":0.3
         }
       },
       "callbacks":{
         "ModelCheckpoint": {
-          "monitor": "val_mod_dice_coef",
+          "monitor": "val_tversky_loss",
           "mode": "max",
           "period": 1
         },
         "EarlyStopping": {
           "monitor": "val_loss",
           "min_delta": 0.00001,
-          "patience": 15
+          "patience": 20
         },
         "LearningRateScheduler": {
           "decay_step": 20,
           "decay_rate": 0.1
         },
         "CollectBatchStats": {
-          "acc":"mod_dice_coef"
+          "acc":"tversky"
         }
       },
       "to_categ":0,

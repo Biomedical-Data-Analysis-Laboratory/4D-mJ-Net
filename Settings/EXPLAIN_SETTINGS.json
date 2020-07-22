@@ -4,6 +4,7 @@
   "dataset_path": "/local/home/lucat/DATASET/ISLES2018/", % dataset path
    %% list of patients to test (if == ["ALL"] test all of them)
   "PATIENT_TO_USE": ["ALL"],
+  "PATIENT_TO_EXCLUDE": ["..."], %% list of patient to exclude
   "OVERRIDE_MODELS_ID_PATH": "", %% path for overriding the model ID
   "init": { %% basic flag for init the process
     "NUMBER_OF_IMAGE_PER_SECTION": 64, %% change the number of image per section (optional)
@@ -106,7 +107,9 @@
       "data_augmentation": 1, %% use data augmention dataset
       "cross_validation": 0, %% use cross validation during training (save various models)
       "train_again": 0, %% train again even if the model is already saved
-      "supervised": 1 %% supervised learning?
+      "supervised": 1, %% supervised learning?
+      "save_activation_filter": 0, %% save the activation filter at the end of the training
+      "use_hickle": 1 %% flag to load hickle dataset instead of pickle
     }
   ]
 }

@@ -1,8 +1,9 @@
 {
-  "EXPERIMENT": 19,
+  "EXPERIMENT": 20,
   "root_path": "/home/stud/lucat/PhD_Project/Stroke_segmentation/",
-  "dataset_path": "/local/home/lucat/DATASET/SUS2020_tmp/",
-  "PATIENT_TO_USE": ["99_017","99_018","99_073","99_006","99_007","99_009","99_002","99_071","99_068","99_066","99_059","99_057"],
+  "dataset_path": "/local/home/lucat/DATASET/SUS2020_v2/",
+  "PATIENT_TO_USE": ["ALL"],
+  "PATIENT_TO_EXCLUDE": ["01_010","01_025","01_037","01_057","01_061","01_066","01_077","02_001","02_004","02_009","02_016","02_020","02_027","03_003","03_003","03_010","03_014"],
   "OVERRIDE_MODELS_ID_PATH": "",
   "init": {
     "TF_CPP_MIN_LOG_LEVEL": "3",
@@ -11,8 +12,8 @@
     "MULTIPROCESSING": 0
   },
   "relative_paths": {
-    "labeled_images": "PATIENTS/SUS2020_tmp/FINALIZE_PM/",
-    "patients": "PATIENTS/SUS2020_tmp/FINAL/",
+    "labeled_images": "PATIENTS/SUS2020_v2/FINALIZE_PM/",
+    "patients": "PATIENTS/SUS2020_v2/FINAL/",
     "save": {
       "model": "MODELS/",
       "partial_model": "TMP_MODELS/",
@@ -24,17 +25,17 @@
   },
   "models": [
      {
-      "name": "mJNet_LongJ_Drop",
+      "name": "mJNet_v2",
       "loss": "mod_dice_coef_loss",
-      "metrics": ["mod_dice_coef","dice_coef"],
+      "metrics": ["mod_dice_coef"],
       "epochs": 150,
-      "batch_size": 3072,
+      "batch_size": 1024,
       "classes_to_evaluate": ["penumbra","core","penumbracore"],
       "statistics": ["sensitivity", "specificity", "precision", "f1", "accuracy", "jaccard_index"],
       "val":{
-        "validation_perc": 10,
-        "number_patients_for_validation": 0,
-        "number_patients_for_testing": 2,
+        "validation_perc": 5,
+        "number_patients_for_validation": 11,
+        "number_patients_for_testing": 0,
         "random_validation_selection": 0
       },
       "test_steps":1,
@@ -57,6 +58,10 @@
           "1":0.3,
           "2":0.3,
           "3":0.3,
+          "3.1":0.3,
+          "3.2":0.3,
+          "3.3":0.3,
+          "3.4":0.3,
           "4":0.3,
           "5":0.3
         }
@@ -70,7 +75,7 @@
         "EarlyStopping": {
           "monitor": "val_loss",
           "min_delta": 0.00001,
-          "patience": 15
+          "patience": 20
         },
         "LearningRateScheduler": {
           "decay_step": 20,

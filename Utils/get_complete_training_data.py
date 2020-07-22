@@ -7,6 +7,7 @@ import cv2, time, glob, os, operator, random, math
 import numpy as np
 import pandas as pd
 import pickle as pkl
+import hickle as hkl
 from scipy import ndimage
 
 ################################################################################
@@ -60,7 +61,7 @@ from scipy import ndimage
 ################################################################################
 # SUS2020_v2 Setting
 ################################################################################
-DATASET_NAME = "SUS2020_v2/"
+DATASET_NAME = "SUS2020_v2/" #"SUS2020_v2/"
 ROOT_PATH = "/home/stud/lucat/PhD_Project/Stroke_segmentation/PATIENTS/"+DATASET_NAME
 SCRIPT_PATH = "/local/home/lucat/DATASET/"+DATASET_NAME
 
@@ -86,7 +87,7 @@ TILE_DIVISION = 32 # set to >1 if the tile are NOT the entire image
 ORIGINAL_SHAPE = False # the one from the master thesis
 DATA_AUGMENTATION = True
 THREE_D = False
-FOUR_D = True
+FOUR_D = False
 ONE_TIME_POINT = -1 # -1 if you dont want to use it
 VERBOSE = 1
 dataset, listPatientsDataset, trainDatasetList = {}, {}, list()
@@ -339,8 +340,8 @@ def fillDatasetOverTime(train_df, relativePath, patientIndex, timeFolder):
                 if totalVol.shape[axis] > NUMBER_OF_IMAGE_PER_SECTION:
                     zoom_val = totalVol.shape[axis]/NUMBER_OF_IMAGE_PER_SECTION
 
-                if ORIGINAL_SHAPE: pixels_zoom = ndimage.zoom(totalVol,[zoom_val,1,1])
-                else: pixels_zoom = ndimage.zoom(totalVol,[1,1,zoom_val])
+                if ORIGINAL_SHAPE: pixels_zoom = ndimage.zoom(totalVol,[zoom_val,1,1],output=np.uint8)
+                else: pixels_zoom = ndimage.zoom(totalVol,[1,1,zoom_val],output=np.uint8)
 
                 ## USE THIS TO CHECK THE VALIDITIY OF THE INTERPOlATION
                 # print(pixels_zoom.shape)
@@ -565,12 +566,15 @@ def initializeDataset():
         relativePath = patientFolder.replace(SAVE_REGISTERED_FOLDER, '')
         patientIndex = relativePath.replace(IMAGE_SUFFIX, "").replace("/", "")
         filename_train = SCRIPT_PATH+"patient"+str(patientIndex)+suffix_filename+".pkl"
+        filename_train_hkl = SCRIPT_PATH+"patient"+str(patientIndex)+suffix_filename+".hkl"
 
         if os.path.isfile(filename_train):
             print("File {} already exist, continue...".format(filename_train))
             continue
 
         subfolders = np.sort(glob.glob(patientFolder+"*/"))
+
+        if relativePath not in ["CTP_01_051/"]:continue
 
         print("[INFO] - Analyzing {0}/{1}; patient folder: {2}...".format(numFold+1, len(patientFolders), relativePath))
 
@@ -638,8 +642,11 @@ def initializeDataset():
 
             if VERBOSE: print("Saving TRAIN dataframe for patient {1} in {0}...".format(filename_train, str(patientIndex)))
 
+            # save pickle and hickle version
             f = open(filename_train, 'wb')
             pkl.dump(train_df, f)
+
+            hkl.dump(train_df, filename_train_hkl, mode="w")
 
 ################################################################################
 # ## Main

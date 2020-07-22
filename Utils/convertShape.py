@@ -22,15 +22,20 @@ def readFromPickle(filename):
 
 def convertDatasets():
     suffix_filename = "_"+str(SLICING_PIXELS)+"_"+str(M)+"x"+str(N)
-    datasetFolder = glob.glob(SCRIPT_PATH+"*"+suffix_filename+"*")
+    datasetFolder = glob.glob(SCRIPT_PATH+"*"+suffix_filename+".pkl")
+
+    fu = lambda x : np.rint(x).astype(np.uint8)
 
     for index, df_filename in enumerate(datasetFolder): # for each dataframe patient
+        start = time.time()
         print("[INFO] - Analyzing {0}/{1}; patient dataframe: {2}...".format(index+1, len(datasetFolder), df_filename))
         df = readFromPickle(df_filename)
-
-        start = time.time()
-
         if df.pixels[0].shape == (M,N,30): continue
+
+        print("here")
+
+        # df.pixels = df.pixels.map(fu)
+
 
         for row in df.itertuples():
             pixels = row.pixels

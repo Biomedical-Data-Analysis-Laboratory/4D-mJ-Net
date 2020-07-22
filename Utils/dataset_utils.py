@@ -92,7 +92,7 @@ def getDataset(nn, patients):
 
     end = time.time()
     print("[INFO] - Total time to load the Dataset: {0}s".format(round(end-start, 3)))
-    if constants.getVerbose(): generateDatasetSummary(train_df) # summary of the dataset
+    if constants.getVerbose(): generateDatasetSummary(train_df, patients) # summary of the dataset
 
     return train_df
 
@@ -101,14 +101,11 @@ def getDataset(nn, patients):
 # plus it reshape the pixel array and initialize the model.
 def prepareDataset(nn, p_id, listOfPatientsToTest):
     start = time.time()
+    validation_list, test_list = list(), list()
 
-    for flag in ["train", "val", "test"]:
-        nn.dataset[flag]["indices"] = list()
+    for flag in ["train", "val", "test"]: nn.dataset[flag]["indices"] = list()
 
-    if not nn.cross_validation:
-        # here only if: NO cross-validation set
-        validation_list, test_list = list(), list()
-
+    if not nn.cross_validation: # here only if: NO cross-validation set
         # We have set a number of validation patient(s)
         if nn.val["number_patients_for_validation"]>0:
             validation_list = listOfPatientsToTest[:nn.val["number_patients_for_validation"]]
@@ -118,50 +115,66 @@ def prepareDataset(nn, p_id, listOfPatientsToTest):
                 val_pid = general_utils.getStringFromIndex(val_p)
                 nn.dataset["val"]["indices"].extend(np.nonzero((nn.train_df.patient_id.values == val_pid))[0])
 
-            # We have set a number of testing patient(s) and we are inside a supervised learning
-            if nn.val["number_patients_for_testing"]>0 and nn.supervised:
-                test_list = listOfPatientsToTest[nn.val["number_patients_for_validation"]:nn.val["number_patients_for_validation"]+nn.val["number_patients_for_testing"]]
-                if nn.getVerbose(): print("[INFO] - TEST list: {}".format(test_list))
+        # We have set a number of testing patient(s) and we are inside a supervised learning
+        if nn.val["number_patients_for_testing"]>0 and nn.supervised:
+            test_list = listOfPatientsToTest[nn.val["number_patients_for_validation"]:nn.val["number_patients_for_validation"]+nn.val["number_patients_for_testing"]]
+            if nn.getVerbose(): print("[INFO] - TEST list: {}".format(test_list))
 
-                for test_p in test_list:
-                    test_pid = general_utils.getStringFromIndex(test_p)
-                    nn.dataset["test"]["indices"].extend(np.nonzero((nn.train_df.patient_id.values == test_pid))[0])
-                # DEFINE the data for the dataset TEST
-                nn.dataset["test"]["data"] = getDataFromIndex(nn.train_df, nn.dataset["test"]["indices"], "test", nn.mp)
+            for test_p in test_list:
+                test_pid = general_utils.getStringFromIndex(test_p)
+                nn.dataset["test"]["indices"].extend(np.nonzero((nn.train_df.patient_id.values == test_pid))[0])
+            # DEFINE the data for the dataset TEST
+            nn.dataset["test"]["data"] = getDataFromIndex(nn.train_df, nn.dataset["test"]["indices"], "test", nn.mp)
 
         # set the indices for the train dataset as the difference between all_indices, the validation indices and the test indices
         all_indices = np.nonzero((nn.train_df.label_code.values >= 0))[0]
         nn.dataset["train"]["indices"] = list(set(all_indices)-set(nn.dataset["val"]["indices"])-set(nn.dataset["test"]["indices"]))
 
+        # the validation list is empty, the test list contains some patient(s) and the validation_perc > 0
+        if len(validation_list)==0 and len(test_list)>0 and nn.val["validation_perc"]>0:
+            train_val_dataset = nn.dataset["train"]["indices"]
+            nn.dataset["train"]["indices"] = list() # empty the indices, it will be set inside the next function
+            nn = getRandomOrWeightedValidationSelection(nn, train_val_dataset, test_list, p_id)
+
     else: # We are doing a cross-validation!
-        # train/val indices are ALL except the one = p_id
+        # train/val indices are ALL except the one == p_id
         if nn.getVerbose(): print("[INFO] - VALIDATION patient: {}".format(p_id))
         train_val_dataset = np.nonzero((nn.train_df.patient_id.values != p_id))[0]
-
-        if nn.val["random_validation_selection"]: # perform a random selection of the validation
-            val_mod = int(100/nn["val"]["validation_perc"])
-            nn.dataset["train"]["indices"] = np.nonzero((train_val_dataset%val_mod != 0))[0]
-            nn.dataset["val"]["indices"] = np.nonzero((train_val_dataset%val_mod == 0))[0]
-        else:
-            # do NOT use a patient(s) as a validation set because maybe it doesn't have
-            # too much information about core and/or penumbra. Instead, get a percentage from each class!
-            for classLabelName in constants.LABELS:
-                random.seed(0) # use ALWAYS the same random indices
-                classIndices = np.nonzero((nn.train_df.label.values[train_val_dataset]==classLabelName))[0]
-                classValIndices = [] if nn.val["validation_perc"]==0 else random.sample(list(classIndices), int((len(classIndices)*nn.val["validation_perc"])/100))
-                nn.dataset["train"]["indices"].extend(list(set(classIndices)-set(classValIndices)))
-                if nn.val["validation_perc"]>0: nn.dataset["val"]["indices"].extend(classValIndices)
-
-            if nn.supervised: nn.dataset = getTestDataset(nn.dataset, nn.train_df, p_id, nn.mp)
+        nn = getRandomOrWeightedValidationSelection(nn, train_val_dataset, test_list, p_id)
 
     # set the train data only if we have NOT set the train_on_batch flag
     if not nn.train_on_batch: nn.dataset["train"]["data"] = getDataFromIndex(nn.train_df, nn.dataset["train"]["indices"], "train", nn.mp)
-    nn.dataset["val"]["data"] = None if nn.val["validation_perc"]==0 or nn.val["number_patients_for_validation"]==0 else getDataFromIndex(nn.train_df, nn.dataset["val"]["indices"], "val", nn.mp)
+    # the validation data is None if validation_perc and number_patients_for_validation are BOTH equal to 0
+    nn.dataset["val"]["data"] = None if nn.val["validation_perc"]==0 and nn.val["number_patients_for_validation"]==0 else getDataFromIndex(nn.train_df, nn.dataset["val"]["indices"], "val", nn.mp)
 
     end = time.time()
     if constants.getVerbose(): print("[INFO] - Total time to prepare the Dataset: {}s".format(round(end-start, 3)))
 
     return nn.dataset
+
+################################################################################
+# Return the train and val indices based on a random selection (val_mod) if nn.val["random_validation_selection"]
+# or a weighted selection based on the percentage (nn.val["validation_perc"]) for each class label
+def getRandomOrWeightedValidationSelection(nn, train_val_dataset, test_list, p_id):
+    # perform a random selection of the validation
+    if nn.val["random_validation_selection"]:
+        val_mod = int(100/nn.val["validation_perc"])
+        nn.dataset["train"]["indices"] = np.nonzero((train_val_dataset%val_mod != 0))[0]
+        nn.dataset["val"]["indices"] = np.nonzero((train_val_dataset%val_mod == 0))[0]
+    else:
+        # do NOT use a patient(s) as a validation set because maybe it doesn't have
+        # too much information about core and/or penumbra. Instead, get a percentage from each class!
+        for classLabelName in constants.LABELS:
+            random.seed(0) # use ALWAYS the same random indices
+            classIndices = np.nonzero((nn.train_df.label.values[train_val_dataset]==classLabelName))[0]
+            classValIndices = [] if nn.val["validation_perc"]==0 else random.sample(list(classIndices), int((len(classIndices)*nn.val["validation_perc"])/100))
+            nn.dataset["train"]["indices"].extend(list(set(classIndices)-set(classValIndices)))
+            if nn.val["validation_perc"]>0: nn.dataset["val"]["indices"].extend(classValIndices)
+
+        # if we are in a supervised environment and the the test_list is empty, update the test dataset
+        if nn.supervised and len(test_list)==0: nn.dataset = getTestDataset(nn.dataset, nn.train_df, p_id, nn.mp)
+
+    return nn
 
 ################################################################################
 # Get the test dataset, where the test indices are == p_id
@@ -181,13 +194,12 @@ def getDataFromIndex(train_df, indices, flag, mp):
         data = [a.reshape(a.shape + (1,)) for a in np.array(train_df.pixels.values[indices], dtype=object)]
 
     # convert the data into an np.ndarray
-    if type(data) is not np.ndarray: data = np.array(data)
+    if type(data) is not np.ndarray: data = np.array(data, dtype=np.uint8)
 
     end = time.time()
     if constants.getVerbose():
         setPatients = set(train_df.patient_id.values[indices])
         print("[INFO] - patients: {0}".format(setPatients))
-        for p in setPatients: print("\t {0}: # {1} elements".format(p, len(train_df.values[indices][train_df.patient_id.values[indices] == p])))
         print("[INFO] - *getDataFromIndex* Time: {}s".format(round(end-start, 3)))
         print("[INFO] - {0} shape; # {1}".format(data.shape, flag))
 
@@ -225,7 +237,7 @@ def getLabelsFromIndex(train_df, dataset, modelname, to_categ, flag):
                 data[i][curr_data==255] = constants.PIXELVALUES[0] # remove one class from the ground truth
                 data[i][curr_data==150] = constants.PIXELVALUES[2] # change the class for core
         if type(data) is not np.array: data = np.array(data)
-        labels = data.astype("float32")
+        labels = data.astype(np.float32)
         labels /= 255 # convert the label in [0, 1] values
 
     end = time.time()
@@ -237,7 +249,7 @@ def getLabelsFromIndex(train_df, dataset, modelname, to_categ, flag):
 
 ################################################################################
 # Generate a summary of the dataset
-def generateDatasetSummary(train_df):
+def generateDatasetSummary(train_df, listOfPatientsToTest):
     N_BACKGROUND, N_BRAIN, N_PENUMBRA, N_CORE, N_TOT = getNumberOfElements(train_df)
 
     general_utils.printSeparation('+', 100)
@@ -247,7 +259,7 @@ def generateDatasetSummary(train_df):
     print("\t N. Penumbra: {0}".format(N_PENUMBRA))
     print("\t N. Core: {0}".format(N_CORE))
     print("\t Tot: {0}".format(N_TOT))
-    print("\t Patients: {0}".format(set(train_df.patient_id)))
+    print("\t Patients: {0}".format(listOfPatientsToTest))
     general_utils.printSeparation('+', 100)
 
 ################################################################################

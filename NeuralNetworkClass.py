@@ -86,7 +86,7 @@ class NeuralNetwork(object):
         self.epsiloList = list(range(0,110, 10)) if self.calculate_ROC else [None]
 
         # change the prefix if SUS2020_v2 is in the dataset name
-        if "SUS2020_v2" in self.datasetFolder: constants.setPrefixImagesSUS2020_v2()
+        if "SUS2020" in self.datasetFolder: constants.setPrefixImagesSUS2020_v2()
 
 ################################################################################
 # Initialize the callbacks
@@ -226,10 +226,6 @@ class NeuralNetwork(object):
         self.dataset["val"]["labels"] = None if self.val["validation_perc"]==0 else dataset_utils.getLabelsFromIndex(train_df=self.train_df, dataset=self.dataset["val"], modelname=self.name, to_categ=self.to_categ, flag="val")
         if self.supervised: self.dataset["test"]["labels"] = dataset_utils.getLabelsFromIndex(train_df=self.train_df, dataset=self.dataset["test"], modelname=self.name, to_categ=self.to_categ, flag="test")
 
-        # deallocate memory
-        for flag in ["train", "val", "test"]: del self.dataset[flag]["indices"]
-        del self.train_df
-
         # fit and train the model
         self.train = training.fitModel(
                 model=self.model,
@@ -346,6 +342,8 @@ class NeuralNetwork(object):
     def getSampleWeights(self, flag):
         ret = None
 
+        self.N_BACKGROUND, self.N_BRAIN, self.N_PENUMBRA, self.N_CORE, self.N_TOT = dataset_utils.getNumberOfElements(self.train_df)
+
         if constants.N_CLASSES==4:
             if constants.getM()>=512: # we have only one label
                 # function that map each PIXELVALUES[2] with 150, PIXELVALUES[3] with 20 and the rest with 0.1 and sum them
@@ -356,10 +354,10 @@ class NeuralNetwork(object):
             else:
                 # see: "ISBI 2019 C-NMC Challenge: Classification in Cancer Cell Imaging" section 4.1 pag 68
                 sample_weights = self.train_df.label.map({
-                    constants.LABELS[0]: self.N_TOT/(constants.N_CLASSES*self.N_BACKGROUND), # N_TOT/N_BACKGROUND,
-                    constants.LABELS[1]: self.N_TOT/(constants.N_CLASSES*self.N_BRAIN), # N_TOT/N_BRAIN,
-                    constants.LABELS[2]: self.N_TOT/(constants.N_CLASSES*self.N_PENUMBRA), # N_TOT/N_PENUMBRA,
-                    constants.LABELS[3]: self.N_TOT/(constants.N_CLASSES*self.N_CORE), # N_TOT/N_CORE
+                    constants.LABELS[0]: self.N_TOT/(constants.N_CLASSES*self.N_BACKGROUND) if self.N_BACKGROUND>0 else 0, # N_TOT/N_BACKGROUND,
+                    constants.LABELS[1]: self.N_TOT/(constants.N_CLASSES*self.N_BRAIN) if self.N_BRAIN>0 else 0, # N_TOT/N_BRAIN,
+                    constants.LABELS[2]: self.N_TOT/(constants.N_CLASSES*self.N_PENUMBRA) if self.N_PENUMBRA>0 else 0, # N_TOT/N_PENUMBRA,
+                    constants.LABELS[3]: self.N_TOT/(constants.N_CLASSES*self.N_CORE) if self.N_CORE>0 else 0, # N_TOT/N_CORE
                 })
         elif constants.N_CLASSES==3:
             if constants.getM()>=512: # we have only one label
@@ -371,9 +369,9 @@ class NeuralNetwork(object):
             else:
                 # see: "ISBI 2019 C-NMC Challenge: Classification in Cancer Cell Imaging" section 4.1 pag 68
                 sample_weights = self.train_df.label.map({
-                    constants.LABELS[0]: self.N_TOT/(constants.N_CLASSES*(self.N_BACKGROUND+self.N_BRAIN)), # N_TOT/N_BACKGROUND,
-                    constants.LABELS[1]: self.N_TOT/(constants.N_CLASSES*self.N_PENUMBRA), # N_TOT/N_PENUMBRA,
-                    constants.LABELS[2]: self.N_TOT/(constants.N_CLASSES*self.N_CORE), # N_TOT/N_CORE
+                    constants.LABELS[0]: self.N_TOT/(constants.N_CLASSES*(self.N_BACKGROUND+self.N_BRAIN)) if self.N_BACKGROUND+self.N_BRAIN>0 else 0, # N_TOT/N_BACKGROUND,
+                    constants.LABELS[1]: self.N_TOT/(constants.N_CLASSES*self.N_PENUMBRA) if self.N_PENUMBRA>0 else 0, # N_TOT/N_PENUMBRA,
+                    constants.LABELS[2]: self.N_TOT/(constants.N_CLASSES*self.N_CORE) if self.N_CORE>0 else 0, # N_TOT/N_CORE
                 })
         else: # we are in a binary class problem
             f = lambda x : np.sum(np.array(x))
@@ -454,13 +452,13 @@ class NeuralNetwork(object):
                             print("TEST {0} {1}: {2}".format(func.__name__, classToEval, round(float(res), 3)))
 
 ################################################################################
-# Test the model with the selected patient
+# Test the model with the selected patient (if the number of patient to test is > 0)
     def evaluateModelWithCategorics(self, p_id, isAlreadySaved):
         if self.getVerbose():
             general_utils.printSeparation("+", 50)
             print("[INFO] - Evaluating the model for patient {}".format(p_id))
 
-        if self.val["number_patients_for_testing"]>0: self.testing_score = testing.evaluateModel(self, p_id, isAlreadySaved)
+        self.testing_score = testing.evaluateModel(self, p_id, isAlreadySaved)
 
 ################################################################################
 # set the flag for single/multi PROCESSING

@@ -38,9 +38,12 @@ def main():
             manual_annotationsFolder = os.path.join(constants.getRootPath(),nn.labeledImagesFolder)
 
             # different for SUS2020_v2 dataset since the dataset is not complete and the prefix is different
-            if "SUS2020_v2" in nn.datasetFolder: listOfPatientsToTest = [d[len(constants.getPrefixImages()):] for d in os.listdir(manual_annotationsFolder) if os.path.isdir(os.path.join(manual_annotationsFolder, d))]
+            if "SUS2020" in nn.datasetFolder: listOfPatientsToTest = [d[len(constants.getPrefixImages()):] for d in os.listdir(manual_annotationsFolder) if os.path.isdir(os.path.join(manual_annotationsFolder, d))]
             else: listOfPatientsToTest = [int(d[len(constants.getPrefixImages()):]) for d in os.listdir(manual_annotationsFolder) if os.path.isdir(os.path.join(manual_annotationsFolder, d))]
 
+        # list of patient to exclude from the dataset
+        if "PATIENT_TO_EXCLUDE" in setting.keys(): listOfPatientsToTest = list(set(listOfPatientsToTest).difference(setting["PATIENT_TO_EXCLUDE"]))
+        print(listOfPatientsToTest)
         # loop over all the list of patients.
         # Useful for creating a model for each patient (if cross-validation is set)
         # else, it will create

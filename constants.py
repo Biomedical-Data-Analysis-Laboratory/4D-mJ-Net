@@ -17,11 +17,13 @@ PIXELVALUES = [255, 1, 76, 150]
 HOT_ONE_WEIGHTS = [[0.2, 1.0, 1.0, 0.1]]
 PREFIX_IMAGES = "PA"
 DATASET_PREFIX = "patient"
+SUFFIX_IMG = ".tiff" # ".png"
+
 suffix_partial_weights = "__"
 threeD_flag = ""
 ONE_TIME_POINT = ""
 
-dataFrameColumns = ['patient_id', 'label', 'pixels', 'ground_truth', 'x_y', 'data_aug_idx', 'timeIndex', 'sliceIndex', 'label_code']
+dataFrameColumns = ['patient_id', 'label', 'pixels', 'ground_truth', 'x_y', 'data_aug_idx', 'timeIndex', 'sliceIndex', 'severity', 'label_code']
 
 ################################################################################
 def getVerbose():

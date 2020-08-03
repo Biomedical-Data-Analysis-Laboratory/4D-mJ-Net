@@ -106,21 +106,21 @@ def predictImage(nn, subfolder, p_id, patientFolder, relativePatientFolder, rela
 
     # get the label image only if the path is set
     if nn.labeledImagesFolder!="":
-        filename = nn.labeledImagesFolder+constants.PREFIX_IMAGES+p_id+"/"+idx+".png"
+        filename = nn.labeledImagesFolder+constants.PREFIX_IMAGES+p_id+"/"+idx+constants.SUFFIX_IMG
         if not os.path.exists(filename):
             print("[WARNING] - {0} does NOT exists, try another...".format(filename))
-            filename = nn.labeledImagesFolder+constants.PREFIX_IMAGES+p_id+"/"+p_id+idx+".png"
+            filename = nn.labeledImagesFolder+constants.PREFIX_IMAGES+p_id+"/"+p_id+idx+constants.SUFFIX_IMG
             if not os.path.exists(filename):
                 raise Exception("[ERROR] - {0} does NOT exist".format(filename))
 
         checkImageProcessed = cv2.imread(filename, 0)
 
     # get the images in a dictionary
-    for imagename in np.sort(glob.glob(subfolder+"*.png")): # sort the images !
+    for imagename in np.sort(glob.glob(subfolder+"*"+constants.SUFFIX_IMG)): # sort the images !
         filename = imagename.replace(subfolder, '')
         if not nn.supervised or nn.patientsFolder!="OLDPREPROC_PATIENTS/": imagesDict[filename] = cv2.imread(imagename, 0)
         else: # don't take the first image (the manually annotated one)
-            if filename != "01.png": imagesDict[filename] = cv2.imread(imagename, 0)
+            if filename != "01"+constants.SUFFIX_IMG: imagesDict[filename] = cv2.imread(imagename, 0)
 
     # Portion for the prediction of the image
     if constants.get3DFlag()!="":
@@ -141,7 +141,7 @@ def predictImage(nn, subfolder, p_id, patientFolder, relativePatientFolder, rela
             count = 0
 
             # for each image get the array for prediction
-            for imagename in np.sort(glob.glob(subfolder+"*.png")):
+            for imagename in np.sort(glob.glob(subfolder+"*"+constants.SUFFIX_IMG)):
                 filename = imagename.replace(subfolder, '')
                 if not nn.supervised or nn.patientsFolder!="OLDPREPROC_PATIENTS/":
                     image = imagesDict[filename]
@@ -149,7 +149,7 @@ def predictImage(nn, subfolder, p_id, patientFolder, relativePatientFolder, rela
                     else: pixels[:,:,count] = general_utils.getSlicingWindow(image, startingX, startingY, constants.getM(), constants.getN())
                     count+=1
                 else:
-                    if filename != "01.png":
+                    if filename != "01"+constants.SUFFIX_IMG:
                         image = imagesDict[filename]
                         if constants.ORIGINAL_SHAPE: pixels[count,:,:] = general_utils.getSlicingWindow(image, startingX, startingY, constants.getM(), constants.getN())
                         else: pixels[:,:,count] = general_utils.getSlicingWindow(image, startingX, startingY, constants.getM(), constants.getN())
@@ -175,13 +175,13 @@ def predictImage(nn, subfolder, p_id, patientFolder, relativePatientFolder, rela
         # rotate the predictions foor the ISLES2018 dataset
         # if "ISLES2018" in nn.datasetFolder: imagePredicted = np.rot90(imagePredicted,-1)
         # save the image predicted in the specific folder
-        cv2.imwrite(nn.saveImagesFolder+relativePatientFolder+idx+".png", imagePredicted)
+        cv2.imwrite(nn.saveImagesFolder+relativePatientFolder+idx+constants.SUFFIX_IMG, imagePredicted)
         # create and save the HEATMAP
         heatmap_img = cv2.normalize(imagePredicted, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8U)
         heatmap_img = cv2.applyColorMap(~heatmap_img, cv2.COLORMAP_JET)
-        cv2.imwrite(nn.saveImagesFolder+relativePatientFolderHeatMap+idx+"_heatmap.png", heatmap_img)
+        cv2.imwrite(nn.saveImagesFolder+relativePatientFolderHeatMap+idx+"_heatmap"+constants.SUFFIX_IMG, heatmap_img)
 
-        if constants.get3DFlag()=="": cv2.imwrite(nn.saveImagesFolder+relativePatientFolderTMP+idx+".png", checkImageProcessed)
+        if constants.get3DFlag()=="": cv2.imwrite(nn.saveImagesFolder+relativePatientFolderTMP+idx+constants.SUFFIX_IMG, checkImageProcessed)
 
         s2 = time.time()
         if constants.getVerbose(): print("save time: {}".format(round(s2-s1, 3)))
@@ -296,12 +296,12 @@ def generateTimeImagesAndConsensus(nn, test_df, YTRUEToEvaluate, YPREDToEvaluate
         if constants.N_CLASSES==3:
             checkImageProcessed[checkImageProcessed==255] = constants.PIXELVALUES[0] # remove one class from the ground truth
             checkImageProcessed[checkImageProcessed==150] == constants.PIXELVALUES[2] # change the class for core
-        cv2.imwrite(nn.saveImagesFolder+relativePatientFolderTMP+"orig_"+idx+".png", checkImageProcessed)
+        cv2.imwrite(nn.saveImagesFolder+relativePatientFolderTMP+"orig_"+idx+constants.SUFFIX_IMG, checkImageProcessed)
 
         for tidx in arrayTimeIndexImages.keys():
             curr_image = arrayTimeIndexImages[tidx]
             # save the images
-            cv2.imwrite(nn.saveImagesFolder+relativePatientFolderTMP+idx+"_"+general_utils.getStringFromIndex(tidx)+".png", curr_image)
+            cv2.imwrite(nn.saveImagesFolder+relativePatientFolderTMP+idx+"_"+general_utils.getStringFromIndex(tidx)+constants.SUFFIX_IMG, curr_image)
             # add the predicted image in the imagePredicted for consensus
             imagePredicted += curr_image
 

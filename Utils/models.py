@@ -7,43 +7,43 @@ import tensorflow.keras.backend as K
 
 ################################################################################
 # mJ-Net model
-def mJNet(X, params, to_categ):
-    return arch_mJNet.mJNet(X, params, to_categ)
+def mJNet(params, to_categ):
+    return arch_mJNet.mJNet(params, to_categ)
 ################################################################################
 # Function to call the mJ-net with dropout
-def mJNet_Drop(X, params, to_categ):
-    return arch_mJNet.mJNet(X, params, to_categ, drop=True)
+def mJNet_Drop(params, to_categ):
+    return arch_mJNet.mJNet(params, to_categ, drop=True)
 
 ################################################################################
 # Function to call the mJ-net with dropout and a long "J"
-def mJNet_LongJ_Drop(X, params, to_categ):
-    return arch_mJNet.mJNet(X, params, to_categ, drop=True, longJ=True)
+def mJNet_LongJ_Drop(params, to_categ):
+    return arch_mJNet.mJNet(params, to_categ, drop=True, longJ=True)
 
 ################################################################################
 # Function to call the mJ-net with a long "J"
-def mJNet_LongJ(X, params, to_categ):
-    return arch_mJNet.mJNet(X, params, to_categ, longJ=True)
+def mJNet_LongJ(params, to_categ):
+    return arch_mJNet.mJNet(params, to_categ, longJ=True)
 
 ################################################################################
 # mJ-Net model version 2
-def mJNet_v2(X, params, to_categ):
-    return arch_mJNet.mJNet(X, params, to_categ, drop=True, longJ=True, v2=True)
+def mJNet_v2(params, to_categ):
+    return arch_mJNet.mJNet(params, to_categ, drop=True, longJ=True, v2=True)
 
 ################################################################################
 # mJ-Net model version 3D
-def mJNet_3D(X, params, to_categ):
-    return arch_mJNet.mJNet_3D(X, params, to_categ)
+def mJNet_3D(params, to_categ):
+    return arch_mJNet.mJNet_3D(params, to_categ)
 
 ################################################################################
-def simple_autoencoder(X, params, to_categ):
-    return arch_autoencoder.simple_autoencoder(X, params, to_categ)
+def simple_autoencoder(params, to_categ):
+    return arch_autoencoder.simple_autoencoder(params, to_categ)
 
 ################################################################################
 # Model from Van De Leemput
-def van_De_Leemput(X, params, to_categ):
-    return arch_van_De_Leemput.van_De_Leemput(X, params, to_categ)
+def van_De_Leemput(params, to_categ):
+    return arch_van_De_Leemput.van_De_Leemput(params, to_categ)
 
 ################################################################################
 # Model from Ronneberger (original paper of U-Net) (https://doi.org/10.1007/978-3-319-24574-4_28)
-def Ronneberger_UNET(X, params, to_categ):
-    return arch_Ronneberger_UNET.Ronneberger_UNET(X, params, to_categ)
+def Ronneberger_UNET(params, to_categ):
+    return arch_Ronneberger_UNET.Ronneberger_UNET(params, to_categ)

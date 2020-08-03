@@ -6,11 +6,11 @@ import tensorflow.keras.backend as K
 
 ################################################################################
 # Model from Ronneberger (original paper of U-Net) (https://doi.org/10.1007/978-3-319-24574-4_28)
-def Ronneberger_UNET(X, params, to_categ):
+def Ronneberger_UNET(params, to_categ):
     # Hu initializer = [0, sqrt(2/fan_in)]
     hu_init = initializers.he_normal(seed=None)
 
-    input_x = layers.Input(shape=X.shape[1:], sparse=False)
+    input_x = layers.Input(shape=(constants.getM(), constants.getN(), constants.NUMBER_OF_IMAGE_PER_SECTION, 1), sparse=False)
     print(K.int_shape(input_x)) # (None, 30, 16, 16, 1)
     conv_1 = layers.Conv3D(64, kernel_size=(constants.NUMBER_OF_IMAGE_PER_SECTION,3,3), activation='relu', padding='same', kernel_initializer=hu_init)(input_x)
     print(K.int_shape(conv_1)) # (None, 30, 16, 16, 64)

@@ -8,13 +8,13 @@ import tensorflow.keras.backend as K
 # Model from Van De Leemput (https://doi.org/10.1109/ACCESS.2019.2910348)
 # TODO: change input accordly to the paper
 # convolutional layers loose 2 voxels (in this case pixels) each layer...
-def van_De_Leemput(X, params, to_categ):
+def van_De_Leemput(params, to_categ):
     l1_l2_reg = None # regularizers.l1_l2(l1=1e-6, l2=1e-5)
 
     # Hu initializer = [0, sqrt(9/5*fan_in)]
     hu_init = initializers.VarianceScaling(scale=(9/5), mode='fan_in', distribution='normal', seed=None)
 
-    input_x = layers.Input(shape=X.shape[1:], sparse=False)
+    input_x = layers.Input(shape=(constants.getM(), constants.getN(), constants.NUMBER_OF_IMAGE_PER_SECTION, 1), sparse=False)
     general_utils.print_int_shape(input_x) # (None, 30, 16, 16, 1)
     conv_1 = layers.Conv3D(32, kernel_size=(3,3,3), padding='same', kernel_regularizer=l1_l2_reg, kernel_initializer=hu_init)(input_x)
     conv_1 = layers.LeakyReLU(alpha=0.33)(conv_1)

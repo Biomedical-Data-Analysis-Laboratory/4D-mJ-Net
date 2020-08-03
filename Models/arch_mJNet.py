@@ -8,7 +8,7 @@ from tensorflow.keras.applications import NASNetLarge
 
 ################################################################################
 # mJ-Net model
-def mJNet(X, params, to_categ, drop=False, longJ=False, v2=False):
+def mJNet(params, to_categ, drop=False, longJ=False, v2=False):
     # from (30,M,N) to (1,M,N)
 
     size_two = (2,2,1) #(1,2,2)
@@ -16,7 +16,7 @@ def mJNet(X, params, to_categ, drop=False, longJ=False, v2=False):
     activ_func = 'relu'
     l1_l2_reg = None
     channels = [16,32,16,32,16,32,16,32,64,64,128,128,256,-1,-1,-1,-1,128,128,64,64,32,16]
-    input_shape = X.shape[1:]
+    input_shape = (constants.getM(), constants.getN(), constants.NUMBER_OF_IMAGE_PER_SECTION, 1)
     kernel_init = "glorot_uniform" # Xavier uniform initializer.
 
     if v2: # version 2
@@ -233,9 +233,9 @@ def mJNet(X, params, to_categ, drop=False, longJ=False, v2=False):
 
 ################################################################################
 # mJ-Net model version 2
-def mJNet_3D(X, params, to_categ):
+def mJNet_3D(params, to_categ):
     l1_l2_reg = None
-    input_shape = X.shape[1:]
+    input_shape = (constants.getM(), constants.getN(), constants.NUMBER_OF_IMAGE_PER_SECTION, 1)
     kernel_init = "glorot_uniform" # Xavier uniform initializer.
 
     # # Create base model

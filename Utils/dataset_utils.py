@@ -100,7 +100,7 @@ def getDataset(nn, listOfPatientsToTrainVal):
 ################################################################################
 # Function to divide the dataframe in train and test based on the patient id;
 # plus it reshape the pixel array and initialize the model.
-def prepareDataset(nn, p_id, listOfPatientsToTrainVal, listOfPatientsToTest):
+def splitDataset(nn, p_id, listOfPatientsToTrainVal, listOfPatientsToTest):
     start = time.time()
     validation_list, test_list = list(), list()
 
@@ -134,8 +134,6 @@ def prepareDataset(nn, p_id, listOfPatientsToTrainVal, listOfPatientsToTest):
                 for test_p in test_list:
                     test_pid = general_utils.getStringFromIndex(test_p)
                     nn.dataset["test"]["indices"].extend(np.nonzero((nn.train_df.patient_id.values == test_pid))[0])
-                # DEFINE the data for the dataset TEST
-                nn.dataset["test"]["data"] = getDataFromIndex(nn.train_df, nn.dataset["test"]["indices"], "test", nn.mp)
 
         # set the indices for the train dataset as the difference between all_indices, the validation indices and the test indices
         all_indices = np.nonzero((nn.train_df.label_code.values >= 0))[0]
@@ -153,15 +151,30 @@ def prepareDataset(nn, p_id, listOfPatientsToTrainVal, listOfPatientsToTest):
         train_val_dataset = np.nonzero((nn.train_df.patient_id.values != p_id))[0]
         nn = getRandomOrWeightedValidationSelection(nn, train_val_dataset, test_list, p_id)
 
+    end = time.time()
+    if constants.getVerbose(): print("[INFO] - Total time to split the Dataset: {}s".format(round(end-start, 3)))
+
+    return nn.dataset, test_list
+
+################################################################################
+#
+def prepareDataset(nn):
+    start = time.time()
     # set the train data only if we have NOT set the train_on_batch flag
     if not nn.train_on_batch: nn.dataset["train"]["data"] = getDataFromIndex(nn.train_df, nn.dataset["train"]["indices"], "train", nn.mp)
     # the validation data is None if validation_perc and number_patients_for_validation are BOTH equal to 0
     nn.dataset["val"]["data"] = None if nn.val["validation_perc"]==0 and nn.val["number_patients_for_validation"]==0 else getDataFromIndex(nn.train_df, nn.dataset["val"]["indices"], "val", nn.mp)
 
+    # if we are in a supervised environment and the the test_list is empty, update the test dataset
+    if nn.supervised and len(nn.test_list)==0: nn.dataset = getTestDataset(nn.dataset, nn.train_df, p_id, nn.mp)
+    # DEFINE the data for the dataset TEST
+    nn.dataset["test"]["data"] = getDataFromIndex(nn.train_df, nn.dataset["test"]["indices"], "test", nn.mp)
+
     end = time.time()
-    if constants.getVerbose(): print("[INFO] - Total time to prepare the Dataset: {}s".format(round(end-start, 3)))
+    if constants.getVerbose(): print("[INFO] - Total time to split the Dataset: {}s".format(round(end-start, 3)))
 
     return nn.dataset
+
 
 ################################################################################
 # Return the train and val indices based on a random selection (val_mod) if nn.val["random_validation_selection"]
@@ -181,9 +194,6 @@ def getRandomOrWeightedValidationSelection(nn, train_val_dataset, test_list, p_i
             classValIndices = [] if nn.val["validation_perc"]==0 else random.sample(list(classIndices), int((len(classIndices)*nn.val["validation_perc"])/100))
             nn.dataset["train"]["indices"].extend(list(set(classIndices)-set(classValIndices)))
             if nn.val["validation_perc"]>0: nn.dataset["val"]["indices"].extend(classValIndices)
-
-        # if we are in a supervised environment and the the test_list is empty, update the test dataset
-        if nn.supervised and len(test_list)==0: nn.dataset = getTestDataset(nn.dataset, nn.train_df, p_id, nn.mp)
 
     return nn
 

@@ -26,6 +26,7 @@ def main():
     # set up the environment for GPUs
     n_gpu = general_utils.setupEnvironment(args, setting)
 
+    use_sequence = setting["USE_SEQUENCE_TRAIN"] if "USE_SEQUENCE_TRAIN" in setting.keys() else 0
     # initialize model(s)
     for info in setting["models"]:
         networks.append(NeuralNetwork(info, setting))
@@ -43,6 +44,7 @@ def main():
             else: listOfPatientsToTrainVal = [int(d[len(constants.getPrefixImages()):]) for d in os.listdir(manual_annotationsFolder) if os.path.isdir(os.path.join(manual_annotationsFolder, d))]
 
         listOfPatientsToTrainVal.sort() # sort the list
+
         # loop over all the list of patients.
         # Useful for creating a model for each patient (if cross-validation is set)
         # else, it will create
@@ -63,12 +65,20 @@ def main():
                 ## GET THE DATASET:
                 # - The dataset is composed of all the .pkl files in the dataset folder! (To load only once)
                 if train_df is None: train_df = dataset_utils.getDataset(nn, listOfPatientsToTrainVal)
-                ## PREPARE DATASET (=divide in train/val/test)
-                nn.prepareDataset(train_df, p_id, listOfPatientsToTrainVal, listOfPatientsToTest)
-                ## SET THE CALLBACKS, RUN TRAINING & SAVE THE MODELS WEIGHTS
-                if nn.train_on_batch: nn.runTrainingOnBatch(p_id, n_gpu)
-                else: nn.runTraining(p_id, n_gpu)
-                nn.saveModelAndWeight(p_id)
+                nn.splitDataset(train_df, p_id, listOfPatientsToTrainVal, listOfPatientsToTest)
+
+                if use_sequence:
+                    # if we are doing a sequence train (for memory issue)
+                    nn.prepareSequenceClass()
+                    nn.runTrainSequence(p_id, n_gpu)
+                else:
+                    ## PREPARE DATASET (=divide in train/val/test)
+                    nn.prepareDataset()
+                    ## SET THE CALLBACKS, RUN TRAINING & SAVE THE MODELS WEIGHTS
+                    if nn.train_on_batch: nn.runTrainingOnBatch(p_id, n_gpu)
+                    else: nn.runTraining(p_id, n_gpu)
+
+            nn.saveModelAndWeight(p_id)
 
             ## PERFORM TESTING
             if nn.supervised: nn.evaluateModelWithCategorics(p_id, isAlreadySaved)

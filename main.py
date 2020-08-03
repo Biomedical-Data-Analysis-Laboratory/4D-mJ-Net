@@ -33,21 +33,20 @@ def main():
     for nn in networks:
         stats = {}
 
-        listOfPatientsToTest = setting["PATIENT_TO_USE"]
-        if listOfPatientsToTest[0] == "ALL": # flag that states: runn the test on all the patients in the "patient" folder
+        listOfPatientsToTrainVal = setting["PATIENTS_TO_TRAINVAL"]
+        listOfPatientsToTest = list() if "PATIENTS_TO_TEST" not in setting.keys() else setting["PATIENTS_TO_TEST"]
+        if listOfPatientsToTrainVal[0] == "ALL": # flag that states: runn the test on all the patients in the "patient" folder
             manual_annotationsFolder = os.path.join(constants.getRootPath(),nn.labeledImagesFolder)
 
             # different for SUS2020_v2 dataset since the dataset is not complete and the prefix is different
-            if "SUS2020" in nn.datasetFolder: listOfPatientsToTest = [d[len(constants.getPrefixImages()):] for d in os.listdir(manual_annotationsFolder) if os.path.isdir(os.path.join(manual_annotationsFolder, d))]
-            else: listOfPatientsToTest = [int(d[len(constants.getPrefixImages()):]) for d in os.listdir(manual_annotationsFolder) if os.path.isdir(os.path.join(manual_annotationsFolder, d))]
+            if "SUS2020" in nn.datasetFolder: listOfPatientsToTrainVal = [d[len(constants.getPrefixImages()):] for d in os.listdir(manual_annotationsFolder) if os.path.isdir(os.path.join(manual_annotationsFolder, d))]
+            else: listOfPatientsToTrainVal = [int(d[len(constants.getPrefixImages()):]) for d in os.listdir(manual_annotationsFolder) if os.path.isdir(os.path.join(manual_annotationsFolder, d))]
 
-        # list of patient to exclude from the dataset
-        if "PATIENT_TO_EXCLUDE" in setting.keys(): listOfPatientsToTest = list(set(listOfPatientsToTest).difference(setting["PATIENT_TO_EXCLUDE"]))
-        print(listOfPatientsToTest)
+        listOfPatientsToTrainVal.sort() # sort the list
         # loop over all the list of patients.
         # Useful for creating a model for each patient (if cross-validation is set)
         # else, it will create
-        for testPatient in listOfPatientsToTest:
+        for testPatient in listOfPatientsToTrainVal:
             p_id = general_utils.getStringFromIndex(testPatient)
             isAlreadySaved = False
 
@@ -63,9 +62,9 @@ def main():
             else:
                 ## GET THE DATASET:
                 # - The dataset is composed of all the .pkl files in the dataset folder! (To load only once)
-                if train_df is None: train_df = dataset_utils.getDataset(nn, listOfPatientsToTest)
+                if train_df is None: train_df = dataset_utils.getDataset(nn, listOfPatientsToTrainVal)
                 ## PREPARE DATASET (=divide in train/val/test)
-                nn.prepareDataset(train_df, p_id, listOfPatientsToTest)
+                nn.prepareDataset(train_df, p_id, listOfPatientsToTrainVal, listOfPatientsToTest)
                 ## SET THE CALLBACKS, RUN TRAINING & SAVE THE MODELS WEIGHTS
                 if nn.train_on_batch: nn.runTrainingOnBatch(p_id, n_gpu)
                 else: nn.runTraining(p_id, n_gpu)
@@ -86,7 +85,7 @@ def main():
                                 if idxE not in stats[func.__name__][classToEval].keys(): stats[func.__name__][classToEval][idxE] = []
                                 stats[func.__name__][classToEval][idxE].extend(tmpStats[func.__name__][classToEval][idxE])
 
-        if nn.save_statistics: nn.saveStats(stats, "PATIENT_TO_USE")
+        if nn.save_statistics: nn.saveStats(stats, "PATIENTS_TO_TRAINVAL")
 
 ################################################################################
 ################################################################################

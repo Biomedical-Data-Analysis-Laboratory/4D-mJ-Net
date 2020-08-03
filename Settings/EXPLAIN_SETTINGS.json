@@ -3,8 +3,8 @@
   "root_path": "/home/stud/lucat/PhD_Project/Stroke_segmentation/", %% main path
   "dataset_path": "/local/home/lucat/DATASET/ISLES2018/", % dataset path
    %% list of patients to test (if == ["ALL"] test all of them)
-  "PATIENT_TO_USE": ["ALL"],
-  "PATIENT_TO_EXCLUDE": ["..."], %% list of patient to exclude
+  "PATIENTS_TO_TRAINVAL": ["ALL"],
+  "PATIENTS_TO_TEST": ["..."], %% list of patient to exclude
   "OVERRIDE_MODELS_ID_PATH": "", %% path for overriding the model ID
   "init": { %% basic flag for init the process
     "NUMBER_OF_IMAGE_PER_SECTION": 64, %% change the number of image per section (optional)

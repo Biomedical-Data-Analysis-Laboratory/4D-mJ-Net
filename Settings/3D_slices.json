@@ -2,7 +2,7 @@
   "EXPERIMENT": 15,
   "root_path": "/home/stud/lucat/PhD_Project/Stroke_segmentation/",
   "dataset_path": "/local/home/lucat/DATASET/SUS2020_v2/",
-  "PATIENT_TO_USE": ["ALL"],
+  "PATIENTS_TO_TRAINVAL": ["ALL"],
   "OVERRIDE_MODELS_ID_PATH": "",
   "init": {
     "3D": 1,

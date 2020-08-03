@@ -2,7 +2,7 @@
   "EXPERIMENT": 19,
   "root_path": "/home/stud/lucat/PhD_Project/Stroke_segmentation/",
   "dataset_path": "/local/home/lucat/DATASET/SUS2020_tmp/",
-  "PATIENT_TO_USE": ["99_017","99_018","99_073","99_006","99_007","99_009","99_002","99_071","99_068","99_066","99_059","99_057"],
+  "PATIENTS_TO_TRAINVAL": ["99_017","99_018","99_073","99_006","99_007","99_009","99_002","99_071","99_068","99_066","99_059","99_057"],
   "OVERRIDE_MODELS_ID_PATH": "",
   "init": {
     "TF_CPP_MIN_LOG_LEVEL": "3",

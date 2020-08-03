@@ -157,11 +157,11 @@ class NeuralNetwork(object):
 ################################################################################
 # Function to divide the dataframe in train and test based on the patient id;
 # plus it reshape the pixel array and initialize the model.
-    def prepareDataset(self, train_df, p_id, listOfPatientsToTest):
+    def prepareDataset(self, train_df, p_id, listOfPatientsToTrainVal, listOfPatientsToTest):
         # set the dataset inside the class
         self.train_df = train_df
         # get the dataset
-        self.dataset = dataset_utils.prepareDataset(self, p_id, listOfPatientsToTest)
+        self.dataset = dataset_utils.prepareDataset(self, p_id, listOfPatientsToTrainVal, listOfPatientsToTest)
         # get the number of element per class in the dataset
         self.N_BACKGROUND, self.N_BRAIN, self.N_PENUMBRA, self.N_CORE, self.N_TOT = dataset_utils.getNumberOfElements(self.train_df)
 

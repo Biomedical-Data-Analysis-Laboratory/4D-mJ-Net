@@ -57,6 +57,8 @@ def getCallbacks(info, root_path, filename, textFolderPath, dataset, sample_weig
             # # TODO: no model passed!
             # # TODO: filename is different (is the TMP_MODELS not MODELS folder)
             cbs.append(callback.RocCallback(training_data, validation_data, model, sample_weights, filename, textFolderPath))
+        elif key=="TensorBoard":
+            cbs.append(callback.TensorBoard(log_dir=textFolderPath, update_freq=info[key]["update_freq"], histogram_freq=info[key]["histogram_freq"]))
 
     return cbs
 
@@ -85,14 +87,29 @@ def fitModel(model, dataset, batch_size, epochs, listOfCallbacks, sample_weights
 ################################################################################
 # Train the model only with a single batch
 def trainOnBatch(model, x, y, sample_weights):
-    ret = model.train_on_batch(
-        x,
+    ret = model.train_on_batch(x,
         y,
         sample_weight=sample_weights,
         reset_metrics=False
     )
 
     return model, ret
+
+################################################################################
+#
+def fit_generator(model, train_sequence, val_sequence, epochs, listOfCallbacks, initial_epoch, save_activation_filter, use_multiprocessing):
+    multiplier = 8
+    training = model.fit_generator(train_sequence,
+        epochs=epochs,
+        validation_data=val_sequence,
+        callbacks=listOfCallbacks,
+        initial_epoch=initial_epoch,
+        verbose=constants.getVerbose(),
+        max_queue_size=10*multiplier,
+        workers=1*multiplier,
+        use_multiprocessing=use_multiprocessing)
+
+    return training
 
 ################################################################################
 #

@@ -130,3 +130,13 @@ def LearningRateScheduler(decay_step, decay_rate):
             return lr * decay_rate
         return lr
     return callbacks.LearningRateScheduler(lr_scheduler, verbose=constants.getVerbose())
+
+################################################################################
+# If you have installed TensorFlow with pip, you should be able to launch TensorBoard from the command line:
+# tensorboard --logdir="/home/stud/lucat/PhD_Project/Stroke_segmentation/SAVE/"
+def TensorBoard(log_dir, histogram_freq, update_freq):
+    return callbacks.TensorBoard(
+        log_dir=log_dir,
+        histogram_freq=histogram_freq,
+        update_freq=update_freq
+    )

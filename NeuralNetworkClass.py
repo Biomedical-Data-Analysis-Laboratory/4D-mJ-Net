@@ -1,4 +1,4 @@
-from Utils import general_utils, dataset_utils, models
+from Utils import general_utils, dataset_utils, sequence_utils, models
 import training, testing, constants
 
 import os
@@ -156,14 +156,19 @@ class NeuralNetwork(object):
 
 ################################################################################
 # Function to divide the dataframe in train and test based on the patient id;
-# plus it reshape the pixel array and initialize the model.
-    def prepareDataset(self, train_df, p_id, listOfPatientsToTrainVal, listOfPatientsToTest):
+    def splitDataset(self, train_df, p_id, listOfPatientsToTrainVal, listOfPatientsToTest):
         # set the dataset inside the class
         self.train_df = train_df
-        # get the dataset
-        self.dataset = dataset_utils.prepareDataset(self, p_id, listOfPatientsToTrainVal, listOfPatientsToTest)
+        # split the dataset
+        self.dataset, self.test_list = dataset_utils.splitDataset(self, p_id, listOfPatientsToTrainVal, listOfPatientsToTest)
         # get the number of element per class in the dataset
         self.N_BACKGROUND, self.N_BRAIN, self.N_PENUMBRA, self.N_CORE, self.N_TOT = dataset_utils.getNumberOfElements(self.train_df)
+
+################################################################################
+#Function to reshape the pixel array and initialize the model.
+    def prepareDataset():
+        # split the dataset
+        self.dataset = dataset_utils.prepareDataset(self)
 
 ################################################################################
 # compile the model, callable also from outside
@@ -178,24 +183,21 @@ class NeuralNetwork(object):
         )
 
 ################################################################################
-# Run the training over the dataset based on the model
-    def runTraining(self, p_id, n_gpu):
+#
+    def initializeTraining(self, p_id, n_gpu):
         if self.getVerbose():
             general_utils.printSeparation("*", 50)
             print("[INFO] - Start runTraining function.")
-
-        if self.getVerbose():
-            general_utils.printSeparation("-", 50)
             print("[INFO] - Getting model {0} with {1} optimizer...".format(self.name, self.optimizerInfo["name"]))
 
         # based on the number of GPUs availables
         # call the function called self.name in models.py
         if n_gpu==1:
-            self.model = getattr(models, self.name)(self.dataset["train"]["data"], params=self.params, to_categ=self.to_categ)
+            self.model = getattr(models, self.name)(params=self.params, to_categ=self.to_categ)
         else:
             # TODO: problems during the load of the model (?)
             with tf.device('/cpu:0'):
-                self.model = getattr(models, self.name)(self.dataset["train"]["data"], params=self.params, to_categ=self.to_categ)
+                self.model = getattr(models, self.name)(params=self.params, to_categ=self.to_categ)
             self.model = multi_gpu_model(self.model, gpus=n_gpu)
 
         if self.getVerbose() and self.summaryFlag==0:
@@ -217,10 +219,15 @@ class NeuralNetwork(object):
         # compile the model with optimizer, loss function and metrics
         self.compileModel()
 
-        sample_weights = self.getSampleWeights("train")
-
+        self.sample_weights = self.getSampleWeights("train")
         # Set the callbacks
-        self.setCallbacks(p_id, sample_weights)
+        self.setCallbacks(p_id, self.sample_weights)
+
+
+################################################################################
+# Run the training over the dataset based on the model
+    def runTraining(self, p_id, n_gpu):
+        self.initializeTraining(p_id, n_gpu)
 
         self.dataset["train"]["labels"] = dataset_utils.getLabelsFromIndex(train_df=self.train_df, dataset=self.dataset["train"], modelname=self.name, to_categ=self.to_categ, flag="train")
         self.dataset["val"]["labels"] = None if self.val["validation_perc"]==0 else dataset_utils.getLabelsFromIndex(train_df=self.train_df, dataset=self.dataset["val"], modelname=self.name, to_categ=self.to_categ, flag="val")
@@ -228,16 +235,16 @@ class NeuralNetwork(object):
 
         # fit and train the model
         self.train = training.fitModel(
-                model=self.model,
-                dataset=self.dataset,
-                batch_size=self.batch_size,
-                epochs=self.epochs,
-                listOfCallbacks=self.callbacks,
-                sample_weights=sample_weights,
-                initial_epoch=self.initial_epoch,
-                save_activation_filter=self.save_activation_filter,
-                intermediate_activation_path=self.intermediateActivationFolder,
-                use_multiprocessing=self.mp)
+            model=self.model,
+            dataset=self.dataset,
+            batch_size=self.batch_size,
+            epochs=self.epochs,
+            listOfCallbacks=self.callbacks,
+            sample_weights=self.sample_weights,
+            initial_epoch=self.initial_epoch,
+            save_activation_filter=self.save_activation_filter,
+            intermediate_activation_path=self.intermediateActivationFolder,
+            use_multiprocessing=self.mp)
 
         # plot the loss and accuracy of the training
         training.plotLossAndAccuracy(self, p_id)
@@ -336,6 +343,30 @@ class NeuralNetwork(object):
         training.plotMetrics(self, p_id, dict_metrics)
         # save the activation filters
         if self.save_activation_filter: training.saveActivationFilter(self.model, shape=tuple(self.train_df.pixels.values[0].shape), intermediate_activation_path=self.intermediateActivationFolder)
+
+################################################################################
+
+    def prepareSequenceClass(self):
+        self.train_sequence = sequence_utils.trainValSequence(self.train_df, self.dataset["train"]["indices"], self.getSampleWeights("train"), "pixels", "ground_truth", self.batch_size)
+        self.val_sequence = sequence_utils.trainValSequence(self.train_df, self.dataset["val"]["indices"], self.getSampleWeights("val"), "pixels", "ground_truth", self.batch_size)
+
+################################################################################
+
+    def runTrainSequence(self, p_id, n_gpu):
+        self.initializeTraining(p_id, n_gpu)
+
+        self.train = training.fit_generator(
+            model=self.model,
+            train_sequence=self.train_sequence,
+            val_sequence=self.val_sequence,
+            epochs=self.epochs,
+            listOfCallbacks=self.callbacks,
+            initial_epoch=self.initial_epoch,
+            save_activation_filter=self.save_activation_filter,
+            use_multiprocessing=self.mp)
+
+        # plot the loss and accuracy of the training
+        training.plotLossAndAccuracy(self, p_id)
 
 ################################################################################
 # Get the sample weight from the dataset

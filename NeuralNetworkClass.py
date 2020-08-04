@@ -345,13 +345,19 @@ class NeuralNetwork(object):
         if self.save_activation_filter: training.saveActivationFilter(self.model, shape=tuple(self.train_df.pixels.values[0].shape), intermediate_activation_path=self.intermediateActivationFolder)
 
 ################################################################################
-
+#
     def prepareSequenceClass(self):
-        self.train_sequence = sequence_utils.trainValSequence(self.train_df, self.dataset["train"]["indices"], self.getSampleWeights("train"), "pixels", "ground_truth", self.batch_size)
-        self.val_sequence = sequence_utils.trainValSequence(self.train_df, self.dataset["val"]["indices"], self.getSampleWeights("val"), "pixels", "ground_truth", self.batch_size)
+        # train data sequence
+        self.train_sequence = sequence_utils.trainValSequence(self.train_df,
+            self.dataset["train"]["indices"], self.getSampleWeights("train"),
+            "pixels", "ground_truth", self.batch_size)
+        # validation data sequence
+        self.val_sequence = sequence_utils.trainValSequence(self.train_df,
+            self.dataset["val"]["indices"], self.getSampleWeights("val"),
+            "pixels", "ground_truth", self.batch_size)
 
 ################################################################################
-
+#
     def runTrainSequence(self, p_id, n_gpu):
         self.initializeTraining(p_id, n_gpu)
 
@@ -370,9 +376,7 @@ class NeuralNetwork(object):
 
 ################################################################################
 # Get the sample weight from the dataset
-    def getSampleWeights(self, flag):
-        ret = None
-
+    def getSampleWeights(self, flagDataset):
         self.N_BACKGROUND, self.N_BRAIN, self.N_PENUMBRA, self.N_CORE, self.N_TOT = dataset_utils.getNumberOfElements(self.train_df)
 
         if constants.N_CLASSES==4:
@@ -408,9 +412,7 @@ class NeuralNetwork(object):
             f = lambda x : np.sum(np.array(x))
             sample_weights = self.train_df.ground_truth.map(f)
 
-        ret = np.array(sample_weights.values[self.dataset[flag]["indices"]])
-
-        return ret
+        return np.array(sample_weights.values[self.dataset[flagDataset]["indices"]])
 
 ################################################################################
 # Save the trained model and its relative weights

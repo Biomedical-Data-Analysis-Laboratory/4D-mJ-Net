@@ -98,7 +98,7 @@ def trainOnBatch(model, x, y, sample_weights):
 ################################################################################
 #
 def fit_generator(model, train_sequence, val_sequence, epochs, listOfCallbacks, initial_epoch, save_activation_filter, use_multiprocessing):
-    multiplier = 8
+    multiplier = 16
     training = model.fit_generator(train_sequence,
         epochs=epochs,
         validation_data=val_sequence,

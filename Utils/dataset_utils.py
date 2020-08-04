@@ -276,8 +276,9 @@ def generateDatasetSummary(train_df, listOfPatientsToTrainVal):
     general_utils.printSeparation('+', 100)
     print("DATASET SUMMARY: \n")
     print("\t N. Background: {0}".format(N_BACKGROUND))
-    print("\t N. Brain: {0}".format(N_BRAIN))
-    print("\t N. Penumbra: {0}".format(N_PENUMBRA))
+    if constants.N_CLASSES==3:
+        print("\t N. Brain: {0}".format(N_BRAIN))
+        print("\t N. Penumbra: {0}".format(N_PENUMBRA))
     print("\t N. Core: {0}".format(N_CORE))
     print("\t Tot: {0}".format(N_TOT))
     print("\t Patients: {0}".format(listOfPatientsToTrainVal))

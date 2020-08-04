@@ -19,23 +19,23 @@ from scipy import ndimage
 ################################################################################
 # ISLES2018 Setting
 ################################################################################
-# DATASET_NAME ="ISLES2018/"
-# ROOT_PATH = "/home/stud/lucat/PhD_Project/Stroke_segmentation/PATIENTS/"+DATASET_NAME +"NEW_TRAINING/"
-# SCRIPT_PATH = "/local/home/lucat/DATASET/"+DATASET_NAME +"Two_classes/" # Four_classes
-#
-# SAVE_REGISTERED_FOLDER = ROOT_PATH + "FINAL/"
-# LABELLED_IMAGES_FOLDER_LOCATION = ROOT_PATH + "Ground Truth/"
-# NEWLABELLED_IMAGES_FOLDER_LOCATION = ROOT_PATH + "Binary_Ground_Truth/"
-# IMAGE_PREFIX = "PA"
-# NUMBER_OF_IMAGE_PER_SECTION = 64 # number of image (divided by time) for each section of the brain
-# IMAGE_WIDTH, IMAGE_HEIGHT = 256, 256
-#
-# # background:255, brain:0, penumbra:~76, core:~150
-# BINARY_CLASSIFICATION = True # to extract only two classes
-# LABELS = ["background", "core"] # ["background", "brain", "penumbra", "core"]
-# LABELS_THRESHOLDS = [234, 135] #[234, 0, 60, 135] # [250, 0 , 30, 100]
-# LABELS_REALVALUES = [0, 255] # [255, 0, 76, 150]
-# TILE_DIVISION = 8
+DATASET_NAME ="ISLES2018/"
+ROOT_PATH = "/home/stud/lucat/PhD_Project/Stroke_segmentation/PATIENTS/"+DATASET_NAME +"NEW_TRAINING_TIFF/"
+SCRIPT_PATH = "/local/home/lucat/DATASET/"+DATASET_NAME +"Two_classes/" # Four_classes
+
+SAVE_REGISTERED_FOLDER = ROOT_PATH + "FINAL_TIFF/"
+LABELLED_IMAGES_FOLDER_LOCATION = ROOT_PATH + "Binary_Ground_Truth/"
+IMAGE_PREFIX = "PA"
+IMAGE_SUFFIX = ".tiff" # ".png"
+NUMBER_OF_IMAGE_PER_SECTION = 30 # number of image (divided by time) for each section of the brain
+IMAGE_WIDTH, IMAGE_HEIGHT = 512, 512
+
+# background:255, brain:0, penumbra:~76, core:~150
+BINARY_CLASSIFICATION = True # to extract only two classes
+LABELS = ["background", "core"] # ["background", "brain", "penumbra", "core"]
+LABELS_THRESHOLDS = [0, 235] #[234, 0, 60, 135] # [250, 0 , 30, 100]
+LABELS_REALVALUES = [0, 255] # [255, 0, 76, 150]
+TILE_DIVISION = 16
 
 ################################################################################
 # Master2019 Setting
@@ -46,7 +46,6 @@ from scipy import ndimage
 #
 # SAVE_REGISTERED_FOLDER = ROOT_PATH + "Patients/"
 # LABELLED_IMAGES_FOLDER_LOCATION = ROOT_PATH + "Manual_annotations/"
-# NEWLABELLED_IMAGES_FOLDER_LOCATION = ""
 # IMAGE_PREFIX = "PA"
 # NUMBER_OF_IMAGE_PER_SECTION = 30 # number of image (divided by time) for each section of the brain
 # NUMBER_OF_SLICE_PER_PATIENT = 32 # forced number of slices for each patient
@@ -61,24 +60,23 @@ from scipy import ndimage
 ################################################################################
 # SUS2020_v2 Setting
 ################################################################################
-DATASET_NAME = "SUS2020_TIFF/" #"SUS2020_v2/"
-ROOT_PATH = "/home/stud/lucat/PhD_Project/Stroke_segmentation/PATIENTS/"+DATASET_NAME
-SCRIPT_PATH = "/local/home/lucat/DATASET/"+DATASET_NAME
-
-SAVE_REGISTERED_FOLDER = ROOT_PATH + "FINAL_TIFF/"
-LABELLED_IMAGES_FOLDER_LOCATION = ROOT_PATH + "FINALIZE_PM_TIFF/"
-NEWLABELLED_IMAGES_FOLDER_LOCATION = ""
-IMAGE_PREFIX = "CTP_"
-IMAGE_SUFFIX = ".tiff" # ".png"
-NUMBER_OF_IMAGE_PER_SECTION = 30 # number of image (divided by time) for each section of the brain
-NUMBER_OF_SLICE_PER_PATIENT = 32 # forced number of slices for each patient
-IMAGE_WIDTH, IMAGE_HEIGHT = 512, 512
-# background:255, brain:0, penumbra:~76, core:~150
-BINARY_CLASSIFICATION = False # to extract only two classes
-LABELS = ["background", "brain", "penumbra", "core"]
-LABELS_THRESHOLDS = [234, 0, 60, 135] # [250, 0 , 30, 100]
-LABELS_REALVALUES = [255, 0, 76, 150]
-TILE_DIVISION = 16 # set to >1 if the tile are NOT the entire image
+# DATASET_NAME = "SUS2020_TIFF/" #"SUS2020_v2/"
+# ROOT_PATH = "/home/stud/lucat/PhD_Project/Stroke_segmentation/PATIENTS/"+DATASET_NAME
+# SCRIPT_PATH = "/local/home/lucat/DATASET/"+DATASET_NAME
+#
+# SAVE_REGISTERED_FOLDER = ROOT_PATH + "FINAL_TIFF/"
+# LABELLED_IMAGES_FOLDER_LOCATION = ROOT_PATH + "FINALIZE_PM_TIFF/"
+# IMAGE_PREFIX = "CTP_"
+# IMAGE_SUFFIX = ".tiff" # ".png"
+# NUMBER_OF_IMAGE_PER_SECTION = 30 # number of image (divided by time) for each section of the brain
+# NUMBER_OF_SLICE_PER_PATIENT = 32 # forced number of slices for each patient
+# IMAGE_WIDTH, IMAGE_HEIGHT = 512, 512
+# # background:255, brain:0, penumbra:~76, core:~150
+# BINARY_CLASSIFICATION = False # to extract only two classes
+# LABELS = ["background", "brain", "penumbra", "core"]
+# LABELS_THRESHOLDS = [234, 0, 60, 135] # [250, 0 , 30, 100]
+# LABELS_REALVALUES = [255, 0, 76, 150]
+# TILE_DIVISION = 16 # set to >1 if the tile are NOT the entire image
 
 ################################################################################
 ################################################################################
@@ -88,7 +86,7 @@ TILE_DIVISION = 16 # set to >1 if the tile are NOT the entire image
 # create a dataset compatible with the Keras Sequence class
 # https://keras.io/api/utils/python_utils/
 SEQUENCE_DATASET = True
-NEW_GROUNDTRUTH_VALUES = True
+NEW_GROUNDTRUTH_VALUES = False
 SKIP_TILES = False
 
 ################################################################################
@@ -135,7 +133,10 @@ def getSlicingWindow(img, startingX, startingY, M, N):
     return img[startingX:startingX+M,startingY:startingY+N]
 
 ################################################################################
-# Function for inserting inside `dataset` the pixel areas (slicing windows) found with a slicing area approach (= start from point 0,0 it takes the areas `MxN` and then move on the right or on the bottom by a pre-fixed number of pixels = `SLICING_PIXELS`) and the corresponding area in the images inside the same folder, which are the registered images of the same section of the brain in different time.
+# Function for inserting inside `dataset` the pixel areas (slicing windows) found with
+# a slicing area approach (= start from point 0,0 it takes the areas `MxN` and then move on the right or on the bottom by
+# a pre-fixed number of pixels = `SLICING_PIXELS`) and the corresponding area in the images inside the same folder, which
+# are the registered images of the same section of the brain in different time.
 def fillDatasetOverTime(train_df, relativePath, patientIndex, timeFolder):
     global dataset
 
@@ -180,24 +181,17 @@ def fillDatasetOverTime(train_df, relativePath, patientIndex, timeFolder):
 
         if BINARY_CLASSIFICATION: # JUST for 2 classes: core and the rest
             everything = realLabelledWindow>=0
-            binaryBackgroundMatrix = realLabelledWindow<=LABELS_THRESHOLDS[0]
             binaryCoreMatrix = realLabelledWindow>=LABELS_THRESHOLDS[1]
-            binaryCoreNoSkull = ~(binaryCoreMatrix ^ binaryBackgroundMatrix) # NOT background XOR core
-            valueClasses[LABELS[1]] = sum(sum(binaryCoreNoSkull))
+            valueClasses[LABELS[1]] = sum(sum(binaryCoreMatrix))
             binaryEverything = everything ^ binaryCoreMatrix # everything XOR core --> the other class
             valueClasses[LABELS[0]] = sum(sum(binaryEverything))
-
-            # set the window with the two classes
-            realLabelledWindow = (binaryEverything*LABELS_REALVALUES[0]) + (binaryCoreNoSkull*LABELS_REALVALUES[1])
-            # save the binary ground truth image
-            if not os.path.isdir(NEWLABELLED_IMAGES_FOLDER_LOCATION+IMAGE_PREFIX+patientIndex): os.makedirs(NEWLABELLED_IMAGES_FOLDER_LOCATION+IMAGE_PREFIX+patientIndex)
-            if not os.path.exists(NEWLABELLED_IMAGES_FOLDER_LOCATION+IMAGE_PREFIX+patientIndex+"/"+sliceIndex+IMAGE_SUFFIX): cv2.imwrite(NEWLABELLED_IMAGES_FOLDER_LOCATION+IMAGE_PREFIX+patientIndex+"/"+sliceIndex+IMAGE_SUFFIX, realLabelledWindow)
 
             # set a lower threshold for the core class
             if valueClasses[LABELS[1]]==0: classToSet = LABELS[0]
             else:
                 core_ratio = valueClasses[LABELS[1]]/sum(valueClasses.values())
-                classToSet = LABELS[1] if not math.isnan(core_ratio) and core_ratio > 0.4 else LABELS[0]
+                classToSet = LABELS[1] if not math.isnan(core_ratio) and core_ratio > 0.5 else LABELS[0]
+
         else: # The normal four classes
             binaryBackgroundMatrix = realLabelledWindow>=LABELS_THRESHOLDS[0]
             binaryBrainMatrix = realLabelledWindow>=LABELS_THRESHOLDS[1]
@@ -271,44 +265,40 @@ def fillDatasetOverTime(train_df, relativePath, patientIndex, timeFolder):
                     if str(startingY) not in pixelsList[data_aug_idx][str(startingX)].keys(): pixelsList[data_aug_idx][str(startingX)][str(startingY)] = dict()
                     if str(startingY) not in otherInforList[data_aug_idx][str(startingX)].keys(): otherInforList[data_aug_idx][str(startingX)][str(startingY)] = dict()
 
-                    filename = imagename.replace(timeFolder, '')
-                    # don't take the first image (the manually annotated one)
-                    if "OLDPREPROC_PATIENTS/" in SAVE_REGISTERED_FOLDER and  filename == "01"+IMAGE_SUFFIX: continue
+                    # process and save the pixels only if we are NOT creating a sequence dataset
+                    if not SEQUENCE_DATASET:
+                        filename = imagename.replace(timeFolder, '')
+                        # don't take the first image (the manually annotated one)
+                        if "OLDPREPROC_PATIENTS/" in SAVE_REGISTERED_FOLDER and  filename == "01"+IMAGE_SUFFIX: continue
 
-                    image = imagesDict[filename]
-                    slicingWindow = getSlicingWindow(image, startingX, startingY, M, N)
-                    realLabelledWindowToAdd = realLabelledWindow
+                        image = imagesDict[filename]
+                        slicingWindow = getSlicingWindow(image, startingX, startingY, M, N)
+                        realLabelledWindowToAdd = realLabelledWindow
 
-                    # rotate the image if the dataset == ISLES2018
-                    # if DATASET_NAME == "ISLES2018/":
-                    #     slicingWindow = np.rot90(slicingWindow,1)
-                    #     realLabelledWindowToAdd = np.rot90(realLabelledWindowToAdd,1)
+                        if data_aug_idx==1:
+                            slicingWindow = np.rot90(slicingWindow) # rotate 90 degree counterclockwise
+                            realLabelledWindowToAdd = np.rot90(realLabelledWindowToAdd)
+                        elif data_aug_idx==2:
+                            slicingWindow = np.rot90(slicingWindow,2) # rotate 180 degree counterclockwise
+                            realLabelledWindowToAdd = np.rot90(realLabelledWindowToAdd,2)
+                        elif data_aug_idx==3:
+                            slicingWindow = np.rot90(slicingWindow,3) # rotate 270 degree counterclockwise
+                            realLabelledWindowToAdd = np.rot90(realLabelledWindowToAdd,3)
+                        elif data_aug_idx==4:
+                            slicingWindow = np.flipud(slicingWindow) # flip the matrix up/down
+                            realLabelledWindowToAdd = np.flipud(realLabelledWindowToAdd)
+                        elif data_aug_idx==5:
+                            slicingWindow = np.fliplr(slicingWindow) # flip the matrix left/right
+                            realLabelledWindowToAdd = np.fliplr(realLabelledWindowToAdd)
 
-                    if data_aug_idx==1:
-                        slicingWindow = np.rot90(slicingWindow) # rotate 90 degree counterclockwise
-                        realLabelledWindowToAdd = np.rot90(realLabelledWindowToAdd)
-                    elif data_aug_idx==2:
-                        slicingWindow = np.rot90(slicingWindow,2) # rotate 180 degree counterclockwise
-                        realLabelledWindowToAdd = np.rot90(realLabelledWindowToAdd,2)
-                    elif data_aug_idx==3:
-                        slicingWindow = np.rot90(slicingWindow,3) # rotate 270 degree counterclockwise
-                        realLabelledWindowToAdd = np.rot90(realLabelledWindowToAdd,3)
-                    elif data_aug_idx==4:
-                        slicingWindow = np.flipud(slicingWindow) # flip the matrix up/down
-                        realLabelledWindowToAdd = np.flipud(realLabelledWindowToAdd)
-                    elif data_aug_idx==5:
-                        slicingWindow = np.fliplr(slicingWindow) # flip the matrix left/right
-                        realLabelledWindowToAdd = np.fliplr(realLabelledWindowToAdd)
+                        if image_idx not in pixelsList[data_aug_idx][str(startingX)][str(startingY)].keys(): pixelsList[data_aug_idx][str(startingX)][str(startingY)][image_idx] = list()
+                        pixelsList[data_aug_idx][str(startingX)][str(startingY)][image_idx] = slicingWindow
 
-                    if image_idx not in pixelsList[data_aug_idx][str(startingX)][str(startingY)].keys(): pixelsList[data_aug_idx][str(startingX)][str(startingY)][image_idx] = list()
-                    pixelsList[data_aug_idx][str(startingX)][str(startingY)][image_idx] = slicingWindow
-
-
-                otherInforList[data_aug_idx][str(startingX)][str(startingY)]["ground_truth"] = realLabelledWindowToAdd
                 # if we are processing for the sequence dataset, save the path for the ground truth
                 if SEQUENCE_DATASET:
                     otherInforList[data_aug_idx][str(startingX)][str(startingY)]["ground_truth"] = LABELLED_IMAGES_FOLDER_LOCATION+IMAGE_PREFIX+patientIndex+"/"+sliceIndex+IMAGE_SUFFIX
                     otherInforList[data_aug_idx][str(startingX)][str(startingY)]["pixels"] = timeFolder
+                else: otherInforList[data_aug_idx][str(startingX)][str(startingY)]["ground_truth"] = realLabelledWindowToAdd
 
                 otherInforList[data_aug_idx][str(startingX)][str(startingY)]["label_class"] = classToSet
                 otherInforList[data_aug_idx][str(startingX)][str(startingY)]["x_y"] = (startingX, startingY)
@@ -363,7 +353,7 @@ def fillDatasetOverTime(train_df, relativePath, patientIndex, timeFolder):
                     if ORIGINAL_SHAPE: pixels_zoom = ndimage.zoom(totalVol,[zoom_val,1,1],output=np.uint8)
                     else: pixels_zoom = ndimage.zoom(totalVol,[1,1,zoom_val],output=np.uint8)
 
-                ## USE THIS TO CHECK THE VALIDITIY OF THE INTERPOlATION
+                ## USE THIS TO CHECK THE VALIDITIY OF THE INTERPOLATION
                 # print(pixels_zoom.shape)
                 # for z in range(0,pixels_zoom.shape[0]):
                 #     print(ROOT_PATH+"Test/img_{0}_{1}_{2}_{3}.png".format(d,x,y,z))
@@ -569,7 +559,8 @@ def fillDataset3DOneTimePoint(train_df, relativePath, patientIndex, timeFolder, 
     return train_df
 
 ################################################################################
-# Function that initialize the dataset: for each subfolder of the patient (section of the brain), it call the `fillDataset` function to get the pixels, save into the dataset and analyze them later.
+# Function that initialize the dataset: for each subfolder of the patient (section of the brain),
+# it call the `fillDataset` function to get the pixels, save into the dataset and analyze them later.
 def initializeDataset():
     patientFolders = glob.glob(SAVE_REGISTERED_FOLDER+"*/")
     suffix_filename = "_"+str(SLICING_PIXELS)+"_"+str(M)+"x"+str(N)
@@ -594,7 +585,7 @@ def initializeDataset():
             continue
 
         subfolders = np.sort(glob.glob(patientFolder+"*/"))
-
+        if numFold<44: continue
         print("[INFO] - Analyzing {0}/{1}; patient folder: {2}...".format(numFold+1, len(patientFolders), relativePath))
 
         if os.path.isdir(LABELLED_IMAGES_FOLDER_LOCATION+IMAGE_PREFIX+patientIndex+"/"):

@@ -148,8 +148,9 @@ def getStatisticFunctions(listStats):
 def isFilenameInListOfPatient(filename, patients):
     ret = False
     start_index = filename.rfind("/")+len(constants.DATASET_PREFIX)+1
-    patient_id = filename[start_index:start_index+len(patients[0])]
+    patient_id = filename[start_index:start_index+len(str(patients[-1]))]
     # don't load the dataframe if patient_id NOT in the list of patients
+    if constants.PREFIX_IMAGES=="PA": patient_id = int(patient_id)
     if patient_id in patients: ret = True
 
     return ret

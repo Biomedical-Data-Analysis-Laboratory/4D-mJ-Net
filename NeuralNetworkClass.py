@@ -408,9 +408,13 @@ class NeuralNetwork(object):
                     constants.LABELS[1]: self.N_TOT/(constants.N_CLASSES*self.N_PENUMBRA) if self.N_PENUMBRA>0 else 0, # N_TOT/N_PENUMBRA,
                     constants.LABELS[2]: self.N_TOT/(constants.N_CLASSES*self.N_CORE) if self.N_CORE>0 else 0, # N_TOT/N_CORE
                 })
-        else: # we are in a binary class problem
-            f = lambda x : np.sum(np.array(x))
-            sample_weights = self.train_df.ground_truth.map(f)
+        elif constants.N_CLASSES==2: # we are in a binary class problem
+            # f = lambda x : np.sum(np.array(x))
+            # sample_weights = self.train_df.ground_truth.map(f)
+            sample_weights = self.train_df.label.map({
+                constants.LABELS[0]: self.N_TOT/(constants.N_CLASSES*self.N_BACKGROUND) if self.N_BACKGROUND>0 else 0, # N_TOT/N_BACKGROUND,
+                constants.LABELS[1]: self.N_TOT/(constants.N_CLASSES*self.N_CORE) if self.N_CORE>0 else 0, # N_TOT/N_CORE
+            })
 
         return np.array(sample_weights.values[self.dataset[flagDataset]["indices"]])
 

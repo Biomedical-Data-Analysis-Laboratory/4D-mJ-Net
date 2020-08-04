@@ -46,27 +46,22 @@ class trainValSequence(Sequence):
             X = np.empty((len(self.dataframe[self.x_label][start:end]),constants.getM(),constants.getN(),constants.NUMBER_OF_IMAGE_PER_SECTION, 1)) # empty array for the pixels
             for i,folder in enumerate(pixels_filenames[0]):
                 for timeIndex,filename in enumerate(np.sort(glob.glob(folder+"*"+constants.SUFFIX_IMG))):
+                    # for ISLES2018 (to change in the future) --> if the number of timepoint per slice is > constants.NUMBER_OF_IMAGE_PER_SECTION
+                    # break the loop and take only the first constants.NUMBER_OF_IMAGE_PER_SECTION
+                    # TODO: change it into INTERPOLATION to have the same number of images and use the entire timepoints
+                    if timeIndex>=constants.NUMBER_OF_IMAGE_PER_SECTION: break
+
                     tmp = general_utils.getSlicingWindow(cv2.imread(filename, cv2.IMREAD_GRAYSCALE),
                             pixels_filenames[1][index_pd[i]][0], pixels_filenames[1][index_pd[i]][1], constants.getM(), constants.getN())
 
-                    if pixels_filenames[2][index_pd[i]]==0:
-                        index_pd_DA["0"].add(i)
-                    elif pixels_filenames[2][index_pd[i]]==1:
-                        tmp = np.rot90(tmp) # rotate 90 degree counterclockwise
-                        index_pd_DA["1"].add(i)
-                    elif pixels_filenames[2][index_pd[i]]==2:
-                        tmp = np.rot90(tmp,2) # rotate 180 degree counterclockwise
-                        index_pd_DA["2"].add(i)
-                    elif pixels_filenames[2][index_pd[i]]==3:
-                        tmp = np.rot90(tmp,3) # rotate 270 degree counterclockwise
-                        index_pd_DA["3"].add(i)
-                    elif pixels_filenames[2][index_pd[i]]==4:
-                        tmp = np.flipud(tmp) # rotate 270 degree counterclockwise
-                        index_pd_DA["4"].add(i)
-                    elif pixels_filenames[2][index_pd[i]]==5:
-                        tmp = np.fliplr(tmp) # flip the matrix left/right
-                        index_pd_DA["5"].add(i)
-
+                    if pixels_filenames[2][index_pd[i]]==1: tmp = np.rot90(tmp) # rotate 90 degree counterclockwise
+                    elif pixels_filenames[2][index_pd[i]]==2: tmp = np.rot90(tmp,2) # rotate 180 degree counterclockwise
+                    elif pixels_filenames[2][index_pd[i]]==3: tmp = np.rot90(tmp,3) # rotate 270 degree counterclockwise
+                    elif pixels_filenames[2][index_pd[i]]==4: tmp = np.flipud(tmp) # rotate 270 degree counterclockwise
+                    elif pixels_filenames[2][index_pd[i]]==5: tmp = np.fliplr(tmp) # flip the matrix left/right
+                    # add the index into the correct set
+                    index_pd_DA[str(pixels_filenames[2][index_pd[i]])].add(i)
+                    # reshape it for the correct input in the model
                     X[i,:,:,timeIndex,:] = tmp.reshape(tmp.shape+(1,))
 
             if type(X) is not np.ndarray: X = np.array(X)

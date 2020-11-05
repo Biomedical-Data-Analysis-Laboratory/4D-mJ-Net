@@ -19,23 +19,23 @@ from scipy import ndimage
 ################################################################################
 # ISLES2018 Setting
 ################################################################################
-DATASET_NAME ="ISLES2018/"
-ROOT_PATH = "/home/stud/lucat/PhD_Project/Stroke_segmentation/PATIENTS/"+DATASET_NAME +"NEW_TRAINING_TIFF/"
-SCRIPT_PATH = "/local/home/lucat/DATASET/"+DATASET_NAME +"Two_classes/" # Four_classes
-
-SAVE_REGISTERED_FOLDER = ROOT_PATH + "FINAL_TIFF/"
-LABELLED_IMAGES_FOLDER_LOCATION = ROOT_PATH + "Binary_Ground_Truth/"
-IMAGE_PREFIX = "PA"
-IMAGE_SUFFIX = ".tiff" # ".png"
-NUMBER_OF_IMAGE_PER_SECTION = 30 # number of image (divided by time) for each section of the brain
-IMAGE_WIDTH, IMAGE_HEIGHT = 512, 512
-
-# background:255, brain:0, penumbra:~76, core:~150
-BINARY_CLASSIFICATION = True # to extract only two classes
-LABELS = ["background", "core"] # ["background", "brain", "penumbra", "core"]
-LABELS_THRESHOLDS = [0, 235] #[234, 0, 60, 135] # [250, 0 , 30, 100]
-LABELS_REALVALUES = [0, 255] # [255, 0, 76, 150]
-TILE_DIVISION = 16
+# DATASET_NAME ="ISLES2018/"
+# ROOT_PATH = "/home/stud/lucat/PhD_Project/Stroke_segmentation/PATIENTS/"+DATASET_NAME +"NEW_TRAINING_TIFF/"
+# SCRIPT_PATH = "/local/home/lucat/DATASET/"+DATASET_NAME +"Two_classes/" # Four_classes
+#
+# SAVE_REGISTERED_FOLDER = ROOT_PATH + "FINAL_TIFF/"
+# LABELLED_IMAGES_FOLDER_LOCATION = ROOT_PATH + "Binary_Ground_Truth/"
+# IMAGE_PREFIX = "PA"
+# IMAGE_SUFFIX = ".tiff" # ".png"
+# NUMBER_OF_IMAGE_PER_SECTION = 30 # number of image (divided by time) for each section of the brain
+# IMAGE_WIDTH, IMAGE_HEIGHT = 512, 512
+#
+# # background:255, brain:0, penumbra:~76, core:~150
+# BINARY_CLASSIFICATION = True # to extract only two classes
+# LABELS = ["background", "core"] # ["background", "brain", "penumbra", "core"]
+# LABELS_THRESHOLDS = [0, 235] #[234, 0, 60, 135] # [250, 0 , 30, 100]
+# LABELS_REALVALUES = [0, 255] # [255, 0, 76, 150]
+# TILE_DIVISION = 16
 
 ################################################################################
 # Master2019 Setting
@@ -60,33 +60,28 @@ TILE_DIVISION = 16
 ################################################################################
 # SUS2020_v2 Setting
 ################################################################################
-# DATASET_NAME = "SUS2020_TIFF/" #"SUS2020_v2/"
-# ROOT_PATH = "/home/stud/lucat/PhD_Project/Stroke_segmentation/PATIENTS/"+DATASET_NAME
-# SCRIPT_PATH = "/local/home/lucat/DATASET/"+DATASET_NAME
-#
-# SAVE_REGISTERED_FOLDER = ROOT_PATH + "FINAL_TIFF/"
-# LABELLED_IMAGES_FOLDER_LOCATION = ROOT_PATH + "FINALIZE_PM_TIFF/"
-# IMAGE_PREFIX = "CTP_"
-# IMAGE_SUFFIX = ".tiff" # ".png"
-# NUMBER_OF_IMAGE_PER_SECTION = 30 # number of image (divided by time) for each section of the brain
-# NUMBER_OF_SLICE_PER_PATIENT = 32 # forced number of slices for each patient
-# IMAGE_WIDTH, IMAGE_HEIGHT = 512, 512
-# # background:255, brain:0, penumbra:~76, core:~150
-# BINARY_CLASSIFICATION = False # to extract only two classes
-# LABELS = ["background", "brain", "penumbra", "core"]
-# LABELS_THRESHOLDS = [234, 0, 60, 135] # [250, 0 , 30, 100]
-# LABELS_REALVALUES = [255, 0, 76, 150]
-# TILE_DIVISION = 16 # set to >1 if the tile are NOT the entire image
+DATASET_NAME = "SUS2020_TIFF/" #"SUS2020_v2/"
+ROOT_PATH = "/home/stud/lucat/PhD_Project/Stroke_segmentation/PATIENTS/SUS2020_TIFF/"
+SCRIPT_PATH = "/local/home/lucat/DATASET/"+DATASET_NAME
 
-################################################################################
-################################################################################
-################################################################################
-################################################################################
+SAVE_REGISTERED_FOLDER = ROOT_PATH + "FINAL_TIFF/"
+LABELLED_IMAGES_FOLDER_LOCATION = ROOT_PATH + "FINALIZE_PM_TIFF/"
+IMAGE_PREFIX = "CTP_"
+IMAGE_SUFFIX = ".tiff" # ".png"
+NUMBER_OF_IMAGE_PER_SECTION = 30 # number of image (divided by time) for each section of the brain
+NUMBER_OF_SLICE_PER_PATIENT = 32 # forced number of slices for each patient
+IMAGE_WIDTH, IMAGE_HEIGHT = 512, 512
+# background:255, brain:0, penumbra:~76, core:~150
+BINARY_CLASSIFICATION = False # to extract only two classes
+LABELS = ["background", "brain", "penumbra", "core"]
+LABELS_THRESHOLDS = [234, 0, 60, 135] # [250, 0 , 30, 100]
+LABELS_REALVALUES = [255, 0, 76, 150]
+TILE_DIVISION = 8 # set to >1 if the tile are NOT the entire image
 
 # create a dataset compatible with the Keras Sequence class
 # https://keras.io/api/utils/python_utils/
 SEQUENCE_DATASET = True
-NEW_GROUNDTRUTH_VALUES = False
+NEW_GROUNDTRUTH_VALUES = True
 SKIP_TILES = False
 
 ################################################################################
@@ -585,7 +580,7 @@ def initializeDataset():
             continue
 
         subfolders = np.sort(glob.glob(patientFolder+"*/"))
-        if numFold<44: continue
+
         print("[INFO] - Analyzing {0}/{1}; patient folder: {2}...".format(numFold+1, len(patientFolders), relativePath))
 
         if os.path.isdir(LABELLED_IMAGES_FOLDER_LOCATION+IMAGE_PREFIX+patientIndex+"/"):

@@ -1,9 +1,6 @@
 import constants
-from Models import arch_mJNet, arch_autoencoder, arch_van_De_Leemput, arch_Ronneberger_UNET
+from Models import arch_mJNet, arch_autoencoder, arch_van_De_Leemput, arch_Ronneberger_UNET, arch_VNet_Milletari
 from Utils import general_utils, spatial_pyramid
-
-from tensorflow.keras import layers, models, regularizers, initializers
-import tensorflow.keras.backend as K
 
 ################################################################################
 # mJ-Net model
@@ -47,3 +44,8 @@ def van_De_Leemput(params, to_categ):
 # Model from Ronneberger (original paper of U-Net) (https://doi.org/10.1007/978-3-319-24574-4_28)
 def Ronneberger_UNET(params, to_categ):
     return arch_Ronneberger_UNET.Ronneberger_UNET(params, to_categ)
+
+################################################################################
+# Model from Milletari V-Net (https://arxiv.org/pdf/1606.04797.pdf)
+def VNet_Milletari(params, to_categ):
+    return arch_VNet_Milletari.VNet_Milletari(params, to_categ)

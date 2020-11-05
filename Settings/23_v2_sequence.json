@@ -4,7 +4,7 @@
   "root_path": "/home/stud/lucat/PhD_Project/Stroke_segmentation/",
   "dataset_path": "/local/home/lucat/DATASET/SUS2020_TIFF/",
   "PATIENTS_TO_TRAINVAL": ["ALL"],
-  "PATIENTS_TO_TEST": ["01_010","01_025","01_037","01_057","01_061","01_066","01_077","02_001","02_004","02_009","02_016","02_020","02_027","03_003","03_003","03_010","03_014"],
+  "PATIENTS_TO_TEST": ["01_010","01_025","01_037","01_057","01_061","01_066","02_001","02_004","02_009","02_016","02_020","02_027","03_003","03_010","03_014"],
   "OVERRIDE_MODELS_ID_PATH": "",
   "init": {
     "TF_CPP_MIN_LOG_LEVEL": "3",
@@ -27,26 +27,26 @@
   "models": [
      {
       "name": "mJNet_v2",
-      "loss": "mod_dice_coef_loss",
-      "metrics": ["mod_dice_coef"],
-      "epochs": 50,
-      "batch_size": 128,
+      "loss": "weighted_categorical_cross_entropy_loss",
+      "metrics": ["weighted_categorical_cross_entropy","mod_dice_coef"],
+      "epochs": 15,
+      "batch_size": 16,
+      "steps_per_epoch_ratio": 0.15,
       "classes_to_evaluate": ["penumbra","core","penumbracore"],
       "statistics": ["sensitivity", "specificity", "precision", "f1", "accuracy", "jaccard_index"],
       "val":{
         "validation_perc": 5,
-        "number_patients_for_validation": 15,
+        "number_patients_for_validation": 16,
         "number_patients_for_testing": 0,
         "random_validation_selection": 0
       },
       "test_steps":1,
       "optimizer": {
-        "name": "Adam",
-        "lr": 0.001,
-        "beta_1": 0.9,
-        "beta_2":0.999,
-        "epsilon":"None",
-        "decay":0.0
+        "name": "SGD",
+        "learning_rate": 0.01,
+        "decay": 1e-6,
+        "momentum":0.9,
+        "nesterov":"True"
       },
       "params":{
         "max_pool":{
@@ -61,8 +61,8 @@
           "3":0,
           "3.1":0,
           "3.2":0,
-          "3.3":0.5,
-          "3.4":0.5
+          "3.3":0.3,
+          "3.4":0.3
         }
       },
       "callbacks":{
@@ -88,7 +88,7 @@
           "histogram_freq": 5
         }
       },
-      "to_categ":0,
+      "to_categ": 1,
       "save_images": 1,
       "save_statistics": 0,
       "use_background_in_statistics": 0,

@@ -1,24 +1,35 @@
-import math, cv2, glob, time
+import math, cv2, glob, time, os
+from typing import Set, Dict, Any
+
 import numpy as np
 import pandas as pd
+import tensorflow as tf
 from tensorflow.keras.utils import Sequence
 
 import constants
-from Utils import general_utils
+from Utils import general_utils, dataset_utils
 
 ################################################################################
 # https://faroit.com/keras-docs/2.1.3/models/sequential/#fit_generator
-class trainValSequence(Sequence):
-    def __init__(self, dataframe, indices, sample_weights, x_label, y_label, batch_size):
-        self.dataframe = dataframe
+class datasetSequence(Sequence):
+    def __init__(self, dataframe, indices, sample_weights, x_label, y_label, to_categ, batch_size, back_perc=2):
         self.indices = indices
+        self.dataframe = dataframe.iloc[self.indices]
+
+        self.sample_weights = sample_weights
         self.x_label = x_label
         self.y_label = y_label
         self.batch_size = batch_size
-        self.sample_weights = sample_weights
+        self.to_categ = to_categ
+        self.back_perc = back_perc
 
-        self.columns = self.dataframe.columns
-        self.dataframe = pd.DataFrame(self.dataframe.values[self.indices], columns=self.columns)
+        # get ALL the rows with label != from background
+        self.dataframenoback = self.dataframe.loc[self.dataframe.label != constants.LABELS[0]]
+        # also, get a back_perc of rows with label == background
+        self.dataframeback = self.dataframe.loc[self.dataframe.label == constants.LABELS[0]]
+        self.dataframeback = self.dataframeback[:int((len(self.dataframeback)/100)*self.back_perc)]
+        # combine the two dataframes
+        self.dataframe = pd.concat([self.dataframenoback, self.dataframeback], sort=False)
 
     # Every Sequence must implement the __getitem__ and the __len__ methods
     def __len__(self):
@@ -27,60 +38,75 @@ class trainValSequence(Sequence):
     def __getitem__(self, idx):
         start = idx*self.batch_size
         end = (idx+1)*self.batch_size
-        index_pd = list(range(start, end))
 
-        index_pd_DA = {
-            "0": set(),
-            "1": set(),
-            "2": set(),
-            "3": set(),
-            "4": set(),
-            "5": set()}
+        batch_index_list = list(range(start,end))
+        current_batch = self.dataframe[start:end]
+        weights = np.empty((len(current_batch),))
+        # create a list containing the VALID values (inside the valid_indices list) from start to end
+        # index_pd = list(range(start, end))
 
-        pixels_filenames = (self.dataframe[self.x_label][start:end], self.dataframe["x_y"][start:end], self.dataframe["data_aug_idx"][start:end])
-        batch_y = (self.dataframe[self.y_label][start:end], self.dataframe["x_y"][start:end])
-        weights = self.sample_weights[start:end]
+        index_pd_DA: Dict[str, Set[Any]] = {"0": set(),"1": set(),"2": set(),"3": set(),"4": set(),"5": set()}
 
+        if self.x_label=="pixels":  # path to the folder containing the NUMBER_OF_IMAGE_PER_SECTION   time point images
+            X = np.empty((len(current_batch),constants.getM(),constants.getN(),
+                constants.NUMBER_OF_IMAGE_PER_SECTION, 1))  # empty array for the pixels
 
-        if self.x_label=="pixels": # path to the forlder containing the NUMBER_OF_IMAGE_PER_SECTION   time point images
-            X = np.empty((len(self.dataframe[self.x_label][start:end]),constants.getM(),constants.getN(),constants.NUMBER_OF_IMAGE_PER_SECTION, 1)) # empty array for the pixels
-            for i,folder in enumerate(pixels_filenames[0]):
+            for index,(row_index,row) in enumerate(current_batch.iterrows()):
+                weights[index] = self.sample_weights[batch_index_list[index]]
+                folder = row[self.x_label]
+                coord = row["x_y"]
+                data_aug_idx = row["data_aug_idx"]
+                # add the index into the correct set
+                index_pd_DA[str(data_aug_idx)].add(row_index)
+
                 for timeIndex,filename in enumerate(np.sort(glob.glob(folder+"*"+constants.SUFFIX_IMG))):
-                    # for ISLES2018 (to change in the future) --> if the number of timepoint per slice is > constants.NUMBER_OF_IMAGE_PER_SECTION
-                    # break the loop and take only the first constants.NUMBER_OF_IMAGE_PER_SECTION
-                    # TODO: change it into INTERPOLATION to have the same number of images and use the entire timepoints
+                    # TODO: for ISLES2018 (to change in the future) --> if the number of timepoint per slice is > constants.NUMBER_OF_IMAGE_PER_SECTION
                     if timeIndex>=constants.NUMBER_OF_IMAGE_PER_SECTION: break
 
-                    tmp = general_utils.getSlicingWindow(cv2.imread(filename, cv2.IMREAD_GRAYSCALE),
-                            pixels_filenames[1][index_pd[i]][0], pixels_filenames[1][index_pd[i]][1], constants.getM(), constants.getN())
+                    sliceWindow = general_utils.getSlicingWindow(cv2.imread(filename, cv2.IMREAD_GRAYSCALE),
+                                                                 coord[0], coord[1], constants.getM(), constants.getN())
 
-                    if pixels_filenames[2][index_pd[i]]==1: tmp = np.rot90(tmp) # rotate 90 degree counterclockwise
-                    elif pixels_filenames[2][index_pd[i]]==2: tmp = np.rot90(tmp,2) # rotate 180 degree counterclockwise
-                    elif pixels_filenames[2][index_pd[i]]==3: tmp = np.rot90(tmp,3) # rotate 270 degree counterclockwise
-                    elif pixels_filenames[2][index_pd[i]]==4: tmp = np.flipud(tmp) # rotate 270 degree counterclockwise
-                    elif pixels_filenames[2][index_pd[i]]==5: tmp = np.fliplr(tmp) # flip the matrix left/right
-                    # add the index into the correct set
-                    index_pd_DA[str(pixels_filenames[2][index_pd[i]])].add(i)
+                    if data_aug_idx==1: sliceWindow = np.rot90(sliceWindow)  # rotate 90 degree counterclockwise
+                    elif data_aug_idx==2: sliceWindow = np.rot90(sliceWindow,2)  # rotate 180 degree counterclockwise
+                    elif data_aug_idx==3: sliceWindow = np.rot90(sliceWindow,3)  # rotate 270 degree counterclockwise
+                    elif data_aug_idx==4: sliceWindow = np.flipud(sliceWindow)  # rotate 270 degree counterclockwise
+                    elif data_aug_idx==5: sliceWindow = np.fliplr(sliceWindow)  # flip the matrix left/right
                     # reshape it for the correct input in the model
-                    X[i,:,:,timeIndex,:] = tmp.reshape(tmp.shape+(1,))
+                    X[index,:,:,timeIndex,:] = sliceWindow.reshape(sliceWindow.shape+(1,))
 
-            if type(X) is not np.ndarray: X = np.array(X)
+            # if type(X) is not np.ndarray: X = np.array(X)
 
-        if self.y_label=="ground_truth": # path to the ground truth image
-            Y = np.empty((len(self.dataframe[self.y_label][start:end]),constants.getM(),constants.getN()))
+        if self.y_label=="ground_truth":  # path to the ground truth image
+            Y = np.empty((len(current_batch),constants.getM(),constants.getN())) if not self.to_categ else np.empty((len(current_batch),constants.getM(),constants.getN(), constants.N_CLASSES))
             for aug_idx in index_pd_DA.keys():
-                if aug_idx=="0":
-                    for i in index_pd_DA[aug_idx]: Y[i,:,:] = general_utils.getSlicingWindow(cv2.imread(batch_y[0][index_pd[i]], cv2.IMREAD_GRAYSCALE), batch_y[1][index_pd[i]][0], batch_y[1][index_pd[i]][1], constants.getM(), constants.getN())
-                elif aug_idx=="1":
-                    for i in index_pd_DA[aug_idx]: Y[i,:,:] = np.rot90(general_utils.getSlicingWindow(cv2.imread(batch_y[0][index_pd[i]], cv2.IMREAD_GRAYSCALE), batch_y[1][index_pd[i]][0], batch_y[1][index_pd[i]][1], constants.getM(), constants.getN()))
-                elif aug_idx=="2":
-                    for i in index_pd_DA[aug_idx]: Y[i,:,:] = np.rot90(general_utils.getSlicingWindow(cv2.imread(batch_y[0][index_pd[i]], cv2.IMREAD_GRAYSCALE), batch_y[1][index_pd[i]][0], batch_y[1][index_pd[i]][1], constants.getM(), constants.getN()),2)
-                elif aug_idx=="3":
-                    for i in index_pd_DA[aug_idx]: Y[i,:,:] = np.rot90(general_utils.getSlicingWindow(cv2.imread(batch_y[0][index_pd[i]], cv2.IMREAD_GRAYSCALE), batch_y[1][index_pd[i]][0], batch_y[1][index_pd[i]][1], constants.getM(), constants.getN()),3)
-                elif aug_idx=="4":
-                    for i in index_pd_DA[aug_idx]: Y[i,:,:] = np.flipud(general_utils.getSlicingWindow(cv2.imread(batch_y[0][index_pd[i]], cv2.IMREAD_GRAYSCALE), batch_y[1][index_pd[i]][0], batch_y[1][index_pd[i]][1], constants.getM(), constants.getN()))
-                elif aug_idx=="5":
-                    for i in index_pd_DA[aug_idx]: Y[i,:,:] = np.fliplr(general_utils.getSlicingWindow(cv2.imread(batch_y[0][index_pd[i]], cv2.IMREAD_GRAYSCALE), batch_y[1][index_pd[i]][0], batch_y[1][index_pd[i]][1], constants.getM(), constants.getN()))
+                for index,row_index in enumerate(index_pd_DA[aug_idx]):
+                    filename = current_batch.loc[row_index][self.y_label]
+                    if not isinstance(filename,str) or not os.path.isfile(filename): print(filename)
+                    coord = current_batch.loc[row_index]["x_y"]
 
+                    try:
+                        img = cv2.imread(filename, cv2.IMREAD_GRAYSCALE)
+                    except SystemError as e:
+                        print("\n filename: {}".format(filename))
+                        continue
+
+                    sliceWindow = general_utils.getSlicingWindow(img, coord[0], coord[1], constants.getM(), constants.getN())
+                    if aug_idx=="0": Y[index,:,:] = sliceWindow if not self.to_categ else dataset_utils.getSingleLabelFromIndexCateg(sliceWindow)
+                    elif aug_idx=="1": Y[index,:,:] = np.rot90(sliceWindow) if not self.to_categ else dataset_utils.getSingleLabelFromIndexCateg(np.rot90(sliceWindow))
+                    elif aug_idx=="2": Y[index,:,:] = np.rot90(sliceWindow,2) if not self.to_categ else dataset_utils.getSingleLabelFromIndexCateg(np.rot90(sliceWindow,2))
+                    elif aug_idx=="3": Y[index,:,:] = np.rot90(sliceWindow,3) if not self.to_categ else dataset_utils.getSingleLabelFromIndexCateg(np.rot90(sliceWindow,3))
+                    elif aug_idx=="4": Y[index,:,:] = np.flipud(sliceWindow) if not self.to_categ else dataset_utils.getSingleLabelFromIndexCateg(np.flipud(sliceWindow))
+                    elif aug_idx=="5": Y[index,:,:] = np.fliplr(sliceWindow) if not self.to_categ else dataset_utils.getSingleLabelFromIndexCateg(np.fliplr(sliceWindow))
+
+                    # if there are any NaN elements, don't return the batch
+                    if np.isnan(Y).any():
+                        where = list(map(list,np.argwhere(np.isnan(Y))))
+                        for w in where:
+                            Y[w[0],w[1],w[2]] = constants.PIXELVALUES[0]
+                            weights[w[0]] = 1
         # a tuple (inputs, targets, sample_weights). All arrays should contain the same number of samples.
+        if X.shape[0] != Y.shape[0] or X.shape[0] != weights.shape[0] or Y.shape[0] != weights.shape[0]:
+            print("different shape: {0},{1},{2}".format(X.shape[0],Y.shape[0],weights.shape[0]))
+            return
+
         return X, Y, weights

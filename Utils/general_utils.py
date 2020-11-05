@@ -20,11 +20,11 @@ def getCommandLineArguments():
     parser.add_argument("-v", "--verbose", help="Increase output verbosity", action="store_true")
     parser.add_argument("-d", "--debug", help="DEBUG mode", action="store_true")
     parser.add_argument("-o", "--original", help="ORIGINAL_SHAPE flag", action="store_true")
-    parser.add_argument("-s", "--sname", help="Pass the setting filename")
     parser.add_argument("-t", "--tile", help="Set the tile pixels dimension (MxM)", type=int)
     parser.add_argument("-dim", "--dimension", help="Set the dimension of the input images (widthXheight)", type=int)
     parser.add_argument("-c", "--classes", help="Set the # of classe involved (default = 4)", default=4, type=int, choices=[2,3,4])
     parser.add_argument("gpu", help="Give the id of gpu (or a list of the gpus) to use")
+    parser.add_argument("s", help="Select the setting filename")
     args = parser.parse_args()
 
     constants.setVerbose(args.verbose)
@@ -33,9 +33,6 @@ def getCommandLineArguments():
     constants.setTileDimension(args.tile)
     constants.setImageDimension(args.dimension)
     constants.setNumberOfClasses(args.classes)
-
-    if not args.sname:
-        args.sname = constants.default_setting_filename
 
     return args
 
@@ -48,7 +45,6 @@ def getSettingFile(filename):
     # (= current working directory)
     with open(os.path.join(os.getcwd(), filename)) as f:
         setting = json.load(f)
-
 
     if constants.getVerbose():
         printSeparation("-",50)
@@ -108,7 +104,9 @@ def setupEnvironmentForGPUs(args, setting):
 ################################################################################
 # return the selected window for an image
 def getSlicingWindow(img, startX, startY, M, N):
-    return img[startX:startX+M,startY:startY+N]
+    sliceWindow = img[startX:startX+M,startY:startY+N]
+    for pxval in constants.PIXELVALUES: sliceWindow = np.where(np.logical_and(sliceWindow>=np.rint(pxval-(256/6)), sliceWindow<=np.rint(pxval+(256/6))),pxval, sliceWindow)
+    return sliceWindow
 
 ################################################################################
 # Get the epoch number from the partial weight filename
@@ -127,7 +125,7 @@ def getLoss(name):
 
     if constants.getVerbose():
         printSeparation("-",50)
-        print("[WARNING] - Use {} Loss".format(name))
+        print("[INFO] - Use {} Loss".format(name))
 
     return loss
 
@@ -139,7 +137,7 @@ def getStatisticFunctions(listStats):
 
     if constants.getVerbose():
         printSeparation("-",50)
-        print("[WARNING] - Getting {} functions".format(listStats))
+        print("[INFO] - Getting {} functions".format(listStats))
 
     return statisticFuncs
 
@@ -204,4 +202,4 @@ def convertExperimentNumberToString(expnum):
 ################################################################################
 # Print the shaoe of the layer if we are in debug mode
 def print_int_shape(layer):
-    if constants.getDEBUG(): print(K.int_shape(layer))
+    if constants.getVerbose(): print(K.int_shape(layer))

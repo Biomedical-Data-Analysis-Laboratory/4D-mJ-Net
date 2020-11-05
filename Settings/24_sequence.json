@@ -1,10 +1,10 @@
 {
-  "EXPERIMENT": 27,
+  "EXPERIMENT": 24,
   "USE_SEQUENCE_TRAIN": 1,
   "root_path": "/home/stud/lucat/PhD_Project/Stroke_segmentation/",
   "dataset_path": "/local/home/lucat/DATASET/SUS2020_TIFF/",
   "PATIENTS_TO_TRAINVAL": ["ALL"],
-  "PATIENTS_TO_TEST": ["01_010","01_025","01_037","01_057","01_061","01_066","01_077","02_001","02_004","02_009","02_016","02_020","02_027","03_003","03_010","03_014"],
+  "PATIENTS_TO_TEST": ["01_010","01_025","01_037","01_057","01_061","01_066","02_001","02_004","02_009","02_016","02_020","02_027","03_003","03_010","03_014"],
   "OVERRIDE_MODELS_ID_PATH": "",
   "init": {
     "TF_CPP_MIN_LOG_LEVEL": "3",
@@ -20,19 +20,19 @@
       "partial_model": "TMP_MODELS/",
       "plot": "PLOTS/",
       "images": "IMAGES/",
-      "text": "TEXT/"
+      "text": "TEXT/",
+      "intermediate_activation": "intermediate_activation/"
     }
   },
   "models": [
      {
-      "name": "van_De_Leemput",
+      "name": "mJNet",
       "loss": "weighted_categorical_cross_entropy_loss",
-      "metrics": ["weighted_categorical_cross_entropy", "mod_dice_coef"],
-      "to_categ":1,
-      "epochs": 100,
-      "batch_size":16,
-      "steps_per_epoch_ratio": 0.25,
-      "classes_to_evaluate": ["penumbra", "core", "penumbracore"],
+      "metrics": ["weighted_categorical_cross_entropy","mod_dice_coef"],
+      "epochs": 25,
+      "batch_size": 16,
+      "steps_per_epoch_ratio": 0.2,
+      "classes_to_evaluate": ["penumbra","core","penumbracore"],
       "statistics": ["sensitivity", "specificity", "precision", "f1", "accuracy", "jaccard_index"],
       "val":{
         "validation_perc": 5,
@@ -49,9 +49,18 @@
         "nesterov":"True"
       },
       "params":{
+        "max_pool":{
+          "long.1":5,
+          "long.2":3,
+          "long.3":2
+        },
         "dropout":{
-          "1":0.5,
-          "2":0.5
+          "long.1":0.3,
+          "1":0,
+          "2":0.3,
+          "3":0.3,
+          "4":0,
+          "5":0
         }
       },
       "callbacks":{
@@ -66,15 +75,20 @@
           "patience": 12
         },
         "LearningRateScheduler": {
-          "decay_step": 10,
+          "decay_step": 5,
           "decay_rate": 0.01
         },
         "CollectBatchStats": {
           "acc":"mod_dice_coef"
+        },
+        "TensorBoard": {
+          "update_freq":"batch",
+          "histogram_freq": 5
         }
       },
+      "to_categ":1,
       "save_images": 1,
-      "save_statistics": 1,
+      "save_statistics": 0,
       "use_background_in_statistics": 0,
       "calculate_ROC": 0,
       "data_augmentation": 1,

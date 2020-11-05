@@ -12,6 +12,10 @@ from tensorflow.keras.utils import multi_gpu_model, plot_model
 ################################################################################
 # Class that defines a NeuralNetwork
 ################################################################################
+def getVerbose():
+    return constants.getVerbose()
+
+
 class NeuralNetwork(object):
     """docstring for NeuralNetwork."""
 
@@ -21,11 +25,14 @@ class NeuralNetwork(object):
 
         # Used to override the path for the saved model in order to test patients with a specific model
         self.OVERRIDE_MODELS_ID_PATH = setting["OVERRIDE_MODELS_ID_PATH"] if setting["OVERRIDE_MODELS_ID_PATH"]!="" else False
+        self.use_sequence = setting["USE_SEQUENCE_TRAIN"] if "USE_SEQUENCE_TRAIN" in setting.keys() else 0
 
         self.name = modelInfo["name"]
         self.epochs = modelInfo["epochs"]
         self.train_on_batch = modelInfo["train_on_batch"] if "train_on_batch" in modelInfo.keys() else 0
         self.batch_size = modelInfo["batch_size"] if "batch_size" in modelInfo.keys() else 32
+        # use only for the fit_generator
+        self.steps_per_epoch_ratio = modelInfo["steps_per_epoch_ratio"] if "steps_per_epoch_ratio" in modelInfo.keys() else 1
 
         self.val = {
             "validation_perc": modelInfo["val"]["validation_perc"],
@@ -78,6 +85,7 @@ class NeuralNetwork(object):
 
         self.infoCallbacks = modelInfo["callbacks"]
         self.model = None
+        self.testing_score = []
 
         if constants.N_CLASSES == 4: self.epsilons = [(63.75-constants.PIXELVALUES[1]-1, 127.5-constants.PIXELVALUES[2], 191.25-constants.PIXELVALUES[3])]
         else: self.epsilons = [(63.75-constants.PIXELVALUES[1]-1)]
@@ -91,7 +99,7 @@ class NeuralNetwork(object):
 ################################################################################
 # Initialize the callbacks
     def setCallbacks(self, p_id, sample_weights=None):
-        if self.getVerbose():
+        if getVerbose():
             general_utils.printSeparation("-", 50)
             print("[INFO] - Setting callbacks...")
 
@@ -124,7 +132,7 @@ class NeuralNetwork(object):
         # load weights into new model
         self.model.load_weights(saved_weightname)
 
-        if self.getVerbose():
+        if getVerbose():
             general_utils.printSeparation("+",100)
             print("[INFO - Loading] - --- MODEL {} LOADED FROM DISK! --- ".format(saved_modelname))
             print("[INFO - Loading] - --- WEIGHTS {} LOADED FROM DISK! --- ".format(saved_weightname))
@@ -136,7 +144,7 @@ class NeuralNetwork(object):
         # path ==> weight name plus a suffix ":" <-- constants.suffix_partial_weights
         path = self.getSavedInformation(p_id, path=self.savePartialModelFolder)+constants.suffix_partial_weights
         for file in glob.glob(self.savePartialModelFolder+"*.h5"):
-            if path in self.rootPath+file: # we have a match
+            if path in self.rootPath+file:  # we have a match
                 self.partialWeightsPath = file
                 return True
 
@@ -149,7 +157,7 @@ class NeuralNetwork(object):
             self.model.load_weights(self.partialWeightsPath)
             self.initial_epoch = general_utils.getEpochFromPartialWeightFilename(self.partialWeightsPath)
 
-            if self.getVerbose():
+            if getVerbose():
                 general_utils.printSeparation("+",100)
                 print("[INFO - Loading] - --- WEIGHTS {} LOADED FROM DISK! --- ".format(self.partialWeightsPath))
                 print("[INFO] - --- Start training from epoch {} --- ".format(str(self.initial_epoch)))
@@ -159,16 +167,16 @@ class NeuralNetwork(object):
     def splitDataset(self, train_df, p_id, listOfPatientsToTrainVal, listOfPatientsToTest):
         # set the dataset inside the class
         self.train_df = train_df
-        # split the dataset
+        # split the dataset (return in dataset just the indices and labels)
         self.dataset, self.test_list = dataset_utils.splitDataset(self, p_id, listOfPatientsToTrainVal, listOfPatientsToTest)
         # get the number of element per class in the dataset
         self.N_BACKGROUND, self.N_BRAIN, self.N_PENUMBRA, self.N_CORE, self.N_TOT = dataset_utils.getNumberOfElements(self.train_df)
 
 ################################################################################
-#Function to reshape the pixel array and initialize the model.
-    def prepareDataset():
-        # split the dataset
-        self.dataset = dataset_utils.prepareDataset(self)
+# Function to reshape the pixel array and initialize the model.
+    def prepareDataset(self, p_id):
+        # split the dataset (set the data key inside dataset [NOT for the sequence generator])
+        self.dataset = dataset_utils.prepareDataset(self, p_id)
 
 ################################################################################
 # compile the model, callable also from outside
@@ -183,9 +191,9 @@ class NeuralNetwork(object):
         )
 
 ################################################################################
-#
+# Function that initialize the training, print the model summary and set the weights
     def initializeTraining(self, p_id, n_gpu):
-        if self.getVerbose():
+        if getVerbose():
             general_utils.printSeparation("*", 50)
             print("[INFO] - Start runTraining function.")
             print("[INFO] - Getting model {0} with {1} optimizer...".format(self.name, self.optimizerInfo["name"]))
@@ -200,7 +208,7 @@ class NeuralNetwork(object):
                 self.model = getattr(models, self.name)(params=self.params, to_categ=self.to_categ)
             self.model = multi_gpu_model(self.model, gpus=n_gpu)
 
-        if self.getVerbose() and self.summaryFlag==0:
+        if getVerbose() and self.summaryFlag==0:
             print(self.model.summary())
 
             plot_model(
@@ -261,12 +269,12 @@ class NeuralNetwork(object):
         dict_metrics = list()
         filename = self.getSavedInformation(p_id, path=self.savePartialModelFolder)
 
-        if self.getVerbose():
+        if getVerbose():
             general_utils.printSeparation("*", 50)
             print("[WARNING] - Using train_on_batch flag!")
             print("[INFO] - Start runTrainingOnBatch function.")
 
-        if self.getVerbose():
+        if getVerbose():
             general_utils.printSeparation("-", 50)
             print("[INFO] - Getting model {0} with {1} optimizer...".format(self.name, self.optimizerInfo["name"]))
 
@@ -280,15 +288,7 @@ class NeuralNetwork(object):
                 self.model = getattr(models, self.name)(self.dataset["val"]["data"], params=self.params, to_categ=self.to_categ)
             self.model = multi_gpu_model(self.model, gpus=n_gpu)
 
-        if self.getVerbose():
-            print(self.model.summary())
-
-        # plot_model(
-        #     self.model,
-        #     to_file=general_utils.getFullDirectoryPath(self.savedModelFolder)+self.getNNID("model")+".png",
-        #     show_shapes=True,
-        #     rankdir='LR'
-        # )
+        if getVerbose(): print(self.model.summary())
 
         # check if the model has some saved weights to load...
         self.initial_epoch = 0
@@ -342,22 +342,35 @@ class NeuralNetwork(object):
         # plot the loss and accuracy of the training
         training.plotMetrics(self, p_id, dict_metrics)
         # save the activation filters
-        if self.save_activation_filter: training.saveActivationFilter(self.model, shape=tuple(self.train_df.pixels.values[0].shape), intermediate_activation_path=self.intermediateActivationFolder)
+        if self.save_activation_filter: training.saveIntermediateLayers(self.model, intermediate_activation_path=self.intermediateActivationFolder)
 
 ################################################################################
-#
+# Function to prepare the train and validation sequence using the datasetSequence class
     def prepareSequenceClass(self):
         # train data sequence
-        self.train_sequence = sequence_utils.trainValSequence(self.train_df,
-            self.dataset["train"]["indices"], self.getSampleWeights("train"),
-            "pixels", "ground_truth", self.batch_size)
+        self.train_sequence = sequence_utils.datasetSequence(
+            dataframe=self.train_df,
+            indices=self.dataset["train"]["indices"],
+            sample_weights=self.getSampleWeights("train"),
+            x_label="pixels",
+            y_label="ground_truth",
+            to_categ=self.to_categ,
+            batch_size=self.batch_size
+        )
+
         # validation data sequence
-        self.val_sequence = sequence_utils.trainValSequence(self.train_df,
-            self.dataset["val"]["indices"], self.getSampleWeights("val"),
-            "pixels", "ground_truth", self.batch_size)
+        self.val_sequence = sequence_utils.datasetSequence(
+            dataframe=self.train_df,
+            indices=self.dataset["val"]["indices"],
+            sample_weights=self.getSampleWeights("val"),
+            x_label="pixels",
+            y_label="ground_truth",
+            to_categ=self.to_categ,
+            batch_size=self.batch_size
+        )
 
 ################################################################################
-#
+# Function to start the train using the sequence as input and the fit_generator function
     def runTrainSequence(self, p_id, n_gpu):
         self.initializeTraining(p_id, n_gpu)
 
@@ -365,10 +378,12 @@ class NeuralNetwork(object):
             model=self.model,
             train_sequence=self.train_sequence,
             val_sequence=self.val_sequence,
+            steps_per_epoch=np.rint((self.N_TOT/self.batch_size)*self.steps_per_epoch_ratio),
             epochs=self.epochs,
             listOfCallbacks=self.callbacks,
             initial_epoch=self.initial_epoch,
             save_activation_filter=self.save_activation_filter,
+            intermediate_activation_path=self.intermediateActivationFolder,
             use_multiprocessing=self.mp)
 
         # plot the loss and accuracy of the training
@@ -377,6 +392,7 @@ class NeuralNetwork(object):
 ################################################################################
 # Get the sample weight from the dataset
     def getSampleWeights(self, flagDataset):
+        sample_weights = None
         self.N_BACKGROUND, self.N_BRAIN, self.N_PENUMBRA, self.N_CORE, self.N_TOT = dataset_utils.getNumberOfElements(self.train_df)
 
         if constants.N_CLASSES==4:
@@ -394,6 +410,13 @@ class NeuralNetwork(object):
                     constants.LABELS[2]: self.N_TOT/(constants.N_CLASSES*self.N_PENUMBRA) if self.N_PENUMBRA>0 else 0, # N_TOT/N_PENUMBRA,
                     constants.LABELS[3]: self.N_TOT/(constants.N_CLASSES*self.N_CORE) if self.N_CORE>0 else 0, # N_TOT/N_CORE
                 })
+
+                # sample_weights = self.train_df.label.map({
+                #     constants.LABELS[0]: 1,
+                #     constants.LABELS[1]: 1,
+                #     constants.LABELS[2]: 25,
+                #     constants.LABELS[3]: 100
+                # })
         elif constants.N_CLASSES==3:
             if constants.getM()>=512: # we have only one label
                 # function that map each PIXELVALUES[2] with 150, PIXELVALUES[3] with 20 and the rest with 0.1 and sum them
@@ -432,19 +455,35 @@ class NeuralNetwork(object):
         # serialize weights to HDF5
         self.model.save_weights(saved_weightname)
 
-        if self.getVerbose():
+        if getVerbose():
             general_utils.printSeparation("-", 50)
             print("[INFO - Saving] - Saved model and weights to disk!")
 
 ################################################################################
 # Call the function located in testing for predicting and saved the images
-    def predictAndSaveImages(self, p_id):
-        if self.getVerbose():
-            general_utils.printSeparation("+", 50)
-            print("[INFO] - Executing function: predictAndSaveImages for patient {}".format(p_id))
+    def predictAndSaveImages(self, listPatients, isAlreadySaved):
+        stats = {}
+        for p_id in listPatients:
+            # evaluate the model with the testing patient
+            if self.supervised: self.evaluateModelWithCategorics(p_id, isAlreadySaved)
 
-        stats = testing.predictAndSaveImages(self, p_id)
-        if self.save_statistics: self.saveStats(stats, p_id)
+            if getVerbose():
+                general_utils.printSeparation("+", 50)
+                print("[INFO] - Executing function: predictAndSaveImages for patient {}".format(p_id))
+
+
+            tmpStats = testing.predictAndSaveImages(self, p_id)
+            if self.save_statistics: self.saveStats(tmpStats, p_id)
+
+            if self.save_statistics:
+                for func in self.statistics:
+                    for classToEval in self.classes_to_evaluate:
+                        if func.__name__ not in stats.keys(): stats[func.__name__] = {}
+                        if classToEval not in stats[func.__name__].keys(): stats[func.__name__][classToEval] = {}
+                        if self.epsiloList[0] is not None:
+                            for idxE, _ in enumerate(self.epsiloList):
+                                if idxE not in stats[func.__name__][classToEval].keys(): stats[func.__name__][classToEval][idxE] = []
+                                stats[func.__name__][classToEval][idxE].extend(tmpStats[func.__name__][classToEval][idxE])
 
         return stats
 
@@ -491,11 +530,11 @@ class NeuralNetwork(object):
 ################################################################################
 # Test the model with the selected patient (if the number of patient to test is > 0)
     def evaluateModelWithCategorics(self, p_id, isAlreadySaved):
-        if self.getVerbose():
+        if getVerbose():
             general_utils.printSeparation("+", 50)
             print("[INFO] - Evaluating the model for patient {}".format(p_id))
 
-        self.testing_score = testing.evaluateModel(self, p_id, isAlreadySaved)
+        self.testing_score.append(testing.evaluateModel(self, p_id, isAlreadySaved))
 
 ################################################################################
 # set the flag for single/multi PROCESSING
@@ -542,8 +581,3 @@ class NeuralNetwork(object):
                 id += ("_" + p_id)
 
         return id
-
-################################################################################
-# return the verbose flag
-    def getVerbose(self):
-        return constants.getVerbose()

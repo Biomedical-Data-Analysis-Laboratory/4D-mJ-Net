@@ -2,7 +2,7 @@ import constants
 from Utils import general_utils
 
 import os, glob, json
-from tensorflow.keras import callbacks
+from keras import callbacks
 from sklearn.metrics import roc_auc_score
 
 ################################################################################

@@ -22,10 +22,10 @@ def mod_dice_coef(y_true, y_pred, epsilon=1e-6):
     # denominator = (K.sum(K.square(y_pred) + K.square(y_true), axis=axes) + epsilon)
     # return (numerator/denominator)
 
-    intersection = K.sum(K.abs(y_true * y_pred), axis=-1)
-    denom = (K.sum(K.square(y_true), axis=-1) + K.sum(K.square(y_pred), axis=-1) + 1)
+    intersection = 2. * K.sum(K.abs(y_true * y_pred), axis=-1)
+    denom = K.sum(K.square(y_true), axis=-1) + K.sum(K.square(y_pred), axis=-1) + epsilon
 
-    return (2. * intersection + 1) / denom
+    return intersection / denom
 
 ################################################################################
 # REAL Dice coefficient = (2*|X & Y|)/ (|X|+ |Y|)
@@ -58,10 +58,11 @@ def tversky(y_true, y_pred, smooth=1, alpha=0.7):
 #             = sum(|A*B|)/(sum(|A|)+sum(|B|)-sum(|A*B|))
 #
 # http://www.bmva.org/bmvc/2013/Papers/paper0032/paper0032.pdf
-def jaccard_distance(y_true, y_pred, smooth=1):
+def jaccard_distance(y_true, y_pred, smooth=100):
     intersection = K.sum(K.abs(y_true * y_pred), axis=-1)
     sum_ = K.sum(K.abs(y_true) + K.abs(y_pred), axis=-1)
-    return (intersection + smooth) / (sum_ - intersection + smooth)
+    jac = (intersection + smooth) / (sum_ - intersection + smooth)
+    return jac
 
 def jaccard_index(tn, fn, fp, tp):
     f = f1(tn, fn, fp, tp)
@@ -74,17 +75,17 @@ def categorical_crossentropy(y_true, y_pred):
 
 ################################################################################
 # Function that calculate the metrics for the WEIGHTED CATEGORICAL CROSS ENTROPY
-def weighted_categorical_cross_entropy(y_true, y_pred):
+def weighted_categorical_cross_entropy(y_true, y_pred, epsilon=1e-7):
     lambda_0 = 1
     lambda_1 = 1e-6
     lambda_2 = 1e-5
     class_weights = tf.constant(constants.HOT_ONE_WEIGHTS)
 
     cce = categorical_crossentropy(y_true, y_pred)
-    weights = K.cast(tf.reduce_sum(class_weights*y_true),'float32')
+    weights = K.cast(tf.reduce_sum(class_weights*y_true),'float32')+epsilon
     wcce = (weights * cce)/weights
-    l1_norm =  K.sum(K.abs(y_true - y_pred))
-    l2_norm =  K.sum(K.square(y_true - y_pred))
+    l1_norm =  K.sum(K.abs(y_true - y_pred))+epsilon
+    l2_norm =  K.sum(K.square(y_true - y_pred))+epsilon
 
     return ((lambda_0*wcce) + (lambda_1*l1_norm) + (lambda_2*l2_norm))
 

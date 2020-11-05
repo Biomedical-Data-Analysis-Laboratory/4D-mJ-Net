@@ -40,7 +40,7 @@ def dice_coef_binary_loss(y_true, y_pred):
 
 ################################################################################
 # Function that calculates the JACCARD index loss. Util for the LOSS function during the training of the model (for image in input and output)!
-def jaccard_index_loss(y_true, y_pred, smooth=1):
+def jaccard_index_loss(y_true, y_pred, smooth=100):
     return (1-metrics.jaccard_distance(y_true, y_pred, smooth)) * smooth
 
 ################################################################################

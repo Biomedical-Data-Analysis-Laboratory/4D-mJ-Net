@@ -1,5 +1,5 @@
 {
-  "EXPERIMENT": 27,
+  "EXPERIMENT": 26,
   "USE_SEQUENCE_TRAIN": 1,
   "root_path": "/home/stud/lucat/PhD_Project/Stroke_segmentation/",
   "dataset_path": "/local/home/lucat/DATASET/SUS2020_TIFF/",
@@ -20,18 +20,19 @@
       "partial_model": "TMP_MODELS/",
       "plot": "PLOTS/",
       "images": "IMAGES/",
-      "text": "TEXT/"
+      "text": "TEXT/",
+      "intermediate_activation": "intermediate_activation/"
     }
   },
   "models": [
      {
-      "name": "van_De_Leemput",
-      "loss": "weighted_categorical_cross_entropy_loss",
-      "metrics": ["weighted_categorical_cross_entropy", "mod_dice_coef"],
-      "to_categ":1,
-      "epochs": 100,
-      "batch_size":16,
-      "steps_per_epoch_ratio": 0.25,
+      "name": "VNet_Milletari",
+      "loss": "mod_dice_coef_loss",
+      "metrics": ["jaccard_distance", "mod_dice_coef", "dice_coef"],
+      "to_categ":0,
+      "epochs": 25,
+      "batch_size": 8,
+      "steps_per_epoch_ratio": 0.15,
       "classes_to_evaluate": ["penumbra", "core", "penumbracore"],
       "statistics": ["sensitivity", "specificity", "precision", "f1", "accuracy", "jaccard_index"],
       "val":{
@@ -43,9 +44,9 @@
       "test_steps":1,
       "optimizer": {
         "name": "SGD",
-        "learning_rate": 0.01,
+        "learning_rate": 0.0001,
         "decay": 1e-6,
-        "momentum":0.9,
+        "momentum":0.99,
         "nesterov":"True"
       },
       "params":{
@@ -65,16 +66,20 @@
           "min_delta": 0.00001,
           "patience": 12
         },
-        "LearningRateScheduler": {
-          "decay_step": 10,
-          "decay_rate": 0.01
+         "ReduceLROnPlateau": {
+          "monitor": "val_loss",
+          "factor": 0.1,
+          "patience": 3,
+          "min_delta": 1e-4,
+          "cooldown": 1,
+          "min_lr": 0
         },
         "CollectBatchStats": {
           "acc":"mod_dice_coef"
         }
       },
       "save_images": 1,
-      "save_statistics": 1,
+      "save_statistics": 0,
       "use_background_in_statistics": 0,
       "calculate_ROC": 0,
       "data_augmentation": 1,

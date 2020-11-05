@@ -1,35 +1,43 @@
+import cv2
+
 import constants
-from Utils import callback
+from Utils import callback, general_utils
 
 import matplotlib
+
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
+import glob
+import tensorflow as tf
 from tensorflow.keras import optimizers
-import keract
+
 
 ################################################################################
 # Return the optimizer based on the setting
 def getOptimizer(optInfo):
     optimizer = None
-    if optInfo["name"].lower()=="adam":
+    if optInfo["name"].lower() == "adam":
         optimizer = optimizers.Adam(
             lr=optInfo["lr"],
             beta_1=optInfo["beta_1"],
             beta_2=optInfo["beta_2"],
-            epsilon=None if optInfo["epsilon"]=="None" else optInfo["epsilon"],
+            epsilon=None if optInfo["epsilon"] == "None" else optInfo["epsilon"],
             decay=optInfo["decay"],
-            amsgrad=False
+            amsgrad=False,
+            clipvalue=0.5
         )
-    elif optInfo["name"].lower()=="sgd":
+    elif optInfo["name"].lower() == "sgd":
         optimizer = optimizers.SGD(
             learning_rate=optInfo["learning_rate"],
             decay=optInfo["decay"],
             momentum=optInfo["momentum"],
-            nesterov=True if optInfo["nesterov"]=="True" else False
+            nesterov=True if optInfo["nesterov"] == "True" else False,
+            clipvalue=0.5
         )
 
     return optimizer
+
 
 ################################################################################
 # Return the callbacks defined in the setting
@@ -37,100 +45,152 @@ def getCallbacks(info, root_path, filename, textFolderPath, dataset, sample_weig
     cbs = []
     for key in info.keys():
         # save the weights
-        if key=="ModelCheckpoint":
+        if key == "ModelCheckpoint":
             cbs.append(callback.modelCheckpoint(filename, info[key]["monitor"], info[key]["mode"], info[key]["period"]))
         # stop if the monitor is not improving
-        elif key=="EarlyStopping":
+        elif key == "EarlyStopping":
             cbs.append(callback.earlyStopping(info[key]["monitor"], info[key]["min_delta"], info[key]["patience"]))
         # reduce the learning rate if the monitor is not improving
-        elif key=="ReduceLROnPlateau":
-            cbs.append(callback.reduceLROnPlateau(info[key]["monitor"], info[key]["factor"], info[key]["patience"], info[key]["min_delta"], info[key]["cooldown"], info[key]["min_lr"]))
+        elif key == "ReduceLROnPlateau":
+            cbs.append(callback.reduceLROnPlateau(info[key]["monitor"], info[key]["factor"], info[key]["patience"],
+                                                  info[key]["min_delta"], info[key]["cooldown"], info[key]["min_lr"]))
         # reduce learning_rate every fix number of epochs
-        elif key=="LearningRateScheduler":
+        elif key == "LearningRateScheduler":
             cbs.append(callback.LearningRateScheduler(info[key]["decay_step"], info[key]["decay_rate"]))
         # collect info
-        elif key=="CollectBatchStats":
+        elif key == "CollectBatchStats":
             cbs.append(callback.CollectBatchStats(root_path, filename, textFolderPath, info[key]["acc"]))
-        elif key=="RocCallback":
+        elif key == "RocCallback":
             training_data = (dataset["train"]["data"], dataset["train"]["labels"])
             validation_data = (dataset["val"]["data"], dataset["val"]["labels"])
             # # TODO: no model passed!
             # # TODO: filename is different (is the TMP_MODELS not MODELS folder)
-            cbs.append(callback.RocCallback(training_data, validation_data, model, sample_weights, filename, textFolderPath))
-        elif key=="TensorBoard":
-            cbs.append(callback.TensorBoard(log_dir=textFolderPath, update_freq=info[key]["update_freq"], histogram_freq=info[key]["histogram_freq"]))
+            cbs.append(
+                callback.RocCallback(training_data, validation_data, model, sample_weights, filename, textFolderPath))
+        # elif key=="TensorBoard":
+        #     cbs.append(callback.TensorBoard(log_dir=textFolderPath, update_freq=info[key]["update_freq"], histogram_freq=info[key]["histogram_freq"]))
 
     return cbs
 
+
 ################################################################################
 # Fit the model
-def fitModel(model, dataset, batch_size, epochs, listOfCallbacks, sample_weights, initial_epoch, save_activation_filter, intermediate_activation_path, use_multiprocessing):
+def fitModel(model, dataset, batch_size, epochs, listOfCallbacks, sample_weights, initial_epoch, save_activation_filter,
+             intermediate_activation_path, use_multiprocessing):
     validation_data = None
-    if dataset["val"]["data"] is not None and dataset["val"]["labels"] is not None: validation_data = (dataset["val"]["data"], dataset["val"]["labels"])
+    if dataset["val"]["data"] is not None and dataset["val"]["labels"] is not None:
+        validation_data = (dataset["val"]["data"], dataset["val"]["labels"])
 
     training = model.fit(dataset["train"]["data"],
-                dataset["train"]["labels"],
-                batch_size=batch_size,
-                epochs=epochs,
-                callbacks=listOfCallbacks,
-                shuffle=True,
-                validation_data=validation_data,
-                sample_weight=sample_weights,
-                initial_epoch=initial_epoch,
-                verbose=constants.getVerbose(),
-                use_multiprocessing=use_multiprocessing)
+                         dataset["train"]["labels"],
+                         batch_size=batch_size,
+                         epochs=epochs,
+                         callbacks=listOfCallbacks,
+                         shuffle=True,
+                         validation_data=validation_data,
+                         sample_weight=sample_weights,
+                         initial_epoch=initial_epoch,
+                         verbose=constants.getVerbose(),
+                         use_multiprocessing=use_multiprocessing)
 
-    if save_activation_filter: saveActivationFilter(model, shape=tuple(np.array(dataset["train"]["data"][0].shape)), intermediate_activation_path=intermediate_activation_path)
+    if save_activation_filter: saveIntermediateLayers(model, intermediate_activation_path=intermediate_activation_path)
 
     return training
+
 
 ################################################################################
 # Train the model only with a single batch
 def trainOnBatch(model, x, y, sample_weights):
-    ret = model.train_on_batch(x,
-        y,
-        sample_weight=sample_weights,
-        reset_metrics=False
-    )
-
+    ret = model.train_on_batch(x, y, sample_weight=sample_weights, reset_metrics=False)
     return model, ret
 
+
 ################################################################################
-#
-def fit_generator(model, train_sequence, val_sequence, epochs, listOfCallbacks, initial_epoch, save_activation_filter, use_multiprocessing):
+# Function that call a fit_generator to load the training dataset on the fly
+def fit_generator(model, train_sequence, val_sequence, steps_per_epoch, epochs, listOfCallbacks, initial_epoch,
+                  save_activation_filter, intermediate_activation_path, use_multiprocessing):
     multiplier = 16
-    training = model.fit_generator(train_sequence,
+    # steps_per_epoch is given by the (N_TOT/N_batches)*steps_per_epoch_ratio rounded to the nearest integer
+    training = model.fit_generator(
+        generator=train_sequence,
         epochs=epochs,
+        steps_per_epoch=steps_per_epoch,
         validation_data=val_sequence,
         callbacks=listOfCallbacks,
         initial_epoch=initial_epoch,
         verbose=constants.getVerbose(),
-        max_queue_size=10*multiplier,
-        workers=1*multiplier,
+        max_queue_size=10 * multiplier,
+        workers=1 * multiplier,
+        shuffle=True,
         use_multiprocessing=use_multiprocessing)
+
+    if save_activation_filter: saveIntermediateLayers(model, intermediate_activation_path=intermediate_activation_path)
 
     return training
 
+
 ################################################################################
-#
-def saveActivationFilter(model, shape, intermediate_activation_path):
-    x = np.random.uniform(size=(1,)+shape)
-    activations = keract.get_activations(model, x) # call to fetch the activations of the model.
-    keract.display_activations(activations, save=True, directory=intermediate_activation_path)
+# Save the intermediate layers
+def saveIntermediateLayers(model, intermediate_activation_path):
+    count = 0
+    pixels = np.zeros(shape=(constants.getM(), constants.getN(), constants.NUMBER_OF_IMAGE_PER_SECTION))
+    for imagename in np.sort(glob.glob(
+            "/home/stud/lucat/PhD_Project/Stroke_segmentation/PATIENTS/SUS2020_TIFF/FINAL_TIFF/CTP_01_010/10/" +
+            "*." + constants.SUFFIX_IMG)):
+        img = cv2.imread(imagename, 0)
+        pixels[:, :, count] = general_utils.getSlicingWindow(img, 320, 320, constants.getM(), constants.getN())
+        count += 1
+
+    pixels = pixels.reshape(1, constants.getM(), constants.getN(), constants.NUMBER_OF_IMAGE_PER_SECTION, 1)
+
+    for layer in model.layers:
+        print(layer.name)
+        if layer.name != "input_1" and layer.name != "reshape":
+            visualizeLayer(model, pixels, layer.name, intermediate_activation_path)
+
+
+################################################################################
+# Function to visualize (save) a single layer given the name
+def visualizeLayer(model, pixels, layer_name, intermediate_activation_path, save=True):
+    layer_output = model.get_layer(layer_name).output
+    intermediate_model = tf.keras.models.Model(inputs=model.input, outputs=layer_output)
+
+    intermediate_prediction = intermediate_model.predict(pixels)
+    print(np.shape(intermediate_prediction))
+
+    if save:
+        for img_index in range(0, intermediate_prediction.shape[3]):
+            for c in range(0, intermediate_prediction.shape[4]):
+                cv2.imwrite(intermediate_activation_path + layer_name + str(img_index) + str(c) + ".png",
+                            intermediate_prediction[0, :, :, img_index, c])
+    else:
+        row_size = intermediate_prediction.shape[4]
+        col_size = intermediate_prediction.shape[3]
+
+        fig, ax = plt.subplots(row_size, col_size, figsize=(10, 8))
+
+        print(intermediate_prediction[0, :, :, 0, 0])
+
+        for row in range(0, row_size):
+            for col in range(0, col_size):
+                ax[row][col].imshow(intermediate_prediction[0, :, :, col, row], cmap='gray', vmin=0, vmax=255)
+
 
 ################################################################################
 # For plotting the loss and accuracy of the trained model
 def plotLossAndAccuracy(nn, p_id):
     for key in nn.train.history.keys():
         fig, ax = plt.subplots(nrows=1, ncols=1)  # create figure & 1 axis
-        ax.plot(nn.train.history[key],'r',linewidth=3.0)
-        ax.legend([key],fontsize=10)
+        ax.plot(nn.train.history[key], 'r', linewidth=3.0)
+        ax.legend([key], fontsize=10)
         ax.set_xlabel('Epochs ', fontsize=16)
         ax.set_ylabel(key, fontsize=16)
         ax.set_title(key + 'Curves', fontsize=16)
 
-        fig.savefig(nn.savePlotFolder+nn.getNNID(p_id)+"_"+key+"_"+str(constants.SLICING_PIXELS)+"_"+str(constants.getM())+"x"+str(constants.getN())+".png")
+        fig.savefig(nn.savePlotFolder + nn.getNNID(p_id) + "_" + key + "_" + str(constants.SLICING_PIXELS) + "_" + str(
+            constants.getM()) + "x" + str(constants.getN()) + ".png")
         plt.close(fig)
+
 
 ################################################################################
 # For plotting the loss and accuracy of the trained model
@@ -138,11 +198,12 @@ def plotMetrics(nn, p_id, list_metrics):
     for metric in list_metrics:
         key = metric["name"]
         fig, ax = plt.subplots(nrows=1, ncols=1)  # create figure & 1 axis
-        ax.plot(metric["val"],'r',linewidth=3.0)
-        ax.legend([key],fontsize=10)
+        ax.plot(metric["val"], 'r', linewidth=3.0)
+        ax.legend([key], fontsize=10)
         ax.set_xlabel('Batch ', fontsize=16)
         ax.set_ylabel(key, fontsize=16)
         ax.set_title(key + 'Curves', fontsize=16)
 
-        fig.savefig(nn.savePlotFolder+nn.getNNID(p_id)+"_"+key+"_"+str(constants.SLICING_PIXELS)+"_"+str(constants.getM())+"x"+str(constants.getN())+".png")
+        fig.savefig(nn.savePlotFolder + nn.getNNID(p_id) + "_" + key + "_" + str(constants.SLICING_PIXELS) + "_" + str(
+            constants.getM()) + "x" + str(constants.getN()) + ".png")
         plt.close(fig)

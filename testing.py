@@ -1,5 +1,5 @@
 # Run the testing function, save the images ..
-from Utils import general_utils, dataset_utils, metrics
+from Utils import general_utils, dataset_utils, sequence_utils, metrics
 import constants, training
 
 import os, time, cv2, glob
@@ -7,10 +7,11 @@ import multiprocessing
 import numpy as np
 import tensorflow.keras.backend as K
 
+################################################################################
+# Predict the model based on the input
 def predictFromModel(nn, input):
     return nn.model.predict(
             x=input,
-            batch_size=nn.batch_size,
             steps=nn.test_steps,
             use_multiprocessing=nn.mp
     )
@@ -20,7 +21,7 @@ def predictFromModel(nn, input):
 def predictAndSaveImages(nn, p_id):
     start = time.time()
     stats = {}
-    suffix = general_utils.getSuffix() ## es == "_4_16x16"
+    suffix = general_utils.getSuffix()  # es == "_4_16x16"
 
     suffix_filename = ".pkl"
     if nn.use_hickle: suffix_filename = ".hkl"
@@ -41,7 +42,6 @@ def predictAndSaveImages(nn, p_id):
 
     # for all the slice folders in patientFolder
     for subfolder in glob.glob(patientFolder+"*/"):
-        # try:
         subpatientFolder = nn.getNNID(p_id)+suffix+"/"+relativePatientFolder
         patientFolderHeatMap = nn.getNNID(p_id)+suffix+"/"+relativePatientFolderHeatMap
         patientFolderTMP = nn.getNNID(p_id)+suffix+"/"+relativePatientFolderTMP
@@ -56,9 +56,6 @@ def predictAndSaveImages(nn, p_id):
                     for idxE, _ in enumerate(nn.epsiloList):
                         if idxE not in stats[func.__name__][classToEval].keys(): stats[func.__name__][classToEval][idxE] = []
                         stats[func.__name__][classToEval][idxE].append(tmpStats[func.__name__][classToEval][idxE])
-        # except Exception as e:
-        #     print("[ERROR] - ", e)
-        #     continue
 
     end = time.time()
     if constants.getVerbose():
@@ -89,13 +86,13 @@ def predictImage(nn, subfolder, p_id, patientFolder, relativePatientFolder, rela
 
     start = time.time()
     stats = {}
-    imagesDict = {} # faster access to the images
+    imagesDict = {}  # faster access to the images
     YTRUEToEvaluate, YPREDToEvaluate = [], []
     startingX, startingY = 0, 0
     imagePredicted = np.zeros(shape=(constants.IMAGE_WIDTH, constants.IMAGE_HEIGHT))
     checkImageProcessed = np.zeros(shape=(constants.IMAGE_WIDTH, constants.IMAGE_HEIGHT))
 
-    idx = general_utils.getStringFromIndex(subfolder.replace(patientFolder, '').replace("/", "")) # image index
+    idx = general_utils.getStringFromIndex(subfolder.replace(patientFolder, '').replace("/", ""))  # image index
 
     # remove the old logs.
     logsName = nn.saveImagesFolder+relativePatientFolder+idx+"_logs.txt"
@@ -129,13 +126,13 @@ def predictImage(nn, subfolder, p_id, patientFolder, relativePatientFolder, rela
             return stats
 
         test_df = dataset_utils.readFromPickleOrHickle(filename_test, nn.use_hickle)
-        test_df = test_df[test_df.data_aug_idx==0] # get only the rows with data_aug_idx==0 (no rotation or any data augmentation)
+        test_df = test_df[test_df.data_aug_idx==0]  # get only the rows with data_aug_idx==0 (no rotation or any data augmentation)
         test_df = test_df[test_df.timeIndex==idx]
         imagePredicted, YTRUEToEvaluate, YPREDToEvaluate = generateTimeImagesAndConsensus(nn, test_df, YTRUEToEvaluate, YPREDToEvaluate, relativePatientFolderTMP, idx)
     else:
         while True:
-            pixels_shape = (constants.getM(),constants.getN(),constants.NUMBER_OF_IMAGE_PER_SECTION)
             if constants.ORIGINAL_SHAPE: pixels_shape = (constants.NUMBER_OF_IMAGE_PER_SECTION,constants.getM(),constants.getN())
+            else: pixels_shape = (constants.getM(),constants.getN(),constants.NUMBER_OF_IMAGE_PER_SECTION)
 
             pixels = np.zeros(shape=pixels_shape)
             count = 0
@@ -170,16 +167,17 @@ def predictImage(nn, subfolder, p_id, patientFolder, relativePatientFolder, rela
 
     s2 = time.time()
     if constants.getVerbose(): print("image time: {}".format(round(s2-s1, 3)))
+
     if nn.save_images:
         s1 = time.time()
-        # rotate the predictions foor the ISLES2018 dataset
+        # rotate the predictions for the ISLES2018 dataset
         # if "ISLES2018" in nn.datasetFolder: imagePredicted = np.rot90(imagePredicted,-1)
         # save the image predicted in the specific folder
-        cv2.imwrite(nn.saveImagesFolder+relativePatientFolder+idx+constants.SUFFIX_IMG, imagePredicted)
+        cv2.imwrite(nn.saveImagesFolder+relativePatientFolder+idx+".png", imagePredicted)
         # create and save the HEATMAP
         heatmap_img = cv2.normalize(imagePredicted, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8U)
         heatmap_img = cv2.applyColorMap(~heatmap_img, cv2.COLORMAP_JET)
-        cv2.imwrite(nn.saveImagesFolder+relativePatientFolderHeatMap+idx+"_heatmap"+constants.SUFFIX_IMG, heatmap_img)
+        cv2.imwrite(nn.saveImagesFolder+relativePatientFolderHeatMap+idx+"_heatmap.png", heatmap_img)
 
         if constants.get3DFlag()=="": cv2.imwrite(nn.saveImagesFolder+relativePatientFolderTMP+idx+constants.SUFFIX_IMG, checkImageProcessed)
 
@@ -209,7 +207,7 @@ def predictImage(nn, subfolder, p_id, patientFolder, relativePatientFolder, rela
                 if classToEval=="penumbra": label=2
                 elif classToEval=="core":
                     label=3
-                    if constants.N_CLASSES==2: label=1 # binary classification
+                    if constants.N_CLASSES==2: label=1  # binary classification
                 elif classToEval=="penumbracore": label=4
 
                 if classToEval not in stats[func.__name__].keys(): stats[func.__name__][classToEval] = {}
@@ -252,11 +250,10 @@ def generate2DImage(nn, pixels, startingXY, imagePredicted, checkImageProcessed,
     # slicingWindowPredicted contain only the prediction for the last step
     slicingWindowPredicted = predictFromModel(nn, pixels)[nn.test_steps-1]
 
-
-    if nn.to_categ: slicingWindowPredicted = K.eval((K.argmax(slicingWindowPredicted)*255)/len(constants.LABELS))
+    if nn.to_categ: slicingWindowPredicted = K.eval((K.argmax(slicingWindowPredicted)*255)/len(constants.LABELS)-1)
     else: slicingWindowPredicted *= 255
 
-    if nn.save_statistics and nn.labeledImagesFolder!="": # for statistics purposes
+    if nn.save_statistics and nn.labeledImagesFolder!="":  # for statistics purposes
         YPREDToEvaluate.extend(slicingWindowPredicted)
         YTRUEToEvaluate.extend(checkImageProcessed)
 
@@ -294,8 +291,8 @@ def generateTimeImagesAndConsensus(nn, test_df, YTRUEToEvaluate, YPREDToEvaluate
 
     if nn.save_images:
         if constants.N_CLASSES==3:
-            checkImageProcessed[checkImageProcessed==255] = constants.PIXELVALUES[0] # remove one class from the ground truth
-            checkImageProcessed[checkImageProcessed==150] == constants.PIXELVALUES[2] # change the class for core
+            checkImageProcessed[checkImageProcessed==255] = constants.PIXELVALUES[0]  # remove one class from the ground truth
+            checkImageProcessed[checkImageProcessed==150] = constants.PIXELVALUES[2]  # change the class for core
         cv2.imwrite(nn.saveImagesFolder+relativePatientFolderTMP+"orig_"+idx+constants.SUFFIX_IMG, checkImageProcessed)
 
         for tidx in arrayTimeIndexImages.keys():
@@ -307,7 +304,7 @@ def generateTimeImagesAndConsensus(nn, test_df, YTRUEToEvaluate, YPREDToEvaluate
 
         imagePredicted /= len(arrayTimeIndexImages.keys())
 
-    return (imagePredicted, YTRUEToEvaluate, YPREDToEvaluate)
+    return imagePredicted, YTRUEToEvaluate, YPREDToEvaluate
 
 ################################################################################
 # Test the model with the selected patient
@@ -323,21 +320,41 @@ def evaluateModel(nn, p_id, isAlreadySaved):
 
         nn.train_df = dataset_utils.readFromPickleOrHickle(filename_train, nn.use_hickle)
 
-        nn.dataset = dataset_utils.getTestDataset(nn.dataset, nn.train_df, p_id, nn.mp)
-        nn.dataset["test"]["labels"] = dataset_utils.getLabelsFromIndex(train_df=nn.train_df, dataset=nn.dataset["test"], modelname=nn.name, to_categ=nn.to_categ, flag="test")
-        nn.compileModel() # compile the model and then evaluate it
+        nn.dataset = dataset_utils.getTestDataset(nn.dataset, nn.train_df, p_id, nn.use_sequence, nn.mp)
+        if not nn.use_sequence: nn.dataset["test"]["labels"] = dataset_utils.getLabelsFromIndex(train_df=nn.train_df, dataset=nn.dataset["test"], modelname=nn.name, to_categ=nn.to_categ, flag="test")
+        nn.compileModel()  # compile the model and then evaluate it
 
     sample_weights = nn.getSampleWeights("test")
+    if nn.use_sequence:
+        multiplier = 16
 
-    testing = nn.model.evaluate(
-        x=nn.dataset["test"]["data"],
-        y=nn.dataset["test"]["labels"],
-        callbacks=nn.callbacks,
-        sample_weight=sample_weights,
-        verbose=constants.getVerbose(),
-        batch_size=nn.batch_size,
-        use_multiprocessing=nn.mp
-    )
+        nn.test_sequence = sequence_utils.datasetSequence(
+            dataframe=nn.train_df,
+            indices=nn.dataset["test"]["indices"],
+            sample_weights=sample_weights,
+            x_label="pixels",
+            y_label="ground_truth",
+            to_categ=nn.to_categ,
+            batch_size=nn.batch_size
+        )
+
+        testing = nn.model.evaluate_generator(
+            generator=nn.test_sequence,
+            max_queue_size=10*multiplier,
+            workers=1*multiplier,
+            use_multiprocessing=nn.mp
+        )
+
+    else:
+        testing = nn.model.evaluate(
+            x=nn.dataset["test"]["data"],
+            y=nn.dataset["test"]["labels"],
+            callbacks=nn.callbacks,
+            sample_weight=sample_weights,
+            verbose=constants.getVerbose(),
+            batch_size=nn.batch_size,
+            use_multiprocessing=nn.mp
+        )
 
     if not nn.train_on_batch:
         general_utils.printSeparation("-",50)

@@ -77,7 +77,7 @@ BINARY_CLASSIFICATION = False  # to extract only two classes
 LABELS = ["background", "brain", "penumbra", "core"]
 LABELS_THRESHOLDS = [234, 0, 60, 135]  # [250, 0 , 30, 100]
 LABELS_REALVALUES = [255, 0, 76, 150]
-TILE_DIVISION = 16  # set to >1 if the tile are NOT the entire image
+TILE_DIVISION = 4  # set to >1 if the tile are NOT the entire image
 
 ################################################################################
 ################################################################################
@@ -95,7 +95,7 @@ DATA_AUGMENTATION = True  # use data augmentation?
 THREE_D = False  # get just the 3D version of the raw images
 FOUR_D = False  # TODO: ??
 ONE_TIME_POINT = -1  # -1 if you don't want to use it
-VERBOSE = 1
+VERBOSE = 0
 dataset, listPatientsDataset, trainDatasetList = {}, {}, list()
 COLUMNS = ['patient_id', 'label', 'pixels', 'ground_truth', 'label_code', 'x_y',
            'data_aug_idx', 'timeIndex', 'sliceIndex', "severity"]
@@ -205,8 +205,7 @@ def processTheWindow(realLabelledWindow, startingX, startingY, otherInforList, n
                 jumps = int((startingX % N) / SLICING_PIXELS)
                 for j in range(jumps):
                     prevTileX = (startingX - SLICING_PIXELS % N) - (j * SLICING_PIXELS)
-                    if str(prevTileX) in otherInforList[0].keys() and str(startingY) in otherInforList[0][
-                        str(prevTileX)].keys():
+                    if str(prevTileX) in otherInforList[0].keys() and str(startingY) in otherInforList[0][str(prevTileX)].keys():
                         if otherInforList[0][str(prevTileX)][str(startingY)]["label_class"] == classToSet:
                             numSkip += 1
                             processTile = False
@@ -668,7 +667,8 @@ def fillDatasetPM(relativePath, patientIndex, timeFolder):
 
                     processDayFold = False
                     for dayfolder in np.sort(glob.glob(PM_FOLDER + IMAGE_PREFIX + patientIndex +"/*/")):
-                        if len(glob.glob(dayfolder+"*/"))>=7:  # if the folder contains the correct number of subfolders
+                        # if the folder contains the correct number of subfolders
+                        if len(glob.glob(dayfolder+"*/"))>=7:
                             pmlist = ["CBF", "CBV", "TTP", "TMAX"]
 
                             for subdayfolder in glob.glob(dayfolder+"*/"):

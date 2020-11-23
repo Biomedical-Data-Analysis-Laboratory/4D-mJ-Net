@@ -104,7 +104,7 @@ class datasetSequence(Sequence):
             coord = row["x_y"]
             data_aug_idx = row["data_aug_idx"]
             # add the index into the correct set
-            self.index_pd_DA[str(data_aug_idx)].add(row_index)
+            self.index_pd_DA[str(data_aug_idx)].add((index,row_index))
 
             for pm in self.x_label:
                 if pm not in pms.keys(): pms[pm] = []
@@ -125,7 +125,7 @@ class datasetSequence(Sequence):
     def getY(self, current_batch, weights):
         Y = []
         for aug_idx in self.index_pd_DA.keys():
-            for index, row_index in enumerate(self.index_pd_DA[aug_idx]):
+            for index,row_index in self.index_pd_DA[aug_idx]:
                 filename = current_batch.loc[row_index][self.y_label]
                 if not isinstance(filename, str):
                     print(filename)
@@ -139,6 +139,12 @@ class datasetSequence(Sequence):
                 if ".tiff" in filename: img = np.rint(img/256)
 
                 img = general_utils.getSlicingWindow(img, coord[0], coord[1], isgt=True)
+
+                # the (M,N) == image dimension
+                if constants.getM()==constants.IMAGE_WIDTH and constants.getN()==constants.IMAGE_HEIGHT:
+                    f = lambda x: np.sum(np.where(np.array(x) == constants.PIXELVALUES[2], 150, np.where(np.array(x) == constants.PIXELVALUES[3], 20, 0.1)))
+                    weights[index] = f(img)/(constants.getM()*constants.getN())
+
                 if not self.to_categ: img /= 256  # convert the label in [0, 1] values
 
                 if aug_idx=="0": img = img if not self.to_categ or self.loss=="sparse_categorical_crossentropy" else dataset_utils.getSingleLabelFromIndexCateg(img)

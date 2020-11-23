@@ -411,13 +411,18 @@ class NeuralNetwork(object):
         self.N_BACKGROUND, self.N_BRAIN, self.N_PENUMBRA, self.N_CORE, self.N_TOT = dataset_utils.getNumberOfElements(self.train_df)
 
         if constants.N_CLASSES==4:
-            if constants.getM()>=512:  # we have only one label
-                # function that map each PIXELVALUES[2] with 150, PIXELVALUES[3] with 20
-                # and the rest with 0.1 and sum them
-                f = lambda x: np.sum(np.where(np.array(x)==constants.PIXELVALUES[2],150,np.where(np.array(x)==constants.PIXELVALUES[3],20,0.1)))
+            # and the (M,N) == image dimension
+            if constants.getM()==constants.IMAGE_WIDTH and constants.getN()==constants.IMAGE_HEIGHT:
+                if self.use_sequence:  # set everything == 1
+                    sample_weights = self.train_df.assign(ground_truth=1)
+                    sample_weights = sample_weights.ground_truth
+                else:
+                    # function that map each PIXELVALUES[2] with 150, PIXELVALUES[3] with 20
+                    # and the rest with 0.1 and sum them
+                    f = lambda x: np.sum(np.where(np.array(x) == constants.PIXELVALUES[2], 150, np.where(np.array(x) == constants.PIXELVALUES[3], 20, 0.1)))
 
-                sample_weights = self.train_df.ground_truth.map(f)
-                sample_weights = sample_weights/(constants.getM()*constants.getN())
+                    sample_weights = self.train_df.ground_truth.map(f)
+                    sample_weights = sample_weights/(constants.getM()*constants.getN())
             else:
                 # see: "ISBI 2019 C-NMC Challenge: Classification in Cancer Cell Imaging" section 4.1 pag 68
                 sample_weights = self.train_df.label.map({
@@ -426,21 +431,19 @@ class NeuralNetwork(object):
                     constants.LABELS[2]: self.N_TOT/(constants.N_CLASSES*self.N_PENUMBRA) if self.N_PENUMBRA>0 else 0, # N_TOT/N_PENUMBRA,
                     constants.LABELS[3]: self.N_TOT/(constants.N_CLASSES*self.N_CORE) if self.N_CORE>0 else 0, # N_TOT/N_CORE
                 })
-
-                # sample_weights = self.train_df.label.map({
-                #     constants.LABELS[0]: 1,
-                #     constants.LABELS[1]: 1,
-                #     constants.LABELS[2]: 25,
-                #     constants.LABELS[3]: 100
-                # })
         elif constants.N_CLASSES==3:
-            if constants.getM()>=512: # we have only one label
-                # function that map each PIXELVALUES[2] with 150, PIXELVALUES[3] with 20
-                # and the rest with 0.1 and sum them
-                f = lambda x: np.sum(np.where(np.array(x)==150,150,np.where(np.array(x)==76,20,0.1)))
+            # and the (M,N) == image dimension
+            if constants.getM()==constants.IMAGE_WIDTH and constants.getN()==constants.IMAGE_HEIGHT:
+                if self.use_sequence:  # set everything == 1
+                    sample_weights = self.train_df.assign(ground_truth=1)
+                    sample_weights = sample_weights.ground_truth
+                else:
+                    # function that map each PIXELVALUES[2] with 150, PIXELVALUES[3] with 20
+                    # and the rest with 0.1 and sum them
+                    f = lambda x: np.sum(np.where(np.array(x)==150,150,np.where(np.array(x)==76,20,0.1)))
 
-                sample_weights = self.train_df.ground_truth.map(f)
-                sample_weights = sample_weights/(constants.getM()*constants.getN())
+                    sample_weights = self.train_df.ground_truth.map(f)
+                    sample_weights = sample_weights/(constants.getM()*constants.getN())
             else:
                 # see: "ISBI 2019 C-NMC Challenge: Classification in Cancer Cell Imaging" section 4.1 pag 68
                 sample_weights = self.train_df.label.map({

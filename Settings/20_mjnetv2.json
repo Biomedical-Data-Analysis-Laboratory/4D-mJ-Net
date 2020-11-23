@@ -1,9 +1,14 @@
 {
   "EXPERIMENT": 20,
+  "USE_SEQUENCE_TRAIN": 1,
   "root_path": "/home/stud/lucat/PhD_Project/Stroke_segmentation/",
-  "dataset_path": "/local/home/lucat/DATASET/SUS2020_v2/",
+  "dataset_path": "/local/home/lucat/DATASET/SUS2020_TIFF/",
   "PATIENTS_TO_TRAINVAL": ["ALL"],
-  "PATIENTS_TO_TEST": ["01_010","01_025","01_037","01_057","01_061","01_066","01_077","02_001","02_004","02_009","02_016","02_020","02_027","03_003","03_003","03_010","03_014"],
+  "PATIENTS_TO_TEST": ["CTP_01_001","CTP_01_007","CTP_01_013","CTP_01_019","CTP_01_025","CTP_01_031",
+    "CTP_01_037","CTP_01_044","CTP_01_049","CTP_01_053","CTP_01_061","CTP_01_067","CTP_01_074",
+    "CTP_02_001","CTP_02_007","CTP_02_013","CTP_02_019","CTP_02_025","CTP_02_031","CTP_02_036",
+    "CTP_02_043","CTP_02_050","CTP_02_055","CTP_02_062","CTP_03_003","CTP_03_010","CTP_03_014",
+    "CTP_01_057","CTP_01_059","CTP_01_066","CTP_01_068","CTP_01_071","CTP_01_073"],
   "OVERRIDE_MODELS_ID_PATH": "",
   "init": {
     "TF_CPP_MIN_LOG_LEVEL": "3",
@@ -12,8 +17,8 @@
     "MULTIPROCESSING": 0
   },
   "relative_paths": {
-    "labeled_images": "PATIENTS/SUS2020_v2/FINALIZE_PM/",
-    "patients": "PATIENTS/SUS2020_v2/FINAL/",
+    "labeled_images": "PATIENTS/SUS2020_TIFF/FINALIZE_PM_TIFF/",
+    "patients": "PATIENTS/SUS2020_TIFF/FINAL_TIFF/",
     "save": {
       "model": "MODELS/",
       "partial_model": "TMP_MODELS/",
@@ -28,24 +33,23 @@
       "name": "mJNet_v2",
       "loss": "mod_dice_coef_loss",
       "metrics": ["mod_dice_coef"],
-      "epochs": 150,
-      "batch_size": 1024,
+      "epochs": 100,
+      "batch_size": 32,
       "classes_to_evaluate": ["penumbra","core","penumbracore"],
       "statistics": ["sensitivity", "specificity", "precision", "f1", "accuracy", "jaccard_index"],
       "val":{
         "validation_perc": 5,
-        "number_patients_for_validation": 11,
+        "number_patients_for_validation": 15,
         "number_patients_for_testing": 0,
         "random_validation_selection": 0
       },
       "test_steps":1,
       "optimizer": {
-        "name": "Adam",
-        "lr": 0.001,
-        "beta_1": 0.9,
-        "beta_2":0.999,
-        "epsilon":"None",
-        "decay":0.0
+        "name": "SGD",
+        "learning_rate": 0.01,
+        "decay": 1e-6,
+        "momentum":0.9,
+        "nesterov":"True"
       },
       "params":{
         "max_pool":{
@@ -73,10 +77,10 @@
         "EarlyStopping": {
           "monitor": "val_loss",
           "min_delta": 0.00001,
-          "patience": 20
+          "patience": 12
         },
         "LearningRateScheduler": {
-          "decay_step": 20,
+          "decay_step": 10,
           "decay_rate": 0.1
         },
         "CollectBatchStats": {

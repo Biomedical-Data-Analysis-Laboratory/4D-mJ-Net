@@ -1,5 +1,5 @@
 {
-  "EXPERIMENT": 28,
+  "EXPERIMENT": 98,
   "USE_SEQUENCE_TRAIN": 1,
   "root_path": "/home/stud/lucat/PhD_Project/Stroke_segmentation/",
   "dataset_path": "/local/home/lucat/DATASET/SUS2020_TIFF/",
@@ -18,7 +18,7 @@
   },
   "relative_paths": {
     "labeled_images": "PATIENTS/SUS2020_TIFF/FINALIZE_PM_TIFF/",
-    "patients": "PATIENTS/SUS2020_TIFF/FINAL_TIFF/",
+    "patients": "PATIENTS/SUS2020_TIFF/Parametric_Maps/",
     "save": {
       "model": "MODELS/",
       "partial_model": "TMP_MODELS/",
@@ -30,12 +30,12 @@
   },
   "models": [
      {
-      "name": "mJNet",
+      "name": "mJNet_PM",
       "loss": "mod_dice_coef_loss",
-      "metrics": ["mod_dice_coef"],
-      "epochs": 100,
+      "metrics": ["mod_dice_coef","tversky","dice_coef"],
+      "epochs": 50,
       "batch_size": 4,
-      "steps_per_epoch_ratio": 0.25,
+      "steps_per_epoch_ratio": 0.75,
       "classes_to_evaluate": ["penumbra","core","penumbracore"],
       "statistics": ["sensitivity", "specificity", "precision", "f1", "accuracy", "jaccard_index"],
       "val":{
@@ -59,12 +59,10 @@
           "long.3":2
         },
         "dropout":{
-          "long.1":0.3,
-          "1":0,
-          "2":0.3,
-          "3":0.3,
-          "4":0,
-          "5":0
+          "cbf_1":0.2,
+          "cbv_1":0.2,
+          "ttp_1":0.2,
+          "tmax_1":0.2
         }
       },
       "callbacks":{
@@ -79,7 +77,7 @@
           "patience": 12
         },
         "LearningRateScheduler": {
-          "decay_step": 10,
+          "decay_step": 5,
           "decay_rate": 0.01
         },
         "CollectBatchStats": {

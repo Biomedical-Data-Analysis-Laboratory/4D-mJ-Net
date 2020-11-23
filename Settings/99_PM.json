@@ -1,5 +1,5 @@
 {
-  "EXPERIMENT": 28,
+  "EXPERIMENT": 99,
   "USE_SEQUENCE_TRAIN": 1,
   "root_path": "/home/stud/lucat/PhD_Project/Stroke_segmentation/",
   "dataset_path": "/local/home/lucat/DATASET/SUS2020_TIFF/",
@@ -18,7 +18,7 @@
   },
   "relative_paths": {
     "labeled_images": "PATIENTS/SUS2020_TIFF/FINALIZE_PM_TIFF/",
-    "patients": "PATIENTS/SUS2020_TIFF/FINAL_TIFF/",
+    "patients": "PATIENTS/SUS2020_TIFF/Parametric_Maps/",
     "save": {
       "model": "MODELS/",
       "partial_model": "TMP_MODELS/",
@@ -30,12 +30,12 @@
   },
   "models": [
      {
-      "name": "mJNet",
-      "loss": "mod_dice_coef_loss",
-      "metrics": ["mod_dice_coef"],
-      "epochs": 100,
-      "batch_size": 4,
-      "steps_per_epoch_ratio": 0.25,
+      "name": "mJNet_PM",
+      "loss": "sparse_categorical_crossentropy",
+      "metrics": ["sparse_categorical_crossentropy"],
+      "epochs": 3,
+      "batch_size": 1,
+      "steps_per_epoch_ratio": 1,
       "classes_to_evaluate": ["penumbra","core","penumbracore"],
       "statistics": ["sensitivity", "specificity", "precision", "f1", "accuracy", "jaccard_index"],
       "val":{
@@ -46,11 +46,8 @@
       },
       "test_steps":1,
       "optimizer": {
-        "name": "SGD",
-        "learning_rate": 0.01,
-        "decay": 1e-6,
-        "momentum":0.9,
-        "nesterov":"True"
+        "name": "rmsprop",
+        "learning_rate": 0.001
       },
       "params":{
         "max_pool":{
@@ -59,17 +56,15 @@
           "long.3":2
         },
         "dropout":{
-          "long.1":0.3,
-          "1":0,
-          "2":0.3,
-          "3":0.3,
-          "4":0,
-          "5":0
+          "cbf_1":0.2,
+          "cbv_1":0.2,
+          "ttp_1":0.2,
+          "tmax_1":0.2
         }
       },
       "callbacks":{
         "ModelCheckpoint": {
-          "monitor": "val_mod_dice_coef",
+          "monitor": "val_loss",
           "mode": "max",
           "period": 1
         },
@@ -79,18 +74,18 @@
           "patience": 12
         },
         "LearningRateScheduler": {
-          "decay_step": 10,
+          "decay_step": 5,
           "decay_rate": 0.01
         },
         "CollectBatchStats": {
-          "acc":"mod_dice_coef"
+          "acc":"loss"
         },
         "TensorBoard": {
           "update_freq":"batch",
           "histogram_freq": 5
         }
       },
-      "to_categ": 0,
+      "to_categ": 1,
       "save_images": 1,
       "save_statistics": 0,
       "use_background_in_statistics": 0,

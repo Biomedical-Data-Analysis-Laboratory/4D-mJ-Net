@@ -66,7 +66,7 @@ def jaccard_distance(y_true, y_pred, smooth=100):
 
 def jaccard_index(tn, fn, fp, tp):
     f = f1(tn, fn, fp, tp)
-    return (f+1e-07)/(2-f+1e-07)
+    return f/(2-f+1e-07)
 
 ################################################################################
 # Function that calculate the metrics for the CATEGORICAL CROSS ENTROPY
@@ -144,7 +144,6 @@ def mAP(y_true, y_pred, use_background_in_statistics, label):
         y_pred_p = np.array(y_pred==2, dtype="int32")
         y_pred_c = np.array(y_pred==3, dtype="int32")
         y_pred = y_pred_p+y_pred_c
-
 
     return average_precision_score(y_true, y_pred)
 

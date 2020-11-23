@@ -33,9 +33,6 @@ def loadTrainingDataframe(nn, patients, testing_id=None):
         # don't load the dataframe if patient_id NOT in the list of patients
         if not general_utils.isFilenameInListOfPatient(filename_train, patients): continue
 
-        # if constants.getVerbose():
-        # print('[INFO] - {0}/{1} Loading dataframe from {2}...'.format(idx, len(patients), filename_train))
-
         tmp_df = readFromPickleOrHickle(filename_train, nn.use_hickle)
         frames.append(tmp_df)
 
@@ -140,13 +137,12 @@ def splitDataset(nn, p_id, listOfPatientsToTrainVal, listOfPatientsToTest):
 
 
 ################################################################################
-#
+# Prepare the dataset (NOT for the sequence class)
 def prepareDataset(nn, p_id):
     start = time.time()
     # set the train data only if we have NOT set the train_on_batch flag
-    if not nn.train_on_batch: nn.dataset["train"]["data"] = getDataFromIndex(nn.train_df,
-                                                                             nn.dataset["train"]["indices"], "train",
-                                                                             nn.mp)
+    if not nn.train_on_batch:
+        nn.dataset["train"]["data"] = getDataFromIndex(nn.train_df,nn.dataset["train"]["indices"],"train",nn.mp)
     # the validation data is None if validation_perc and number_patients_for_validation are BOTH equal to 0
     nn.dataset["val"]["data"] = None if nn.val["validation_perc"] == 0 and nn.val[
         "number_patients_for_validation"] == 0 else getDataFromIndex(nn.train_df, nn.dataset["val"]["indices"], "val",

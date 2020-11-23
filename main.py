@@ -104,12 +104,12 @@ def main():
 ################################################################################
 if __name__ == '__main__':
     """
-    Usage: python main.py gpu s
+    Usage: python main.py gpu sname
                 [-h] [-v] [-d] [-o] [-s SETTING_FILENAME] [-t TILE] [-dim DIMENSION] [-c {2,3,4}]
 
     positional arguments:
       gpu                   Give the id of gpu (or a list of the gpus) to use
-      s                     Select the setting filename
+      sname                 Select the setting filename
 
     optional arguments:
       -h, --help            show this help message and exit
@@ -117,6 +117,7 @@ if __name__ == '__main__':
       -d, --debug           DEBUG mode
       -o, --original        Set the shape of the testing dataset to be compatible with the original shape 
                             (T,M,N) [time in front]
+      -pm, --pm             Set the flag to train the parametric maps as input 
       -t TILE, --tile TILE  Set the tile pixels dimension (MxM) (default = 16)
       -dim DIMENSION, --dimension DIMENSION
                             Set the dimension of the input images (width X height) (default = 512)

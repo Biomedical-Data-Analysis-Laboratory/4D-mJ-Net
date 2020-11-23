@@ -87,6 +87,18 @@ class NeuralNetwork(object):
         self.model = None
         self.testing_score = []
 
+        # empty variables initialization
+        self.callbacks = None
+        self.initial_epoch = 0
+        self.train_df = None
+        self.test_list = None
+        self.N_BACKGROUND, self.N_BRAIN, self.N_PENUMBRA, self.N_CORE, self.N_TOT = 0, 0, 0, 0, 0
+        self.optimizer = None
+        self.sample_weights = None
+        self.train = None
+        self.train_sequence, self.val_sequence = None, None
+        self.mp = False
+
         if constants.N_CLASSES == 4: self.epsilons = [(63.75-constants.PIXELVALUES[1]-1, 127.5-constants.PIXELVALUES[2], 191.25-constants.PIXELVALUES[3])]
         else: self.epsilons = [(63.75-constants.PIXELVALUES[1]-1)]
 
@@ -187,7 +199,7 @@ class NeuralNetwork(object):
         self.model.compile(
             optimizer=self.optimizer,
             loss=self.loss["loss"],
-            metrics=[self.metricFuncs]
+            metrics=self.metricFuncs
         )
 
 ################################################################################
@@ -198,7 +210,7 @@ class NeuralNetwork(object):
             print("[INFO] - Start runTraining function.")
             print("[INFO] - Getting model {0} with {1} optimizer...".format(self.name, self.optimizerInfo["name"]))
 
-        # based on the number of GPUs availables
+        # based on the number of GPUs available
         # call the function called self.name in models.py
         if n_gpu==1:
             self.model = getattr(models, self.name)(params=self.params, to_categ=self.to_categ)
@@ -220,9 +232,7 @@ class NeuralNetwork(object):
             self.summaryFlag+=1
 
         # check if the model has some saved weights to load...
-        self.initial_epoch = 0
-        if self.arePartialWeightsSaved(p_id):
-            self.loadModelFromPartialWeights(p_id)
+        if self.arePartialWeightsSaved(p_id):  self.loadModelFromPartialWeights(p_id)
 
         # compile the model with optimizer, loss function and metrics
         self.compileModel()
@@ -230,7 +240,6 @@ class NeuralNetwork(object):
         self.sample_weights = self.getSampleWeights("train")
         # Set the callbacks
         self.setCallbacks(p_id, self.sample_weights)
-
 
 ################################################################################
 # Run the training over the dataset based on the model
@@ -259,8 +268,8 @@ class NeuralNetwork(object):
 
         # deallocate memory
         for flag in ["train", "val", "test"]:
-            for type in ["labels", "data"]:
-                if type in self.dataset[flag]: del self.dataset[flag][type]
+            for t in ["labels", "data"]:
+                if t in self.dataset[flag]: del self.dataset[flag][t]
 
 ################################################################################
 # Run the training for every batch and LOAD only the necessary dataset (one patient at the time)
@@ -311,7 +320,8 @@ class NeuralNetwork(object):
             print("Epoch: {}".format(epoch+1))
             count_trained_elements = 0
 
-            while count_trained_elements<len(self.dataset["train"]["indices"]): # going over all the element in the dataset
+            # going over all the element in the dataset
+            while count_trained_elements<len(self.dataset["train"]["indices"]):
                 indices = self.dataset["train"]["indices"][count_trained_elements:count_trained_elements+self.batch_size]
                 x = [a for a in np.array(self.train_df.pixels.values[indices], dtype=object)]
                 y = [a for a in np.array(self.train_df.ground_truth.values[indices])]
@@ -325,18 +335,18 @@ class NeuralNetwork(object):
                 self.model, ret = training.trainOnBatch(self.model, x, y, w)
 
                 for i, r in enumerate(ret): dict_metrics[i]["val"].append(r)
-                if count_trained_elements%200==0 and count_trained_elements!=0: print(ret) #print the values every 200 batches
+                if count_trained_elements%200==0 and count_trained_elements!=0: print(ret)  #print the values every 200 batches
 
                 count_trained_elements += self.batch_size
 
             if (epoch+1)%2==0 and epoch!=0: self.model.save_weights(filename+constants.suffix_partial_weights+"{:02d}.h5".format(epoch)) # save the model weights every 2 epochs
 
             tmpSavedModels = glob.glob(filename+constants.suffix_partial_weights+"*.h5")
-            if len(tmpSavedModels) > 1: # just to be sure and not delete everything
+            if len(tmpSavedModels) > 1:  # just to be sure and not delete everything
                 for file in tmpSavedModels:
                     if filename+constants.suffix_partial_weights in file:
                         tmpEpoch = general_utils.getEpochFromPartialWeightFilename(file)
-                        if tmpEpoch < epoch: # Remove the old saved weights
+                        if tmpEpoch < epoch:  # Remove the old saved weights
                             os.remove(file)
 
         # plot the loss and accuracy of the training
@@ -352,10 +362,12 @@ class NeuralNetwork(object):
             dataframe=self.train_df,
             indices=self.dataset["train"]["indices"],
             sample_weights=self.getSampleWeights("train"),
-            x_label="pixels",
+            x_label="pixels" if not constants.getUSE_PM() else constants.getList_PMS(),
             y_label="ground_truth",
             to_categ=self.to_categ,
-            batch_size=self.batch_size
+            batch_size=self.batch_size,
+            back_perc=2 if not constants.getUSE_PM() else 100,
+            loss=self.loss["name"]
         )
 
         # validation data sequence
@@ -363,10 +375,12 @@ class NeuralNetwork(object):
             dataframe=self.train_df,
             indices=self.dataset["val"]["indices"],
             sample_weights=self.getSampleWeights("val"),
-            x_label="pixels",
+            x_label="pixels" if not constants.getUSE_PM() else constants.getList_PMS(),
             y_label="ground_truth",
             to_categ=self.to_categ,
-            batch_size=self.batch_size
+            batch_size=self.batch_size,
+            back_perc=2 if not constants.getUSE_PM() else 100,
+            loss=self.loss["name"]
         )
 
 ################################################################################
@@ -384,7 +398,8 @@ class NeuralNetwork(object):
             initial_epoch=self.initial_epoch,
             save_activation_filter=self.save_activation_filter,
             intermediate_activation_path=self.intermediateActivationFolder,
-            use_multiprocessing=self.mp)
+            use_multiprocessing=self.mp
+        )
 
         # plot the loss and accuracy of the training
         training.plotLossAndAccuracy(self, p_id)
@@ -396,9 +411,10 @@ class NeuralNetwork(object):
         self.N_BACKGROUND, self.N_BRAIN, self.N_PENUMBRA, self.N_CORE, self.N_TOT = dataset_utils.getNumberOfElements(self.train_df)
 
         if constants.N_CLASSES==4:
-            if constants.getM()>=512: # we have only one label
-                # function that map each PIXELVALUES[2] with 150, PIXELVALUES[3] with 20 and the rest with 0.1 and sum them
-                f = lambda x : np.sum(np.where(np.array(x)==constants.PIXELVALUES[2],150,np.where(np.array(x)==constants.PIXELVALUES[3],20,0.1)))
+            if constants.getM()>=512:  # we have only one label
+                # function that map each PIXELVALUES[2] with 150, PIXELVALUES[3] with 20
+                # and the rest with 0.1 and sum them
+                f = lambda x: np.sum(np.where(np.array(x)==constants.PIXELVALUES[2],150,np.where(np.array(x)==constants.PIXELVALUES[3],20,0.1)))
 
                 sample_weights = self.train_df.ground_truth.map(f)
                 sample_weights = sample_weights/(constants.getM()*constants.getN())
@@ -419,8 +435,9 @@ class NeuralNetwork(object):
                 # })
         elif constants.N_CLASSES==3:
             if constants.getM()>=512: # we have only one label
-                # function that map each PIXELVALUES[2] with 150, PIXELVALUES[3] with 20 and the rest with 0.1 and sum them
-                f = lambda x : np.sum(np.where(np.array(x)==150,150,np.where(np.array(x)==76,20,0.1)))
+                # function that map each PIXELVALUES[2] with 150, PIXELVALUES[3] with 20
+                # and the rest with 0.1 and sum them
+                f = lambda x: np.sum(np.where(np.array(x)==150,150,np.where(np.array(x)==76,20,0.1)))
 
                 sample_weights = self.train_df.ground_truth.map(f)
                 sample_weights = sample_weights/(constants.getM()*constants.getN())
@@ -431,7 +448,7 @@ class NeuralNetwork(object):
                     constants.LABELS[1]: self.N_TOT/(constants.N_CLASSES*self.N_PENUMBRA) if self.N_PENUMBRA>0 else 0, # N_TOT/N_PENUMBRA,
                     constants.LABELS[2]: self.N_TOT/(constants.N_CLASSES*self.N_CORE) if self.N_CORE>0 else 0, # N_TOT/N_CORE
                 })
-        elif constants.N_CLASSES==2: # we are in a binary class problem
+        elif constants.N_CLASSES==2:  # we are in a binary class problem
             # f = lambda x : np.sum(np.array(x))
             # sample_weights = self.train_df.ground_truth.map(f)
             sample_weights = self.train_df.label.map({
@@ -471,7 +488,6 @@ class NeuralNetwork(object):
                 general_utils.printSeparation("+", 50)
                 print("[INFO] - Executing function: predictAndSaveImages for patient {}".format(p_id))
 
-
             tmpStats = testing.predictAndSaveImages(self, p_id)
             if self.save_statistics: self.saveStats(tmpStats, p_id)
 
@@ -497,7 +513,7 @@ class NeuralNetwork(object):
                 text_file.write("====================================================\n")
                 for func in self.statistics:
                     for classToEval in self.classes_to_evaluate:
-                        if self.epsiloList[0]!=None:
+                        if self.epsiloList[0] is not None:
                             for idxE, epsilons in enumerate(self.epsiloList):
                                 tn = sum(cm[0] for cm in stats[func.__name__][classToEval][idxE])
                                 fn = sum(cm[1] for cm in stats[func.__name__][classToEval][idxE])
@@ -516,7 +532,7 @@ class NeuralNetwork(object):
         else:
             for func in self.statistics:
                 for classToEval in self.classes_to_evaluate:
-                    if self.epsiloList[0]!=None:
+                    if self.epsiloList[0] is not None:
                         for idxE, epsilons in enumerate(self.epsiloList):
                             tn = sum(cm[0] for cm in stats[func.__name__][classToEval][idxE])
                             fn = sum(cm[1] for cm in stats[func.__name__][classToEval][idxE])

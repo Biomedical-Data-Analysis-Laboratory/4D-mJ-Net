@@ -1,5 +1,5 @@
 # DO NOT import dataset_utils here!
-import constants, training
+import constants
 from Utils import metrics, losses
 
 import sys, argparse, os, json, time
@@ -13,6 +13,7 @@ import tensorflow.keras.backend as K
 # The file should only contains functions!
 ################################################################################
 
+
 ################################################################################
 # get the arguments from the command line
 def getCommandLineArguments():
@@ -20,21 +21,24 @@ def getCommandLineArguments():
     parser.add_argument("-v", "--verbose", help="Increase output verbosity", action="store_true")
     parser.add_argument("-d", "--debug", help="DEBUG mode", action="store_true")
     parser.add_argument("-o", "--original", help="ORIGINAL_SHAPE flag", action="store_true")
+    parser.add_argument("-pm", "--pm", help="Use parametric maps", action="store_true")
     parser.add_argument("-t", "--tile", help="Set the tile pixels dimension (MxM)", type=int)
     parser.add_argument("-dim", "--dimension", help="Set the dimension of the input images (widthXheight)", type=int)
-    parser.add_argument("-c", "--classes", help="Set the # of classe involved (default = 4)", default=4, type=int, choices=[2,3,4])
+    parser.add_argument("-c", "--classes", help="Set the # of classes involved (default = 4)", default=4, type=int, choices=[2,3,4])
     parser.add_argument("gpu", help="Give the id of gpu (or a list of the gpus) to use")
-    parser.add_argument("s", help="Select the setting filename")
+    parser.add_argument("sname", help="Select the setting filename")
     args = parser.parse_args()
 
     constants.setVerbose(args.verbose)
     constants.setDEBUG(args.debug)
     constants.setOriginalShape(args.original)
+    constants.setUSE_PM(args.pm)
     constants.setTileDimension(args.tile)
     constants.setImageDimension(args.dimension)
     constants.setNumberOfClasses(args.classes)
 
     return args
+
 
 ################################################################################
 # get the setting file
@@ -51,6 +55,7 @@ def getSettingFile(filename):
         print("Load setting file: {}".format(filename))
 
     return setting
+
 
 ################################################################################
 # setup the global environment
@@ -77,6 +82,7 @@ def setupEnvironment(args, setting):
 
     return N_GPU
 
+
 ################################################################################
 # setup the environment for the GPUs
 def setupEnvironmentForGPUs(args, setting):
@@ -101,22 +107,62 @@ def setupEnvironmentForGPUs(args, setting):
 
     return N_GPU
 
+
 ################################################################################
 # return the selected window for an image
-def getSlicingWindow(img, startX, startY, M, N):
+def getSlicingWindow(img, startX, startY, isgt=False, removeColorBar=False):
+    M, N = constants.getM(), constants.getN()
     sliceWindow = img[startX:startX+M,startY:startY+N]
-    for pxval in constants.PIXELVALUES: sliceWindow = np.where(np.logical_and(sliceWindow>=np.rint(pxval-(256/6)), sliceWindow<=np.rint(pxval+(256/6))),pxval, sliceWindow)
+
+    # check if there are any NaN elements
+    if np.isnan(sliceWindow).any():
+        where = list(map(list, np.argwhere(np.isnan(sliceWindow))))
+        for w in where: sliceWindow[w] = constants.PIXELVALUES[0]
+
+    if isgt:
+        for pxval in constants.PIXELVALUES:
+            sliceWindow = np.where(np.logical_and(
+                sliceWindow>=np.rint(pxval-(256/6)), sliceWindow<=np.rint(pxval+(256/6))
+            ), pxval, sliceWindow)
+
+    # Remove the colorbar! starting coordinate: (129,436)
+    if removeColorBar:
+        colorbar_coord = (129, 436)
+        if M==constants.IMAGE_WIDTH and N==constants.IMAGE_HEIGHT: sliceWindow[:, colorbar_coord[1]:] = 0
+        # if the tile is smaller than the entire image
+        elif startY+N>=colorbar_coord[1]: img[:,colorbar_coord[1]-startY:] = 0
+
     return sliceWindow
+
+
+################################################################################
+# Perform a data augmentation based on the index and return the image
+def performDataAugmentationOnTheImage(img, data_aug_idx):
+    if data_aug_idx == 1: img = np.rot90(img)  # rotate 90 degree counterclockwise
+    elif data_aug_idx == 2: img = np.rot90(img, 2)  # rotate 180 degree counterclockwise
+    elif data_aug_idx == 3: img = np.rot90(img, 3)  # rotate 270 degree counterclockwise
+    elif data_aug_idx == 4: img = np.flipud(img)  # rotate 270 degree counterclockwise
+    elif data_aug_idx == 5: img = np.fliplr(img)  # flip the matrix left/right
+
+    return img
+
 
 ################################################################################
 # Get the epoch number from the partial weight filename
 def getEpochFromPartialWeightFilename(partialWeightsPath):
-    return int(partialWeightsPath[partialWeightsPath.index(constants.suffix_partial_weights)+len(constants.suffix_partial_weights):partialWeightsPath.index(".h5")])
+    return int(partialWeightsPath[partialWeightsPath.index(constants.suffix_partial_weights)+
+                                  len(constants.suffix_partial_weights):partialWeightsPath.index(".h5")])
+
 
 ################################################################################
 # Get the loss defined in the settings
 def getLoss(name):
-    general_losses = ["binary_crossentropy", "categorical_crossentropy", "sparse_categorical_crossentropy", "mean_squared_error"]
+    general_losses = [
+        "binary_crossentropy",
+        "categorical_crossentropy",
+        "sparse_categorical_crossentropy",
+        "mean_squared_error"
+    ]
     loss = {}
 
     if name in general_losses: loss["loss"] = name
@@ -129,17 +175,30 @@ def getLoss(name):
 
     return loss
 
+
 ################################################################################
 # Get the statistic functions (& metrics) defined in the settings
 def getStatisticFunctions(listStats):
+    general_metrics = [
+        "binary_crossentropy",
+        "categorical_crossentropy",
+        "sparse_categorical_crossentropy",
+        "mean_squared_error"
+    ]
+
     statisticFuncs = []
-    for m in listStats: statisticFuncs.append(getattr(metrics, m))
+    for m in listStats:
+        if m in general_metrics: statisticFuncs.append(m)
+        else: statisticFuncs.append(getattr(metrics, m))
 
     if constants.getVerbose():
         printSeparation("-",50)
         print("[INFO] - Getting {} functions".format(listStats))
 
+    if len(statisticFuncs)==0: statisticFuncs = None
+
     return statisticFuncs
+
 
 ################################################################################
 # Return a flag to check if the filename (partial) is inside the list of patients
@@ -162,6 +221,7 @@ def isFilenameInListOfPatient(filename, patients):
 ################################################################################
 ################################################################################
 
+
 ################################################################################
 # get the string of the patient id given the integer
 def getStringFromIndex(index):
@@ -169,15 +229,20 @@ def getStringFromIndex(index):
     if len(p_id)==1: p_id = "0"+p_id
     return p_id
 
+
 ################################################################################
 # return the suffix for the model and the patient dataset
 def getSuffix():
-    return "_"+str(constants.SLICING_PIXELS)+"_"+str(constants.getM())+"x"+str(constants.getN())+constants.get3DFlag()+constants.getONETIMEPOINT()
+    return "_"+str(constants.SLICING_PIXELS)+\
+           "_"+str(constants.getM())+"x"+str(constants.getN())+\
+           constants.get3DFlag()+constants.getONETIMEPOINT()+constants.getPMflag()
+
 
 ################################################################################
 # get the full directory path, given a relative path
 def getFullDirectoryPath(path):
     return constants.getRootPath()+path
+
 
 ################################################################################
 # Generate a directory in dir_path
@@ -186,10 +251,12 @@ def createDir(dir_path):
         if constants.getVerbose(): print("[INFO] - Creating folder: " + dir_path)
         os.makedirs(dir_path)
 
-################################################################################
+###################################
+# #############################################
 # print a separation for verbose purpose
 def printSeparation(what, howmuch):
     print(what*howmuch)
+
 
 ################################################################################
 # Convert the experiment number to a string of 3 letters
@@ -199,7 +266,8 @@ def convertExperimentNumberToString(expnum):
 
     return exp
 
+
 ################################################################################
-# Print the shaoe of the layer if we are in debug mode
+# Print the shape of the layer if we are in debug mode
 def print_int_shape(layer):
     if constants.getVerbose(): print(K.int_shape(layer))

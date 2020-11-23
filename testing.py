@@ -443,10 +443,7 @@ def generateImageFromParametricMaps(nn, test_df, checkImageProcessed, YTRUEToEva
             # slicingWindowPredicted contain only the prediction for the last step
             slicingWindowPred = predictFromModel(nn, X)[nn.test_steps - 1]
 
-            with open(general_utils.getFullDirectoryPath(nn.saveTextFolder) + "test_categ.txt", "a+") as text_file:
-                text_file.write(slicingWindowPred)
-            # if nn.to_categ: slicingWindowPred = K.eval((K.argmax(slicingWindowPred)*255)/len(constants.LABELS)-1)
-            if nn.to_categ: slicingWindowPred = np.expand_dims(np.argmax(slicingWindowPred,axis=-1), axis=-1)
+            if nn.to_categ: slicingWindowPred = K.eval((K.argmax(slicingWindowPred)*255)/(len(constants.LABELS)-1))
             else: slicingWindowPred *= 255
 
             if nn.save_statistics and nn.labeledImagesFolder != "":  # for statistics purposes
@@ -503,7 +500,9 @@ def evaluateModel(nn, p_id, isAlreadySaved):
             y_label="ground_truth",
             to_categ=nn.to_categ,
             batch_size=nn.batch_size,
-            istest=True
+            istest=True,
+            back_perc=100,
+            loss=nn.loss["name"]
         )
 
         testing = nn.model.evaluate_generator(

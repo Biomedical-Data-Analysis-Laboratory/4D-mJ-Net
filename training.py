@@ -35,6 +35,14 @@ def getOptimizer(optInfo):
             nesterov=True if optInfo["nesterov"] == "True" else False,
             clipvalue=0.5
         )
+    elif optInfo["name"].lower() == "rmsprop":
+        optimizer = optimizers.RMSprop(
+            learning_rate=optInfo["learning_rate"],
+            rho=0.9,
+            momentum=0.0,
+            epsilon=1e-07,
+            centered=False
+        )
 
     return optimizer
 
@@ -138,7 +146,7 @@ def saveIntermediateLayers(model, intermediate_activation_path):
             "/home/stud/lucat/PhD_Project/Stroke_segmentation/PATIENTS/SUS2020_TIFF/FINAL_TIFF/CTP_01_010/10/" +
             "*." + constants.SUFFIX_IMG)):
         img = cv2.imread(imagename, 0)
-        pixels[:, :, count] = general_utils.getSlicingWindow(img, 320, 320, constants.getM(), constants.getN())
+        pixels[:, :, count] = general_utils.getSlicingWindow(img, 320, 320)
         count += 1
 
     pixels = pixels.reshape(1, constants.getM(), constants.getN(), constants.NUMBER_OF_IMAGE_PER_SECTION, 1)

@@ -434,7 +434,9 @@ def generateImageFromParametricMaps(nn, test_df, checkImageProcessed, YTRUEToEva
             pms = dict()
             for pm_name in constants.getList_PMS():
                 filename = row_to_analyze[pm_name].iloc[0] + idx + ".png"
-                pm = img_to_array(load_img(filename))
+                # pm = img_to_array(load_img(filename))
+                pm = cv2.imread(filename)
+
                 pms[pm_name] = general_utils.getSlicingWindow(pm, startingX, startingY, removeColorBar=True)
                 pms[pm_name] = np.array(pms[pm_name])
                 pms[pm_name] = pms[pm_name].reshape((1,) + pms[pm_name].shape)
@@ -461,7 +463,7 @@ def generateImageFromParametricMaps(nn, test_df, checkImageProcessed, YTRUEToEva
         if constants.getM()==constants.IMAGE_WIDTH and constants.getN()==constants.IMAGE_HEIGHT: break
 
         # going to the next slicingWindow
-        if startingY < constants.IMAGE_HEIGHT - constants.getN(): startingY += constants.getN()
+        if startingY<=(constants.IMAGE_HEIGHT-constants.getN()): startingY+=constants.getN()
         else:
             if startingX < constants.IMAGE_WIDTH:
                 startingY = 0

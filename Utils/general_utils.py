@@ -125,12 +125,13 @@ def getSlicingWindow(img, startX, startY, isgt=False, removeColorBar=False):
                 sliceWindow>=np.rint(pxval-(256/6)), sliceWindow<=np.rint(pxval+(256/6))
             ), pxval, sliceWindow)
 
-    # Remove the colorbar! starting coordinate: (129,436)
+        sliceWindow = np.cast["float32"](sliceWindow)  # cast the window into a float
+
+    # Remove the colorbar! starting coordinate: (129,435)
     if removeColorBar:
-        colorbar_coord = (129, 436)
-        if M==constants.IMAGE_WIDTH and N==constants.IMAGE_HEIGHT: sliceWindow[:, colorbar_coord[1]:] = 0
+        if M==constants.IMAGE_WIDTH and N==constants.IMAGE_HEIGHT: sliceWindow[:,constants.colorbar_coord[1]:] = 0
         # if the tile is smaller than the entire image
-        elif startY+N>=colorbar_coord[1]: img[:,colorbar_coord[1]-startY:] = 0
+        elif startY+N>=constants.colorbar_coord[1]: img[:,constants.colorbar_coord[1]-startY:] = 0
 
     return sliceWindow
 

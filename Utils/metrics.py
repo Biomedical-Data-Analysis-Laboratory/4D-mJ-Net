@@ -22,20 +22,25 @@ def mod_dice_coef(y_true, y_pred, epsilon=1e-6):
     # denominator = (K.sum(K.square(y_pred) + K.square(y_true), axis=axes) + epsilon)
     # return (numerator/denominator)
 
-    intersection = 2. * K.sum(K.abs(y_true * y_pred), axis=-1)
-    denom = K.sum(K.square(y_true), axis=-1) + K.sum(K.square(y_pred), axis=-1) + epsilon
+    # axes = tuple(range(0, len(y_pred.shape) - 1))
+    axes = -1
+    intersection = 2. * K.sum(K.abs(y_true * y_pred), axis=axes)
+    denom = K.sum(K.square(y_true), axis=axes) + K.sum(K.square(y_pred), axis=axes) + epsilon
+    return K.mean(intersection / denom, axis=axes)
 
-    return intersection / denom
 
 ################################################################################
 # REAL Dice coefficient = (2*|X & Y|)/ (|X|+ |Y|)
-# Calculate the real value for the Dice coefficient, but it returns lower values than the other dice_coef + lower specificity and precision
+# Calculate the real value for the Dice coefficient,
+# but it returns lower values than the other dice_coef + lower specificity and precision
 # == to F1 score for boolean values
 def dice_coef(y_true, y_pred, epsilon=1e-6):
-    axes = tuple(range(1, len(y_pred.shape)-1))
+    # axes = tuple(range(0, len(y_pred.shape) - 1))
+    axes = -1
     intersection = 2. * K.sum(K.abs(y_true * y_pred), axis=axes)
     denom = (K.sum(K.abs(y_true) + K.abs(y_pred), axis=axes) + epsilon)
-    return  (intersection/denom)
+    return K.mean(intersection/denom, axis=axes)
+
 
 ################################################################################
 # Implementation of the Tversky Index (TI),
@@ -48,6 +53,7 @@ def tversky(y_true, y_pred, smooth=1, alpha=0.7):
     false_pos = K.sum((1 - y_true) * y_pred, axis=-1)
 
     return (true_pos + smooth) / (true_pos + alpha * false_neg + beta * false_pos + smooth)
+
 
 ################################################################################
 # Function to calculate the Jaccard similarity
@@ -64,14 +70,17 @@ def jaccard_distance(y_true, y_pred, smooth=100):
     jac = (intersection + smooth) / (sum_ - intersection + smooth)
     return jac
 
+
 def jaccard_index(tn, fn, fp, tp):
     f = f1(tn, fn, fp, tp)
     return f/(2-f+1e-07)
+
 
 ################################################################################
 # Function that calculate the metrics for the CATEGORICAL CROSS ENTROPY
 def categorical_crossentropy(y_true, y_pred):
     return metrics.categorical_accuracy(y_true, y_pred)
+
 
 ################################################################################
 # Function that calculate the metrics for the WEIGHTED CATEGORICAL CROSS ENTROPY
@@ -84,10 +93,11 @@ def weighted_categorical_cross_entropy(y_true, y_pred, epsilon=1e-7):
     cce = categorical_crossentropy(y_true, y_pred)
     weights = K.cast(tf.reduce_sum(class_weights*y_true),'float32')+epsilon
     wcce = (weights * cce)/weights
-    l1_norm =  K.sum(K.abs(y_true - y_pred))+epsilon
-    l2_norm =  K.sum(K.square(y_true - y_pred))+epsilon
+    l1_norm = K.sum(K.abs(y_true - y_pred))+epsilon
+    l2_norm = K.sum(K.square(y_true - y_pred))+epsilon
 
-    return ((lambda_0*wcce) + (lambda_1*l1_norm) + (lambda_2*l2_norm))
+    return (lambda_0 * wcce) + (lambda_1 * l1_norm) + (lambda_2 * l2_norm)
+
 
 ################################################################################
 # Function that calculate the metrics for the SENSITIVITY
@@ -95,10 +105,12 @@ def weighted_categorical_cross_entropy(y_true, y_pred, epsilon=1e-7):
 def sensitivity(tn, fn, fp, tp):
     return (tp+1e-07) / (tp+fn+1e-07)
 
+
 ################################################################################
 # Function that calculate the metrics for the SPECIFICITY
 def specificity(tn, fn, fp, tp):
     return (tn+1e-07) / (tn+fp+1e-07)
+
 
 ################################################################################
 # Function that calculate the metrics for the PRECISION
@@ -113,6 +125,7 @@ def precision(tn, fn, fp, tp):
     precision = (tp+1e-07)/(tp+fp+1e-07)
     return precision
 
+
 ################################################################################
 # Function that calculate the metrics for the F1 SCORE
 def f1(tn, fn, fp, tp):
@@ -120,10 +133,12 @@ def f1(tn, fn, fp, tp):
     recall = sensitivity(tn, fn, fp, tp)
     return 2*(((prec*recall)+1e-07)/(prec+recall+1e-07))
 
+
 ################################################################################
 # Function that calculate the metrics for the accuracy
 def accuracy(tn, fn, fp, tp):
     return (tp+tn+1e-07)/(tn+fn+tp+fn+1e-07)
+
 
 ################################################################################
 # Function that calculate the metrics for the average precision
@@ -157,6 +172,7 @@ def mAP(y_true, y_pred, use_background_in_statistics, label):
 #
 #     return auc(y_true, y_pred)
 
+
 def ROC_AUC(y_true, y_pred, use_background_in_statistics, label):
     # if label==2: # penumbra
     #     y_true, y_pred = thresholdingPenumbra(np.array(y_true), np.array(y_pred))
@@ -181,6 +197,7 @@ def ROC_AUC(y_true, y_pred, use_background_in_statistics, label):
     except:
         return 0
 
+
 ################################################################################
 # function to convert the prediction and the ground truth in a confusion matrix
 def mappingPrediction(y_true, y_pred, use_background_in_statistics, epsilons, percEps, label):
@@ -199,6 +216,7 @@ def mappingPrediction(y_true, y_pred, use_background_in_statistics, epsilons, pe
     tp = conf_matr[1][1]
 
     return tn, fn, fp, tp
+
 
 ################################################################################
 # function to map the y_true and y_pred

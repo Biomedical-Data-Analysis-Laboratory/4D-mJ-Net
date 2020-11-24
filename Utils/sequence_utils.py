@@ -79,7 +79,7 @@ class datasetSequence(Sequence):
             coord = row["x_y"]
             data_aug_idx = row["data_aug_idx"]
             # add the index into the correct set
-            self.index_pd_DA[str(data_aug_idx)].add(row_index)
+            self.index_pd_DA[str(data_aug_idx)].add((index,row_index))
 
             for timeIndex, filename in enumerate(np.sort(glob.glob(folder + "*" + constants.SUFFIX_IMG))):
                 # TODO: for ISLES2018 (to change in the future) --> if the number of time-points per slice
@@ -110,7 +110,9 @@ class datasetSequence(Sequence):
                 if pm not in pms.keys(): pms[pm] = []
                 pm_filename = row[pm] + general_utils.getStringFromIndex(row["sliceIndex"]) + ".png"
 
-                totimg = img_to_array(load_img(pm_filename))
+                # totimg = img_to_array(load_img(pm_filename))
+                totimg = cv2.imread(pm_filename)
+
                 if totimg is not None:
                     img = general_utils.getSlicingWindow(totimg, coord[0], coord[1], removeColorBar=True)
                     img = general_utils.performDataAugmentationOnTheImage(img, data_aug_idx)
@@ -133,10 +135,11 @@ class datasetSequence(Sequence):
 
                 coord = current_batch.loc[row_index]["x_y"]
 
-                img = img_to_array(load_img(filename, color_mode="grayscale"))
-                img = img.reshape(constants.IMAGE_WIDTH, constants.IMAGE_HEIGHT)
+                # img = img_to_array(load_img(filename, color_mode="grayscale"))
+                # img = img.reshape(constants.IMAGE_WIDTH, constants.IMAGE_HEIGHT)
+                img = cv2.imread(filename,cv2.IMREAD_GRAYSCALE)
 
-                if ".tiff" in filename: img = np.rint(img/256)
+                # if ".tiff" in filename: img = np.rint(img/256)
 
                 img = general_utils.getSlicingWindow(img, coord[0], coord[1], isgt=True)
 
@@ -145,7 +148,7 @@ class datasetSequence(Sequence):
                     f = lambda x: np.sum(np.where(np.array(x) == constants.PIXELVALUES[2], 150, np.where(np.array(x) == constants.PIXELVALUES[3], 20, 0.1)))
                     weights[index] = f(img)/(constants.getM()*constants.getN())
 
-                if not self.to_categ: img /= 256  # convert the label in [0, 1] values
+                if not self.to_categ: img = np.divide(img,256)  # convert the label in [0, 1] values
 
                 if aug_idx=="0": img = img if not self.to_categ or self.loss=="sparse_categorical_crossentropy" else dataset_utils.getSingleLabelFromIndexCateg(img)
                 elif aug_idx=="1": img = np.rot90(img) if not self.to_categ or self.loss=="sparse_categorical_crossentropy" else dataset_utils.getSingleLabelFromIndexCateg(np.rot90(img))

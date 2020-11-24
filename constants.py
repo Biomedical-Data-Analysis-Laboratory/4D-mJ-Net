@@ -11,12 +11,13 @@ IMAGE_WIDTH, IMAGE_HEIGHT = 512, 512
 NUMBER_OF_IMAGE_PER_SECTION = 30  # number of image (divided by time) for each section of the brain
 N_CLASSES = 4
 LABELS = ["background", "brain", "penumbra", "core"]  # background:0, brain:85, penumbra:170, core:255
-PIXELVALUES = [0, 85, 170, 255]
+PIXELVALUES = [0, 85, 170, 256]
 # weights for the categorical cross entropy: 1) position: brain, 2) penumbra, 3) core, 4) background
 HOT_ONE_WEIGHTS = [[0.1, 0.2, 1.0, 1.0]]
 PREFIX_IMAGES = "PA"
 DATASET_PREFIX = "patient"
 SUFFIX_IMG = ".tiff"  # ".png"
+colorbar_coord = (129, 435)
 
 suffix_partial_weights = "__"
 threeD_flag, ONE_TIME_POINT, pm_flag = "", "", ""
@@ -87,7 +88,7 @@ def setDEBUG(d):
 def setOriginalShape(o):
     global ORIGINAL_SHAPE, PIXELVALUES
     ORIGINAL_SHAPE = o
-    PIXELVALUES = [255, 1, 76, 150]
+    if ORIGINAL_SHAPE: PIXELVALUES = [255, 1, 76, 150]
 
 
 def setTileDimension(t):
@@ -112,7 +113,7 @@ def setRootPath(path):
 
 def setImagePerSection(num):
     global NUMBER_OF_IMAGE_PER_SECTION
-    NUMBER_OF_IMAGE_PER_SECTION = num
+    if num is not None: NUMBER_OF_IMAGE_PER_SECTION = num
 
 
 def setNumberOfClasses(c):
@@ -126,7 +127,7 @@ def setNumberOfClasses(c):
     elif c == 3:
         N_CLASSES = c
         LABELS = ["background", "penumbra", "core"]
-        PIXELVALUES = [0, 76, 255]
+        PIXELVALUES = [0, 76, 255]  # todo: check this
         HOT_ONE_WEIGHTS = [[0.1, 1.0, 1.0]]
 
 
@@ -150,8 +151,6 @@ def setUSE_PM(pm):
     USE_PM = pm
     if USE_PM:
         pm_flag = "_PM"
-
         list_PMS = ["CBF", "CBV", "TTP", "TMAX"]
-
         dataFrameColumns = ['patient_id', 'label', 'CBF', 'CBV', 'TTP', 'TMAX', 'ground_truth', 'x_y',
                             'data_aug_idx', 'timeIndex', 'sliceIndex', 'severity', 'label_code']

@@ -4,13 +4,11 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 import glob, random, time
 import multiprocessing
 import pickle as pkl
-
-
 import hickle as hkl
 import numpy as np
 import pandas as pd
 import sklearn
-from tensorflow.keras import utils
+from keras import utils
 
 import constants
 from Utils import general_utils
@@ -40,7 +38,7 @@ def loadTrainingDataframe(nn, patients, testing_id=None):
 
         idx += 1
 
-    train_df = pd.concat(frames, sort=False)
+    train_df = pd.concat(frames, sort=False, ignore_index=True)
     return train_df
 
 

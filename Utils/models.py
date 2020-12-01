@@ -1,5 +1,5 @@
 import constants
-from Models import arch_mJNet, arch_autoencoder, arch_van_De_Leemput, arch_Ronneberger_UNET, arch_VNet_Milletari
+from Models import arch_mJNet, arch_autoencoder, arch_van_De_Leemput, arch_UNet, arch_VNet
 from Utils import general_utils, spatial_pyramid
 
 
@@ -58,10 +58,16 @@ def van_De_Leemput(params, to_categ):
 ################################################################################
 # Model from Ronneberger (original paper of U-Net) (https://doi.org/10.1007/978-3-319-24574-4_28)
 def Ronneberger_UNET(params, to_categ):
-    return arch_Ronneberger_UNET.Ronneberger_UNET(params, to_categ)
+    return arch_UNet.Ronneberger_UNET(params, to_categ)
 
 
 ################################################################################
 # Model from Milletari V-Net (https://arxiv.org/pdf/1606.04797.pdf)
 def VNet_Milletari(params, to_categ):
-    return arch_VNet_Milletari.VNet_Milletari(params, to_categ)
+    return arch_VNet.VNet_Milletari(params, to_categ)
+
+
+################################################################################
+# Model for the V-Net Light https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=9098643
+def VNet_Light(params, to_categ):
+    return arch_VNet.VNet_Light(params, to_categ)

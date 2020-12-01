@@ -58,7 +58,7 @@ from scipy import ndimage
 # TILE_DIVISION = 1
 
 ################################################################################
-# SUS2020_v2 Setting
+# SUS2020_TIFF Setting
 ################################################################################
 DATASET_NAME = "SUS2020_TIFF/"  #"SUS2020_v2/"
 ROOT_PATH = "/home/stud/lucat/PhD_Project/Stroke_segmentation/PATIENTS/SUS2020_TIFF/"
@@ -77,7 +77,7 @@ BINARY_CLASSIFICATION = False  # to extract only two classes
 LABELS = ["background", "brain", "penumbra", "core"]
 LABELS_THRESHOLDS = [234, 0, 60, 135]  # [250, 0 , 30, 100]
 LABELS_REALVALUES = [255, 0, 76, 150]
-TILE_DIVISION = 4  # set to >1 if the tile are NOT the entire image
+TILE_DIVISION = 16  # set to >1 if the tile are NOT the entire image
 
 ################################################################################
 ################################################################################
@@ -88,7 +88,7 @@ TILE_DIVISION = 4  # set to >1 if the tile are NOT the entire image
 SEQUENCE_DATASET = True
 NEW_GROUNDTRUTH_VALUES = True  # flag to use the new GT values
 SKIP_TILES = False  # skip the tiles?
-EXTRACT_PM = True  # extract the parametric maps instead of the raw 4D CTP
+EXTRACT_PM = False  # extract the parametric maps instead of the raw 4D CTP
 
 ORIGINAL_SHAPE = False  # the one from the master thesis
 DATA_AUGMENTATION = True  # use data augmentation?
@@ -134,8 +134,23 @@ def getLabelledAreas(patientIndex, timeIndex):
 ################################################################################
 # Function that return the slicing window from `img`, starting at pixels `startingX` and `startingY` with a width
 # of `M` and height of `N`.
-def getSlicingWindow(img, startingX, startingY, M, N):
-    return img[startingX:startingX+M,startingY:startingY+N]
+def getSlicingWindow(img, startingX, startingY, isgt=False):
+    img = img[startingX:startingX + M, startingY:startingY + N]
+
+    # check if there are any NaN elements
+    if np.isnan(img).any():
+        where = list(map(list, np.argwhere(np.isnan(img))))
+        for w in where: img[w] = LABELS_REALVALUES[0]
+
+    if isgt:
+        for pxval in LABELS_REALVALUES:
+            img = np.where(np.logical_and(
+                img >= np.rint(pxval - (256 / 6)), img <= np.rint(pxval + (256 / 6))
+            ), pxval, img)
+
+        img = np.cast["float32"](img)  # cast the window into a float
+
+    return img
 
 
 ################################################################################
@@ -259,7 +274,7 @@ def fillDatasetOverTime(relativePath, patientIndex, timeFolder):
             if startingX>=IMAGE_WIDTH-M and startingY>=IMAGE_HEIGHT-N:
                 break  # if we reach the end of the image, break the while loop.
 
-        realLabelledWindow = getSlicingWindow(labelledMatrix, startingX, startingY, M, N)
+        realLabelledWindow = getSlicingWindow(labelledMatrix, startingX, startingY, isgt=True)
 
         # process the window; return the new labeled window and various flags
         realLabelledWindow, classToSet, processTile, numBack, numSkip = processTheWindow(realLabelledWindow, startingX, startingY, otherInforList, numBack, numSkip)
@@ -288,38 +303,34 @@ def fillDatasetOverTime(relativePath, patientIndex, timeFolder):
                     if str(startingY) not in pixelsList[data_aug_idx][str(startingX)].keys(): pixelsList[data_aug_idx][str(startingX)][str(startingY)] = dict()
                     if str(startingY) not in otherInforList[data_aug_idx][str(startingX)].keys(): otherInforList[data_aug_idx][str(startingX)][str(startingY)] = dict()
 
+                    realLabelledWindowToAdd = realLabelledWindow
+                    if data_aug_idx == 1: realLabelledWindowToAdd = np.rot90(realLabelledWindowToAdd)
+                    elif data_aug_idx == 2: realLabelledWindowToAdd = np.rot90(realLabelledWindowToAdd,2)
+                    elif data_aug_idx == 3: realLabelledWindowToAdd = np.rot90(realLabelledWindowToAdd,3)
+                    elif data_aug_idx == 4: realLabelledWindowToAdd = np.flipud(realLabelledWindowToAdd)
+                    elif data_aug_idx == 5: realLabelledWindowToAdd = np.fliplr(realLabelledWindowToAdd)
+
                     # process and save the pixels only if we are NOT creating a sequence dataset
                     if not SEQUENCE_DATASET:
                         filename = imagename.replace(timeFolder, '')
                         # don't take the first image (the manually annotated one)
-                        if "OLDPREPROC_PATIENTS/" in SAVE_REGISTERED_FOLDER and  filename == "01"+IMAGE_SUFFIX: continue
+                        if "OLDPREPROC_PATIENTS/" in SAVE_REGISTERED_FOLDER and filename == "01"+IMAGE_SUFFIX: continue
 
                         image = imagesDict[filename]
-                        slicingWindow = getSlicingWindow(image, startingX, startingY, M, N)
-                        realLabelledWindowToAdd = realLabelledWindow
+                        slicingWindow = getSlicingWindow(image, startingX, startingY)
 
-                        if data_aug_idx==1:
-                            slicingWindow = np.rot90(slicingWindow)  # rotate 90 degree counterclockwise
-                            realLabelledWindowToAdd = np.rot90(realLabelledWindowToAdd)
-                        elif data_aug_idx==2:
-                            slicingWindow = np.rot90(slicingWindow,2)  # rotate 180 degree counterclockwise
-                            realLabelledWindowToAdd = np.rot90(realLabelledWindowToAdd,2)
-                        elif data_aug_idx==3:
-                            slicingWindow = np.rot90(slicingWindow,3)  # rotate 270 degree counterclockwise
-                            realLabelledWindowToAdd = np.rot90(realLabelledWindowToAdd,3)
-                        elif data_aug_idx==4:
-                            slicingWindow = np.flipud(slicingWindow)  # flip the matrix up/down
-                            realLabelledWindowToAdd = np.flipud(realLabelledWindowToAdd)
-                        elif data_aug_idx==5:
-                            slicingWindow = np.fliplr(slicingWindow)  # flip the matrix left/right
-                            realLabelledWindowToAdd = np.fliplr(realLabelledWindowToAdd)
+                        if data_aug_idx==1: slicingWindow = np.rot90(slicingWindow)  # rotate 90 degree counterclockwise
+                        elif data_aug_idx==2: slicingWindow = np.rot90(slicingWindow,2)  # rotate 180 degree counterclockwise
+                        elif data_aug_idx==3: slicingWindow = np.rot90(slicingWindow,3)  # rotate 270 degree counterclockwise
+                        elif data_aug_idx==4: slicingWindow = np.flipud(slicingWindow)  # flip the matrix up/down
+                        elif data_aug_idx==5: slicingWindow = np.fliplr(slicingWindow)  # flip the matrix left/right
 
                         if image_idx not in pixelsList[data_aug_idx][str(startingX)][str(startingY)].keys(): pixelsList[data_aug_idx][str(startingX)][str(startingY)][image_idx] = list()
                         pixelsList[data_aug_idx][str(startingX)][str(startingY)][image_idx] = slicingWindow
 
                 # if we are processing for the sequence dataset, save the path for the ground truth
                 if SEQUENCE_DATASET:
-                    otherInforList[data_aug_idx][str(startingX)][str(startingY)]["ground_truth"] = LABELED_IMAGES_FOLDER_LOCATION+IMAGE_PREFIX+patientIndex+"/"+sliceIndex+IMAGE_SUFFIX
+                    otherInforList[data_aug_idx][str(startingX)][str(startingY)]["ground_truth"] = realLabelledWindowToAdd  #LABELED_IMAGES_FOLDER_LOCATION+IMAGE_PREFIX+patientIndex+"/"+sliceIndex+IMAGE_SUFFIX
                     otherInforList[data_aug_idx][str(startingX)][str(startingY)]["pixels"] = timeFolder
                 else: otherInforList[data_aug_idx][str(startingX)][str(startingY)]["ground_truth"] = realLabelledWindowToAdd
 
@@ -454,7 +465,7 @@ def fillDataset4D(relativePath, patientIndex, timeFolder, folders):
                 totalVol = np.empty((M,N,1))
                 for filename in timeFoldersToProcess[tFold]["imagesDict"].keys():
                     image = timeFoldersToProcess[tFold]["imagesDict"][filename]
-                    slicingWindow = getSlicingWindow(image, row.x_y[0], row.x_y[1], M, N)
+                    slicingWindow = getSlicingWindow(image, row.x_y[0], row.x_y[1])
 
                     if row.data_aug_idx==1: slicingWindow = np.rot90(slicingWindow)  # rotate 90 degree counterclockwise
                     elif row.data_aug_idx==2: slicingWindow = np.rot90(slicingWindow,2)  # 180 degree counterclockwise
@@ -533,7 +544,7 @@ def fillDataset3D(relativePath, patientIndex, timeFolder, folders):
                     filename += IMAGE_SUFFIX
 
                     image = timeFoldersToProcess[tFold]["imagesDict"][filename]
-                    slicingWindow = getSlicingWindow(image, row["x_y"][0], row["x_y"][1], M, N)
+                    slicingWindow = getSlicingWindow(image, row["x_y"][0], row["x_y"][1])
 
                     if row["data_aug_idx"]==1: slicingWindow = np.rot90(slicingWindow)  # rotate 90 degree counterclockwise
                     elif row["data_aug_idx"]==2: slicingWindow = np.rot90(slicingWindow,2)  # rotate 180 degree counterclockwise
@@ -573,8 +584,8 @@ def fillDataset3DOneTimePoint(relativePath, patientIndex, timeFolder, subfolders
         # if we reach the end of the image, break the while loop.
         if startingX>=IMAGE_WIDTH-M and startingY>=IMAGE_HEIGHT-N: break
 
-        pixels = getSlicingWindow(image, startingX, startingY, M, N)
-        gt = getSlicingWindow(labelledMatrix, startingX, startingY, M, N)
+        pixels = getSlicingWindow(image, startingX, startingY)
+        gt = getSlicingWindow(labelledMatrix, startingX, startingY, isgt=True)
         x_y = (startingX, startingY)
         data_aug_idx = 0
         label = 0
@@ -633,7 +644,7 @@ def fillDatasetPM(relativePath, patientIndex, timeFolder):
             if startingX>=IMAGE_WIDTH-M and startingY>=IMAGE_HEIGHT-N:
                 break  # if we reach the end of the image, break the while loop.
 
-        realLabelledWindow = getSlicingWindow(labelledMatrix, startingX, startingY, M, N)
+        realLabelledWindow = getSlicingWindow(labelledMatrix, startingX, startingY, isgt=True)
 
         # process the window; return the new labeled window and various flags
         realLabelledWindow, classToSet, processTile, numBack, numSkip = processTheWindow(realLabelledWindow, startingX, startingY, otherInforList, numBack, numSkip)
@@ -663,9 +674,8 @@ def fillDatasetPM(relativePath, patientIndex, timeFolder):
                     if str(startingY) not in otherInforList[data_aug_idx][str(startingX)].keys(): otherInforList[data_aug_idx][str(startingX)][str(startingY)] = dict()
 
                 if SEQUENCE_DATASET:
-                    otherInforList[data_aug_idx][str(startingX)][str(startingY)]["ground_truth"] = LABELED_IMAGES_FOLDER_LOCATION + IMAGE_PREFIX + patientIndex + "/" + sliceIndex + IMAGE_SUFFIX
+                    otherInforList[data_aug_idx][str(startingX)][str(startingY)]["ground_truth"] = realLabelledWindow  # LABELED_IMAGES_FOLDER_LOCATION + IMAGE_PREFIX + patientIndex + "/" + sliceIndex + IMAGE_SUFFIX
 
-                    processDayFold = False
                     for dayfolder in np.sort(glob.glob(PM_FOLDER + IMAGE_PREFIX + patientIndex +"/*/")):
                         # if the folder contains the correct number of subfolders
                         if len(glob.glob(dayfolder+"*/"))>=7:
@@ -674,7 +684,6 @@ def fillDatasetPM(relativePath, patientIndex, timeFolder):
                             for subdayfolder in glob.glob(dayfolder+"*/"):
                                 for pm in pmlist:
                                     if pm in subdayfolder: otherInforList[data_aug_idx][str(startingX)][str(startingY)][pm] = subdayfolder
-                            processDayFold = True
 
                 otherInforList[data_aug_idx][str(startingX)][str(startingY)]["label_class"] = classToSet
                 otherInforList[data_aug_idx][str(startingX)][str(startingY)]["x_y"] = (startingX, startingY)
@@ -759,6 +768,8 @@ def initializeDataset():
             continue
 
         subfolders = np.sort(glob.glob(patientFolder+"*/"))
+
+        if numFold<40: continue
 
         print("[INFO] - Analyzing {0}/{1}; patient folder: {2}...".format(numFold+1, len(patientFolders), relativePath))
         # if the manual annotation folder exists

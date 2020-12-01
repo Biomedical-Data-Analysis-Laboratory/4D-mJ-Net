@@ -2,8 +2,9 @@ import constants
 from Utils import general_utils
 
 import os, glob, json
-from keras import callbacks
+from tensorflow.keras import callbacks
 from sklearn.metrics import roc_auc_score
+
 
 ################################################################################
 # Return information about the loss and accuracy
@@ -14,7 +15,7 @@ class CollectBatchStats(callbacks.Callback):
         self.root_path = root_path
         self.savedModelName = savedModelName
         self.textFolderPath = textFolderPath
-        #self.folderOfSavedModel = self.savedModelName[:self.savedModelName.rfind("/")+1]
+        # self.folderOfSavedModel = self.savedModelName[:self.savedModelName.rfind("/")+1]
         self.modelName = self.savedModelName[self.savedModelName.rfind("/"):]
         self.acc = acc
 
@@ -33,12 +34,13 @@ class CollectBatchStats(callbacks.Callback):
             loss_file.write(textToSave)
 
         tmpSavedModels = glob.glob(self.savedModelName+constants.suffix_partial_weights+"*.h5")
-        if len(tmpSavedModels) > 1: # just to be sure and not delete everything
+        if len(tmpSavedModels) > 1:  # just to be sure and not delete everything
             for file in tmpSavedModels:
                 if self.savedModelName+constants.suffix_partial_weights in file:
                     tmpEpoch = general_utils.getEpochFromPartialWeightFilename(file)
-                    if tmpEpoch < epoch: # Remove the old saved weights
+                    if tmpEpoch < epoch:  # Remove the old saved weights
                         os.remove(file)
+
 
 ################################################################################
 # Callback for the AUC_ROC
@@ -84,6 +86,7 @@ class RocCallback(callbacks.Callback):
     def on_batch_end(self, batch, logs={}):
         return
 
+
 ################################################################################
 # Save the best model every "period" number of epochs
 def modelCheckpoint(filename, monitor, mode, period):
@@ -96,6 +99,7 @@ def modelCheckpoint(filename, monitor, mode, period):
             period=period
     )
 
+
 ################################################################################
 # Stop the training if the "monitor" quantity does NOT change of a "min_delta"
 # after a number of "patience" epochs
@@ -107,6 +111,7 @@ def earlyStopping(monitor, min_delta, patience):
             verbose=constants.getVerbose(),
             mode="auto"
     )
+
 
 ################################################################################
 # Reduce learning rate when a metric has stopped improving.
@@ -122,6 +127,7 @@ def reduceLROnPlateau(monitor, factor, patience, min_delta, cooldown, min_lr):
             min_lr=min_lr
     )
 
+
 ################################################################################
 # Reduce the learning rate every decay_step of a certain decay_rate
 def LearningRateScheduler(decay_step, decay_rate):
@@ -130,6 +136,7 @@ def LearningRateScheduler(decay_step, decay_rate):
             return lr * decay_rate
         return lr
     return callbacks.LearningRateScheduler(lr_scheduler, verbose=constants.getVerbose())
+
 
 ################################################################################
 # If you have installed TensorFlow with pip, you should be able to launch TensorBoard from the command line:
@@ -140,3 +147,15 @@ def TensorBoard(log_dir, histogram_freq, update_freq):
         histogram_freq=histogram_freq,
         update_freq=update_freq
     )
+
+
+################################################################################
+# Callback that terminates training when a NaN loss is encountered.
+def TerminateOnNaN():
+    return callbacks.TerminateOnNaN()
+
+
+################################################################################
+# Callback that streams epoch results to a CSV file.
+def CSVLogger(filename, separator):
+    return callbacks.CSVLogger(filename, separator=separator, append=True)

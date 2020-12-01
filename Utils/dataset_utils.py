@@ -1,14 +1,16 @@
-import glob
+import warnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
+
+import glob, random, time
 import multiprocessing
 import pickle as pkl
-import random
-import time
+
 
 import hickle as hkl
 import numpy as np
 import pandas as pd
 import sklearn
-from keras import utils
+from tensorflow.keras import utils
 
 import constants
 from Utils import general_utils
@@ -83,34 +85,33 @@ def splitDataset(nn, p_id, listOfPatientsToTrainVal, listOfPatientsToTest):
     for flag in ["train", "val", "test"]: nn.dataset[flag]["indices"] = list()
 
     if not nn.cross_validation:  # here only if: NO cross-validation set
-        # We have set a number of validation patient(s)
-        if nn.val["number_patients_for_validation"] > 0:
-            random.seed(0)  # use ALWAYS the same random indices
-            validation_list = random.sample(listOfPatientsToTrainVal, nn.val["number_patients_for_validation"])
-            # remove the validation_list elements from the list
-            listOfPatientsToTrainVal = list(set(listOfPatientsToTrainVal).difference(validation_list))
-            if constants.getVerbose(): print("[INFO] - VALIDATION list: {}".format(validation_list))
-
-            for val_p in validation_list:
-                val_pid = general_utils.getStringFromIndex(val_p)
-                nn.dataset["val"]["indices"].extend(np.nonzero((nn.train_df.patient_id.values == val_pid))[0])
-
         # We have set a number of testing patient(s) and we are inside a supervised learning
         if nn.supervised:
             if nn.val["number_patients_for_testing"] > 0 or len(listOfPatientsToTest) > 0:
                 test_list = list()
-                if len(listOfPatientsToTest) > 0:
+                if len(listOfPatientsToTest) > 0:  # if we already set the patient list in the setting file
                     test_list = listOfPatientsToTest
                 else:
-                    random.seed(0)  # use ALWAYS the same random indices
+                    random.seed(43)  # use ALWAYS the same random indices
                     test_list = random.sample(listOfPatientsToTrainVal, nn.val["number_patients_for_testing"])
-                # remove the validation_list elements from the list
+                # remove the test_list elements from the list
                 listOfPatientsToTrainVal = list(set(listOfPatientsToTrainVal).difference(test_list))
                 if constants.getVerbose(): print("[INFO] - TEST list: {}".format(test_list))
 
                 for test_p in test_list:
                     test_pid = general_utils.getStringFromIndex(test_p)
                     nn.dataset["test"]["indices"].extend(np.nonzero((nn.train_df.patient_id.values == test_pid))[0])
+        # We have set a number of validation patient(s)
+        if nn.val["number_patients_for_validation"] > 0:
+            random.seed(43)  # use ALWAYS the same random indices
+            listOfPatientsToTrainVal.sort(reverse=False)  # sort the list and then...
+            random.shuffle(listOfPatientsToTrainVal)  # shuffle it
+            validation_list = random.sample(listOfPatientsToTrainVal, nn.val["number_patients_for_validation"])
+            if constants.getVerbose(): print("[INFO] - VALIDATION list: {}".format(validation_list))
+
+            for val_p in validation_list:
+                val_pid = general_utils.getStringFromIndex(val_p)
+                nn.dataset["val"]["indices"].extend(np.nonzero((nn.train_df.patient_id.values == val_pid))[0])
 
         # Set the indices for the train dataset as the difference between all_indices,
         # the validation indices and the test indices
@@ -224,7 +225,7 @@ def getSingleLabelFromIndex(singledata):
 ################################################################################
 # Function that convert the data into a categorical array based on the number of classes
 def getSingleLabelFromIndexCateg(singledata):
-    return np.array(utils.to_categorical(np.trunc((singledata / 256) * len(constants.LABELS)), num_classes=len(constants.LABELS)))
+    return np.array(utils.to_categorical(np.rint((singledata/255)*constants.N_CLASSES-1), num_classes=constants.N_CLASSES))
 
 
 ################################################################################
@@ -246,8 +247,8 @@ def getLabelsFromIndex(train_df, dataset, modelname, to_categ, flag):
     else:
         if constants.N_CLASSES == 3:
             for i, curr_data in enumerate(data):
-                data[i][curr_data == 255] = constants.PIXELVALUES[0]  # remove one class from the ground truth
-                data[i][curr_data == 150] = constants.PIXELVALUES[2]  # change the class for core
+                data[i][curr_data == 85] = constants.PIXELVALUES[0]  # remove one class from the ground truth
+                #data[i][curr_data == 150] = constants.PIXELVALUES[2]  # change the class for core
         if type(data) is not np.array: data = np.array(data)
         labels = data.astype(np.float32)
         labels /= 255  # convert the label in [0, 1] values
@@ -268,9 +269,8 @@ def generateDatasetSummary(train_df, listOfPatientsToTrainVal=None):
     general_utils.printSeparation('+', 100)
     print("DATASET SUMMARY: \n")
     print("\t N. Background: {0}".format(N_BACKGROUND))
-    if constants.N_CLASSES > 2:
-        print("\t N. Brain: {0}".format(N_BRAIN))
-        print("\t N. Penumbra: {0}".format(N_PENUMBRA))
+    if constants.N_CLASSES>3: print("\t N. Brain: {0}".format(N_BRAIN))
+    if constants.N_CLASSES>2: print("\t N. Penumbra: {0}".format(N_PENUMBRA))
     print("\t N. Core: {0}".format(N_CORE))
     print("\t Tot: {0}".format(N_TOT))
 
@@ -282,10 +282,23 @@ def generateDatasetSummary(train_df, listOfPatientsToTrainVal=None):
 ################################################################################
 # Return the number of element per class of the dataset
 def getNumberOfElements(train_df):
-    N_BACKGROUND = len([x for x in train_df.label if x == constants.LABELS[0]])
-    N_BRAIN = len([x for x in train_df.label if x == constants.LABELS[1]])
-    N_PENUMBRA = len([x for x in train_df.label if x == constants.LABELS[2]])
-    N_CORE = len([x for x in train_df.label if x == constants.LABELS[3]])
+    N_BRAIN, N_PENUMBRA = 0, 0
+    back_v, brain_v, penumbra_v, core_v = constants.LABELS[0], 0, 0, 0
+
+    if constants.N_CLASSES==4:
+        brain_v = constants.LABELS[1]
+        penumbra_v = constants.LABELS[2]
+        core_v = constants.LABELS[3]
+    elif constants.N_CLASSES==3:
+        penumbra_v = constants.LABELS[1]
+        core_v = constants.LABELS[2]
+    elif constants.N_CLASSES==2:
+        core_v = constants.LABELS[1]
+
+    N_BACKGROUND = len([x for x in train_df.label if x == back_v])
+    N_CORE = len([x for x in train_df.label if x == core_v])
+    if constants.N_CLASSES>3: N_BRAIN = len([x for x in train_df.label if x == brain_v])
+    if constants.N_CLASSES>2: N_PENUMBRA = len([x for x in train_df.label if x == penumbra_v])
     N_TOT = train_df.shape[0]
 
     return N_BACKGROUND, N_BRAIN, N_PENUMBRA, N_CORE, N_TOT

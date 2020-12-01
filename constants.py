@@ -127,7 +127,7 @@ def setNumberOfClasses(c):
     elif c == 3:
         N_CLASSES = c
         LABELS = ["background", "penumbra", "core"]
-        PIXELVALUES = [0, 76, 255]  # todo: check this
+        PIXELVALUES = [0, 170, 255]
         HOT_ONE_WEIGHTS = [[0.1, 1.0, 1.0]]
 
 

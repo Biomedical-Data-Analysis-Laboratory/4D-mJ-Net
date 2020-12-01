@@ -1,14 +1,14 @@
-import cv2
+import warnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
+
+import cv2, matplotlib, glob
 
 import constants
 from Utils import callback, general_utils
 
-import matplotlib
-
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
-import glob
 import tensorflow as tf
 from tensorflow.keras import optimizers
 
@@ -50,7 +50,9 @@ def getOptimizer(optInfo):
 ################################################################################
 # Return the callbacks defined in the setting
 def getCallbacks(info, root_path, filename, textFolderPath, dataset, sample_weights):
-    cbs = []
+    # add by default the TerminateOnNaN callback
+    cbs = [callback.TerminateOnNaN()]
+
     for key in info.keys():
         # save the weights
         if key == "ModelCheckpoint":
@@ -68,6 +70,9 @@ def getCallbacks(info, root_path, filename, textFolderPath, dataset, sample_weig
         # collect info
         elif key == "CollectBatchStats":
             cbs.append(callback.CollectBatchStats(root_path, filename, textFolderPath, info[key]["acc"]))
+        # save the epoch results in a csv file
+        elif key == "CSVLogger":
+            cbs.append(callback.CSVLogger(textFolderPath+info[key]["filename"], info[key]["separator"]))
         elif key == "RocCallback":
             training_data = (dataset["train"]["data"], dataset["train"]["labels"])
             validation_data = (dataset["val"]["data"], dataset["val"]["labels"])
@@ -98,7 +103,7 @@ def fitModel(model, dataset, batch_size, epochs, listOfCallbacks, sample_weights
                          validation_data=validation_data,
                          sample_weight=sample_weights,
                          initial_epoch=initial_epoch,
-                         verbose=constants.getVerbose(),
+                         verbose=1,
                          use_multiprocessing=use_multiprocessing)
 
     if save_activation_filter: saveIntermediateLayers(model, intermediate_activation_path=intermediate_activation_path)
@@ -115,20 +120,21 @@ def trainOnBatch(model, x, y, sample_weights):
 
 ################################################################################
 # Function that call a fit_generator to load the training dataset on the fly
-def fit_generator(model, train_sequence, val_sequence, steps_per_epoch, epochs, listOfCallbacks, initial_epoch,
-                  save_activation_filter, intermediate_activation_path, use_multiprocessing):
+def fit_generator(model, train_sequence, val_sequence, steps_per_epoch, validation_steps, epochs, listOfCallbacks,
+                  initial_epoch, save_activation_filter, intermediate_activation_path, use_multiprocessing):
     multiplier = 16
-    # steps_per_epoch is given by the (N_TOT/N_batches)*steps_per_epoch_ratio rounded to the nearest integer
+    # steps_per_epoch is given by the len(train_sequence)*steps_per_epoch_ratio rounded to the nearest integer
     training = model.fit_generator(
         generator=train_sequence,
         epochs=epochs,
         steps_per_epoch=steps_per_epoch,
         validation_data=val_sequence,
+        validation_steps=validation_steps,
         callbacks=listOfCallbacks,
         initial_epoch=initial_epoch,
-        verbose=constants.getVerbose(),
-        max_queue_size=10 * multiplier,
-        workers=1 * multiplier,
+        verbose=1,
+        max_queue_size=10*multiplier,
+        workers=1*multiplier,
         shuffle=True,
         use_multiprocessing=use_multiprocessing)
 

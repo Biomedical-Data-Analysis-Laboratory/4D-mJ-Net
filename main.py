@@ -5,6 +5,9 @@ from Utils import general_utils, dataset_utils
 import constants
 from NeuralNetworkClass import NeuralNetwork
 
+import warnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
+
 # to remove *SOME OF* the warning from tensorflow (regarding deprecation) <-- to remove when update tensorflow!
 from tensorflow.python.util import deprecation
 
@@ -37,7 +40,7 @@ def main():
 
         manual_annotationsFolder = os.path.join(constants.getRootPath(), nn.labeledImagesFolder)
 
-        if "ALL" in listOfPatientsToTrainVal[0]:
+        if "ALL" == listOfPatientsToTrainVal[0]:
             # check if we want to get the dataset JUST based on the severity
             severity = listOfPatientsToTrainVal[0].split("_")[1] + "_" if "_" in listOfPatientsToTrainVal[0] else ""
 
@@ -54,7 +57,13 @@ def main():
                                             severity in d]
 
         # if DEBUG mode: use only 5 patients in the list
-        if constants.getDEBUG(): listOfPatientsToTrainVal = listOfPatientsToTrainVal[:5]
+        if constants.getDEBUG():
+            listOfPatientsToTrainVal = listOfPatientsToTrainVal[:5]
+            nn.val["validation_perc"] = 10
+            nn.val["number_patients_for_validation"] = 1
+            nn.val["number_patients_for_testing"] = 0
+            nn.val["random_validation_selection"] = 0
+
         listOfPatientsToTrainVal.sort()  # sort the list
 
         # loop over all the list of patients.

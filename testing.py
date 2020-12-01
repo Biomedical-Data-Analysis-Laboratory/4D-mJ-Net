@@ -1,4 +1,7 @@
 # Run the testing function, save the images ..
+import warnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
+
 from Utils import general_utils, dataset_utils, sequence_utils, metrics
 import constants, training
 
@@ -388,8 +391,8 @@ def generateTimeImagesAndConsensus(nn, test_df, YTRUEToEvaluate, YPREDToEvaluate
 
     if nn.save_images:
         if constants.N_CLASSES==3:
-            checkImageProcessed[checkImageProcessed==255] = constants.PIXELVALUES[0]  # remove one class from the ground truth
-            checkImageProcessed[checkImageProcessed==150] = constants.PIXELVALUES[2]  # change the class for core
+            checkImageProcessed[checkImageProcessed==85] = constants.PIXELVALUES[0]  # remove one class from the ground truth
+            # checkImageProcessed[checkImageProcessed==150] = constants.PIXELVALUES[2]  # change the class for core
         cv2.imwrite(nn.saveImagesFolder+relativePatientFolderTMP+"orig_"+idx+constants.SUFFIX_IMG, checkImageProcessed)
 
         for tidx in arrayTimeIndexImages.keys():
@@ -457,7 +460,7 @@ def generateImageFromParametricMaps(nn, test_df, checkImageProcessed, YTRUEToEva
             if nn.save_images: imagePredicted[startingX:startingX+constants.getM(),startingY:startingY+constants.getN()] = slicingWindowPred
 
         # if we reach the end of the image, break the while loop.
-        if startingX>constants.IMAGE_WIDTH-constants.getM() and startingY>constants.IMAGE_HEIGHT-constants.getN(): break
+        if startingX>=constants.IMAGE_WIDTH-constants.getM() and startingY>=constants.IMAGE_HEIGHT-constants.getN(): break
 
         # check for M == WIDTH & N == HEIGHT
         if constants.getM()==constants.IMAGE_WIDTH and constants.getN()==constants.IMAGE_HEIGHT: break

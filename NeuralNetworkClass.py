@@ -1,3 +1,6 @@
+import warnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
+
 from Utils import general_utils, dataset_utils, sequence_utils, models
 import training, testing, constants
 
@@ -31,8 +34,10 @@ class NeuralNetwork(object):
         self.epochs = modelInfo["epochs"]
         self.train_on_batch = modelInfo["train_on_batch"] if "train_on_batch" in modelInfo.keys() else 0
         self.batch_size = modelInfo["batch_size"] if "batch_size" in modelInfo.keys() else 32
+
         # use only for the fit_generator
         self.steps_per_epoch_ratio = modelInfo["steps_per_epoch_ratio"] if "steps_per_epoch_ratio" in modelInfo.keys() else 1
+        self.validation_steps_ratio = modelInfo["validation_steps_ratio"] if "validation_steps_ratio" in modelInfo.keys() else 1
 
         self.val = {
             "validation_perc": modelInfo["val"]["validation_perc"],
@@ -42,11 +47,7 @@ class NeuralNetwork(object):
         }
         self.test_steps = modelInfo["test_steps"]
 
-        self.dataset = {
-            "train": {},
-            "val": {},
-            "test": {}
-        }
+        self.dataset = {"train": {},"val": {},"test": {}}
 
         # get parameter for the model
         self.optimizerInfo = modelInfo["optimizer"]
@@ -223,12 +224,13 @@ class NeuralNetwork(object):
         if getVerbose() and self.summaryFlag==0:
             print(self.model.summary())
 
-            plot_model(
-                self.model,
-                to_file=general_utils.getFullDirectoryPath(self.savedModelFolder)+self.getNNID("model")+".png",
-                show_shapes=True,
-                rankdir='LR'
-            )
+            for rankdir in ["LR", "TB"]:
+                plot_model(
+                    self.model,
+                    to_file=general_utils.getFullDirectoryPath(self.savedModelFolder)+self.getNNID("model")+"_"+rankdir+".png",
+                    show_shapes=True,
+                    rankdir=rankdir
+                )
             self.summaryFlag+=1
 
         # check if the model has some saved weights to load...
@@ -392,7 +394,8 @@ class NeuralNetwork(object):
             model=self.model,
             train_sequence=self.train_sequence,
             val_sequence=self.val_sequence,
-            steps_per_epoch=np.rint((self.N_TOT/self.batch_size)*self.steps_per_epoch_ratio),
+            steps_per_epoch=np.rint(self.train_sequence.__len__()*self.steps_per_epoch_ratio),
+            validation_steps=np.rint(self.val_sequence.__len__()*self.validation_steps_ratio),
             epochs=self.epochs,
             listOfCallbacks=self.callbacks,
             initial_epoch=self.initial_epoch,
@@ -426,10 +429,10 @@ class NeuralNetwork(object):
             else:
                 # see: "ISBI 2019 C-NMC Challenge: Classification in Cancer Cell Imaging" section 4.1 pag 68
                 sample_weights = self.train_df.label.map({
-                    constants.LABELS[0]: self.N_TOT/(constants.N_CLASSES*self.N_BACKGROUND) if self.N_BACKGROUND>0 else 0, # N_TOT/N_BACKGROUND,
-                    constants.LABELS[1]: self.N_TOT/(constants.N_CLASSES*self.N_BRAIN) if self.N_BRAIN>0 else 0, # N_TOT/N_BRAIN,
-                    constants.LABELS[2]: self.N_TOT/(constants.N_CLASSES*self.N_PENUMBRA) if self.N_PENUMBRA>0 else 0, # N_TOT/N_PENUMBRA,
-                    constants.LABELS[3]: self.N_TOT/(constants.N_CLASSES*self.N_CORE) if self.N_CORE>0 else 0, # N_TOT/N_CORE
+                    constants.LABELS[0]: self.N_TOT/(constants.N_CLASSES*self.N_BACKGROUND) if self.N_BACKGROUND>0 else 0,  # N_TOT/N_BACKGROUND,
+                    constants.LABELS[1]: self.N_TOT/(constants.N_CLASSES*self.N_BRAIN) if self.N_BRAIN>0 else 0,  # N_TOT/N_BRAIN,
+                    constants.LABELS[2]: self.N_TOT/(constants.N_CLASSES*self.N_PENUMBRA) if self.N_PENUMBRA>0 else 0,  # N_TOT/N_PENUMBRA,
+                    constants.LABELS[3]: self.N_TOT/(constants.N_CLASSES*self.N_CORE) if self.N_CORE>0 else 0,  # N_TOT/N_CORE
                 })
         elif constants.N_CLASSES==3:
             # and the (M,N) == image dimension
@@ -447,16 +450,16 @@ class NeuralNetwork(object):
             else:
                 # see: "ISBI 2019 C-NMC Challenge: Classification in Cancer Cell Imaging" section 4.1 pag 68
                 sample_weights = self.train_df.label.map({
-                    constants.LABELS[0]: self.N_TOT/(constants.N_CLASSES*(self.N_BACKGROUND+self.N_BRAIN)) if self.N_BACKGROUND+self.N_BRAIN>0 else 0, # N_TOT/N_BACKGROUND,
-                    constants.LABELS[1]: self.N_TOT/(constants.N_CLASSES*self.N_PENUMBRA) if self.N_PENUMBRA>0 else 0, # N_TOT/N_PENUMBRA,
-                    constants.LABELS[2]: self.N_TOT/(constants.N_CLASSES*self.N_CORE) if self.N_CORE>0 else 0, # N_TOT/N_CORE
+                    constants.LABELS[0]: self.N_TOT/(constants.N_CLASSES*(self.N_BACKGROUND+self.N_BRAIN)) if self.N_BACKGROUND+self.N_BRAIN>0 else 0,
+                    constants.LABELS[1]: self.N_TOT/(constants.N_CLASSES*self.N_PENUMBRA) if self.N_PENUMBRA>0 else 0,
+                    constants.LABELS[2]: self.N_TOT/(constants.N_CLASSES*self.N_CORE) if self.N_CORE>0 else 0,
                 })
         elif constants.N_CLASSES==2:  # we are in a binary class problem
             # f = lambda x : np.sum(np.array(x))
             # sample_weights = self.train_df.ground_truth.map(f)
             sample_weights = self.train_df.label.map({
-                constants.LABELS[0]: self.N_TOT/(constants.N_CLASSES*self.N_BACKGROUND) if self.N_BACKGROUND>0 else 0, # N_TOT/N_BACKGROUND,
-                constants.LABELS[1]: self.N_TOT/(constants.N_CLASSES*self.N_CORE) if self.N_CORE>0 else 0, # N_TOT/N_CORE
+                constants.LABELS[0]: self.N_TOT/(constants.N_CLASSES*self.N_BACKGROUND) if self.N_BACKGROUND>0 else 0,
+                constants.LABELS[1]: self.N_TOT/(constants.N_CLASSES*self.N_CORE) if self.N_CORE>0 else 0,
             })
 
         return np.array(sample_weights.values[self.dataset[flagDataset]["indices"]])

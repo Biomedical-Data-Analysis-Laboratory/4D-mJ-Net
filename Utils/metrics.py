@@ -1,3 +1,6 @@
+import warnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
+
 import constants
 from Utils import general_utils, callback
 
@@ -22,11 +25,20 @@ def mod_dice_coef(y_true, y_pred, epsilon=1e-6):
     # denominator = (K.sum(K.square(y_pred) + K.square(y_true), axis=axes) + epsilon)
     # return (numerator/denominator)
 
+    # y_true = K.flatten(y_true)
+    # y_pred = K.flatten(y_pred)
+
+    # y_true = K.print_tensor(y_true, message='y_true = ')
+    # y_pred = K.print_tensor(y_pred, message='y_pred = ')
+
     # axes = tuple(range(0, len(y_pred.shape) - 1))
     axes = -1
     intersection = 2. * K.sum(K.abs(y_true * y_pred), axis=axes)
     denom = K.sum(K.square(y_true), axis=axes) + K.sum(K.square(y_pred), axis=axes) + epsilon
-    return K.mean(intersection / denom, axis=axes)
+
+    ret = K.mean(intersection/denom, axis=axes)
+    # ret = K.print_tensor(ret, message="fuc_ ")
+    return ret
 
 
 ################################################################################
@@ -37,9 +49,36 @@ def mod_dice_coef(y_true, y_pred, epsilon=1e-6):
 def dice_coef(y_true, y_pred, epsilon=1e-6):
     # axes = tuple(range(0, len(y_pred.shape) - 1))
     axes = -1
+    #y_true = K.flatten(y_true)
+    #y_pred = K.flatten(y_pred)
+
+    #y_true = K.print_tensor(y_true, message='y_true = ')
+    #y_pred = K.print_tensor(y_pred, message='y_pred = ')
+
     intersection = 2. * K.sum(K.abs(y_true * y_pred), axis=axes)
-    denom = (K.sum(K.abs(y_true) + K.abs(y_pred), axis=axes) + epsilon)
-    return K.mean(intersection/denom, axis=axes)
+    denom = K.sum(K.abs(y_true) + K.abs(y_pred), axis=axes)
+    ret = K.mean(intersection/(denom+epsilon), axis=axes)
+    #ret = K.print_tensor(ret, message="aaaaa  ")
+    return ret
+
+
+################################################################################
+# Strange Dice Similarity Coefficient loss (the numerator is squared??)
+# https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=9098643
+def strange_dice_coef(y_true, y_pred, epsilon=1e-6):
+    axes = -1
+    # y_true = K.flatten(y_true)
+    # y_pred = K.flatten(y_pred)
+    # y_true = K.print_tensor(y_true, message='y_true = ')
+    # y_pred = K.print_tensor(y_pred, message='y_pred = ')
+
+    intersection = 2. * K.sum(K.square(y_true) * K.square(y_pred), axis=axes)
+    denom = K.sum(K.square(y_true), axis=axes) + K.sum(K.square(y_pred), axis=axes)
+
+    ret = K.mean(intersection/(denom+epsilon), axis=axes)
+    # ret = K.print_tensor(ret, message="strange \t")
+    # print(K.int_shape(ret))
+    return ret
 
 
 ################################################################################
@@ -48,11 +87,16 @@ def dice_coef(y_true, y_pred, epsilon=1e-6):
 # Function taken and modified from here: https://github.com/robinvvinod/unet/
 def tversky(y_true, y_pred, smooth=1, alpha=0.7):
     beta = 1-alpha
+    #y_true = K.flatten(y_true)
+    #y_pred = K.flatten(y_pred)
+
     true_pos = K.sum(y_true * y_pred, axis=-1)
     false_neg = K.sum(y_true * (1 - y_pred), axis=-1)
     false_pos = K.sum((1 - y_true) * y_pred, axis=-1)
 
-    return (true_pos + smooth) / (true_pos + alpha * false_neg + beta * false_pos + smooth)
+    ret = (true_pos+smooth) / (true_pos+alpha*false_neg+beta*false_pos+smooth)
+    #ret = K.print_tensor(ret, message="strange ")
+    return K.mean(ret, axis=-1)
 
 
 ################################################################################

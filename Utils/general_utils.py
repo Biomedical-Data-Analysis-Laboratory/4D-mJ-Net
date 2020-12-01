@@ -1,4 +1,7 @@
 # DO NOT import dataset_utils here!
+import warnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
+
 import constants
 from Utils import metrics, losses
 
@@ -167,12 +170,15 @@ def getLoss(name):
     loss = {}
 
     if name in general_losses: loss["loss"] = name
+    elif name == "categorical_focal_loss":
+        alpha = [[.25, .25, .25, .25]]
+        if constants.N_CLASSES==3: alpha = [[.25, .25, .25]]
+        elif constants.N_CLASSES==2: alpha = [[.25, .25]]
+        loss["loss"] = losses.categorical_focal_loss(alpha=alpha)
     else: loss["loss"] = getattr(losses, name)
     loss["name"] = name
 
-    if constants.getVerbose():
-        printSeparation("-",50)
-        print("[INFO] - Use {} Loss".format(name))
+    if constants.getVerbose(): print("[INFO] - Use {} Loss".format(name))
 
     return loss
 
@@ -184,7 +190,8 @@ def getStatisticFunctions(listStats):
         "binary_crossentropy",
         "categorical_crossentropy",
         "sparse_categorical_crossentropy",
-        "mean_squared_error"
+        "mean_squared_error",
+        "accuracy"
     ]
 
     statisticFuncs = []
@@ -192,9 +199,7 @@ def getStatisticFunctions(listStats):
         if m in general_metrics: statisticFuncs.append(m)
         else: statisticFuncs.append(getattr(metrics, m))
 
-    if constants.getVerbose():
-        printSeparation("-",50)
-        print("[INFO] - Getting {} functions".format(listStats))
+    if constants.getVerbose(): print("[INFO] - Getting {} functions".format(listStats))
 
     if len(statisticFuncs)==0: statisticFuncs = None
 
@@ -252,8 +257,8 @@ def createDir(dir_path):
         if constants.getVerbose(): print("[INFO] - Creating folder: " + dir_path)
         os.makedirs(dir_path)
 
-###################################
-# #############################################
+
+################################################################################
 # print a separation for verbose purpose
 def printSeparation(what, howmuch):
     print(what*howmuch)

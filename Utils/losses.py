@@ -2,14 +2,13 @@ import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 from Utils import metrics
-import numpy as np
 import tensorflow.keras.backend as K
 
 
 ################################################################################
 # Function that calculates the modified DICE coefficient loss. Util for the LOSS
 # function during the training of the model (for image in input and output)!
-def mod_dice_coef_loss(y_true, y_pred):
+def squared_dice_coef_loss(y_true, y_pred):
     return 1 - metrics.squared_dice_coef(y_true, y_pred)
 
 
@@ -24,14 +23,15 @@ def dice_coef_loss(y_true, y_pred):
 # Tversky loss.
 # Based on this paper: https://arxiv.org/abs/1706.05721
 def tversky_loss(y_true, y_pred):
-    return 1-metrics.tversky(y_true, y_pred)
+    return 1 - metrics.tversky_coef(y_true, y_pred)
 
 
 ################################################################################
 # Focal Tversky loss: a generalisation of the tversky loss.
 # From this paper: https://arxiv.org/abs/1810.07842
+# TODO: check
 def focal_tversky_loss(y_true, y_pred, gamma=0.75):
-    tv = metrics.tversky(y_true, y_pred)
+    tv = metrics.tversky_coef(y_true, y_pred)
     return K.pow((1 - tv), gamma)
 
 
@@ -65,52 +65,12 @@ def weighted_categorical_cross_entropy_loss(y_true, y_pred):
 
 
 ################################################################################
+#  Focal loss: https://openaccess.thecvf.com/content_ICCV_2017/papers/Lin_Focal_Loss_for_ICCV_2017_paper.pdf
+def focal_loss(y_true, y_pred):
+    return metrics.focal_loss(y_true, y_pred)
+
+
 ################################################################################
-def categorical_focal_loss(alpha, gamma=2.):
-    """
-    Softmax version of focal loss.
-    When there is a skew between different categories/labels in your data set, you can try to apply this function as a
-    loss.
-           m
-      FL = ∑  -alpha * (1 - p_o,c)^gamma * y_o,c * log(p_o,c)
-          c=1
-      where m = number of classes, c = class and o = observation
-    Parameters:
-      alpha -- the same as weighing factor in balanced cross entropy. Alpha is used to specify the weight of different
-      categories/labels, the size of the array needs to be consistent with the number of classes.
-      gamma -- focusing parameter for modulating factor (1-p)
-    Default value:
-      gamma -- 2.0 as mentioned in the paper
-      alpha -- 0.25 as mentioned in the paper
-    References:
-        Official paper: https://arxiv.org/pdf/1708.02002.pdf
-        https://www.tensorflow.org/api_docs/python/tf/keras/backend/categorical_crossentropy
-    Usage:
-     model.compile(loss=[categorical_focal_loss(alpha=[[.25, .25, .25]],gamma=2)], metrics=["accuracy"], optimizer=adam)
-    """
-
-    alpha = np.array(alpha, dtype=np.float32)
-
-    def categorical_focal_loss_fixed(y_true, y_pred):
-        """
-        :param y_true: A tensor of the same shape as `y_pred`
-        :param y_pred: A tensor resulting from a softmax
-        :return: Output tensor.
-        """
-
-        # Clip the prediction value to prevent NaN's and Inf's
-        epsilon = K.epsilon()
-        y_pred = K.clip(y_pred, epsilon, 1. - epsilon)
-
-        # Calculate Cross Entropy
-        cross_entropy = -y_true * K.log(y_pred)
-
-        # Calculate Focal Loss
-        loss = alpha * K.pow(1 - y_pred, gamma) * cross_entropy
-
-        # Compute mean loss in mini_batch
-        ret = K.sum(loss, axis=-1)
-        #ret = K.print_tensor(ret, message='y_true = ')
-        return ret
-
-    return categorical_focal_loss_fixed
+# Tanimoto loss. https://arxiv.org/pdf/1904.00592.pdf
+def tanimoto_loss(y_true, y_pred):
+    return 1-metrics.tanimoto(y_true, y_pred)

@@ -12,33 +12,24 @@ from sklearn.metrics import roc_auc_score, average_precision_score, auc, multila
 
 
 ################################################################################
-# Funtion that calculates the DICE coefficient. Important when calculates the different of two images
-def squared_dice_coef(y_true, y_pred, epsilon=1e-6):
+# Function that calculates the DICE coefficient. Important when calculates the different of two images
+def squared_dice_coef(y_true, y_pred):
     """
+    Compute weighted squared Dice loss.
+
     Dice = (2*|X & Y|)/ (|X|+ |Y|)
          =  2*sum(|A*B|)/(sum(A^2)+sum(B^2))
     ref: https://arxiv.org/pdf/1606.04797v1.pdf
     """
+    class_weights = tf.constant(constants.HOT_ONE_WEIGHTS)
+    axis_to_reduce = list(range(1, K.ndim(y_pred)))  # Reduce all axis but first (batch)
+    numerator = y_true * y_pred * class_weights  # Broadcasting
+    numerator = 2. * K.sum(numerator, axis=axis_to_reduce)
 
-    # axes = tuple(range(1, len(y_pred.shape)-1))
-    # numerator = 2. * K.sum(K.abs(y_pred * y_true), axis=axes)
-    # denominator = (K.sum(K.square(y_pred) + K.square(y_true), axis=axes) + epsilon)
-    # return (numerator/denominator)
+    denominator = (K.square(y_true) + K.square(y_pred)) * class_weights  # Broadcasting
+    denominator = K.sum(denominator, axis=axis_to_reduce)
 
-    # y_true = K.flatten(y_true)
-    # y_pred = K.flatten(y_pred)
-
-    # y_true = K.print_tensor(y_true, message='y_true = ')
-    # y_pred = K.print_tensor(y_pred, message='y_pred = ')
-
-    # axes = tuple(range(0, len(y_pred.shape) - 1))
-    axes = -1
-    intersection = 2. * K.sum(K.abs(y_true * y_pred), axis=axes)
-    denom = K.sum(K.square(y_true), axis=axes) + K.sum(K.square(y_pred), axis=axes) + epsilon
-
-    ret = K.mean(intersection/denom, axis=axes)
-    # ret = K.print_tensor(ret, message="fuc_ ")
-    return ret
+    return numerator / denominator
 
 
 ################################################################################
@@ -46,39 +37,36 @@ def squared_dice_coef(y_true, y_pred, epsilon=1e-6):
 # Calculate the real value for the Dice coefficient,
 # but it returns lower values than the other dice_coef + lower specificity and precision
 # == to F1 score for boolean values
-def dice_coef(y_true, y_pred, epsilon=1e-6):
-    # axes = tuple(range(0, len(y_pred.shape) - 1))
-    axes = -1
-    #y_true = K.flatten(y_true)
-    #y_pred = K.flatten(y_pred)
+def dice_coef(y_true, y_pred):
+    """
+    Compute weighted Dice loss.
+    """
+    class_weights = tf.constant(constants.HOT_ONE_WEIGHTS)
+    axis_to_reduce = list(range(1, K.ndim(y_pred)))  # Reduce all axis but first (batch)
+    numerator = y_true * y_pred * class_weights  # Broadcasting
+    numerator = 2. * K.sum(numerator, axis=axis_to_reduce)
 
-    #y_true = K.print_tensor(y_true, message='y_true = ')
-    #y_pred = K.print_tensor(y_pred, message='y_pred = ')
-
-    intersection = 2. * K.sum(K.abs(y_true * y_pred), axis=axes)
-    denom = K.sum(K.abs(y_true) + K.abs(y_pred), axis=axes)
-    ret = K.mean(intersection/(denom+epsilon), axis=axes)
-    #ret = K.print_tensor(ret, message="aaaaa  ")
-    return ret
+    denominator = (y_true + y_pred) * class_weights  # Broadcasting
+    denominator = K.sum(denominator, axis=axis_to_reduce)
+    return numerator / denominator
 
 
 ################################################################################
 # Implementation of the Tversky Index (TI),
 # which is a asymmetric similarity measure that is a generalisation of the dice coefficient and the Jaccard index.
 # Function taken and modified from here: https://github.com/robinvvinod/unet/
-def tversky(y_true, y_pred, smooth=1, alpha=0.7):
+def tversky_coef(y_true, y_pred, smooth=1., alpha=0.7):
+    class_weights = tf.constant(constants.HOT_ONE_WEIGHTS)
     beta = 1-alpha
-    #y_true = K.flatten(y_true)
-    #y_pred = K.flatten(y_pred)
 
-    true_pos = K.sum(y_true * y_pred, axis=-1)
-    false_neg = K.sum(y_true * (1 - y_pred), axis=-1)
-    false_pos = K.sum((1 - y_true) * y_pred, axis=-1)
+    axis_to_reduce = list(range(1, K.ndim(y_pred)))  # All axis but first (batch)
+    numerator = y_true * y_pred * class_weights  # Broadcasting
+    numerator = K.sum(numerator, axis=axis_to_reduce)  # p*p̂
+    denominator = y_true * y_pred + beta * (1 - y_true) * y_pred + (1 - beta) * y_true * (1 - y_pred)  # p*p̂ + β*(1-p)*p̂ + (1-β)*p*(1-p̂)
+    denominator *= class_weights  # Broadcasting
+    denominator = K.sum(denominator, axis=axis_to_reduce)
 
-    ret = (true_pos+smooth) / (true_pos+alpha*false_neg+beta*false_pos+smooth)
-    #ret = K.print_tensor(ret, message="strange ")
-    return K.mean(ret, axis=-1)
-
+    return (numerator + smooth) / (denominator + smooth)  # (p*p̂ + smooth)/[p*p̂ + β*(1-p)*p̂ + (1-β)*p*(1-p̂) + smooth]
 
 ################################################################################
 # Function to calculate the Jaccard similarity
@@ -122,6 +110,42 @@ def weighted_categorical_cross_entropy(y_true, y_pred, epsilon=1e-7):
     l2_norm = K.sum(K.square(y_true - y_pred))+epsilon
 
     return (lambda_0 * wcce) + (lambda_1 * l1_norm) + (lambda_2 * l2_norm)
+
+
+################################################################################
+#
+def focal_loss(y_true, y_pred, epsilon=1e-6):
+    """
+    Compute focal loss.
+    """
+    alpha = tf.constant(constants.HOT_ONE_WEIGHTS)
+    gamma = tf.constant(constants.GAMMA,dtype=y_pred.dtype)
+    axis_to_reduce = list(range(1, K.ndim(y_pred)))
+
+    f_loss = -(alpha * K.pow((1 - y_pred), gamma) * y_true * K.log(y_pred+epsilon))
+
+    # Average over each data point/image in batch
+    f_loss = K.mean(f_loss, axis=axis_to_reduce)
+
+    return f_loss
+
+
+################################################################################
+#
+def tanimoto(y_true, y_pred):
+    """
+    Compute weighted Tanimoto loss.
+    Defined in the paper "ResUNet-a: a deep learning framework for semantic segmentation of remotely sensed data",
+    under 3.2.4. Generalization to multiclass imbalanced problems. See https://arxiv.org/pdf/1904.00592.pdf
+    """
+    class_weights = tf.constant(constants.HOT_ONE_WEIGHTS)
+    axis_to_reduce = list(range(1, K.ndim(y_pred)))  # All axis but first (batch)
+    numerator = y_true * y_pred * class_weights
+    numerator = K.sum(numerator, axis=axis_to_reduce)
+
+    denominator = (K.square(y_true) + K.square(y_pred) - y_true * y_pred) * class_weights
+    denominator = K.sum(denominator, axis=axis_to_reduce)
+    return numerator / denominator
 
 
 ################################################################################

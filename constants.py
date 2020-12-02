@@ -13,7 +13,8 @@ N_CLASSES = 4
 LABELS = ["background", "brain", "penumbra", "core"]  # background:0, brain:85, penumbra:170, core:255
 PIXELVALUES = [0, 85, 170, 256]
 # weights for the categorical cross entropy: 1) position: brain, 2) penumbra, 3) core, 4) background
-HOT_ONE_WEIGHTS = [[0.1, 0.2, 1.0, 1.0]]
+HOT_ONE_WEIGHTS = [[0.05, 0.05, 0.3, 0.6]]
+GAMMA = [[2.,2.,2.,2.]]
 PREFIX_IMAGES = "PA"
 DATASET_PREFIX = "patient"
 SUFFIX_IMG = ".tiff"  # ".png"
@@ -113,18 +114,20 @@ def setImagePerSection(num):
 
 
 def setNumberOfClasses(c):
-    global N_CLASSES, LABELS, PIXELVALUES, HOT_ONE_WEIGHTS
+    global N_CLASSES, LABELS, PIXELVALUES, HOT_ONE_WEIGHTS, GAMMA
 
     if c == 2:
         N_CLASSES = c
         LABELS = ["background", "core"]
         PIXELVALUES = [0, 255]
-        HOT_ONE_WEIGHTS = [[0.1, 1.0]]
+        HOT_ONE_WEIGHTS = [[0.1, 0.9]]
+        GAMMA = [[2., 2.]]
     elif c == 3:
         N_CLASSES = c
         LABELS = ["background", "penumbra", "core"]
         PIXELVALUES = [0, 170, 255]
-        HOT_ONE_WEIGHTS = [[0.1, 1.0, 1.0]]
+        HOT_ONE_WEIGHTS = [[0.1, 0.3, 0.6]]
+        GAMMA = [[2., 2., 2.]]
 
 
 def set3DFlag():

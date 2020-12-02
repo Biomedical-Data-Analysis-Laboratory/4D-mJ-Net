@@ -77,7 +77,7 @@ BINARY_CLASSIFICATION = False  # to extract only two classes
 LABELS = ["background", "brain", "penumbra", "core"]
 LABELS_THRESHOLDS = [234, 0, 60, 135]  # [250, 0 , 30, 100]
 LABELS_REALVALUES = [255, 0, 76, 150]
-TILE_DIVISION = 4  # set to >1 if the tile are NOT the entire image
+TILE_DIVISION = 16  # set to >1 if the tile are NOT the entire image
 
 ################################################################################
 ################################################################################
@@ -237,7 +237,7 @@ def fillDatasetOverTime(relativePath, patientIndex, timeFolder):
     numRep = 1
     if DATA_AUGMENTATION: numRep = 6
     numBack, numBrain, numPenumbra, numCore, numSkip = 0, 0, 0, 0, 0
-    startingX, startingY, count = 0, 0, 0
+    startingX, startingY = 0, 0
     pixelsList, otherInforList = list(), list()
 
     sliceIndex = timeFolder.replace(SAVE_REGISTERED_FOLDER+relativePath, '').replace("/", "")
@@ -259,13 +259,6 @@ def fillDatasetOverTime(relativePath, patientIndex, timeFolder):
         otherInforList.append(dict())
 
     while True:
-        if TILE_DIVISION==1:
-            count += 1
-            if count > 1: break
-        else:
-            if startingX>=IMAGE_WIDTH-M and startingY>=IMAGE_HEIGHT-N:
-                break  # if we reach the end of the image, break the while loop.
-
         realLabelledWindow = getSlicingWindow(labelledMatrix, startingX, startingY, isgt=True)
 
         # process the window; return the new labeled window and various flags
@@ -278,10 +271,8 @@ def fillDatasetOverTime(relativePath, patientIndex, timeFolder):
 
             if TILE_DIVISION == 1 and DATA_AUGMENTATION: numReplication = 6
         else:
-            if classToSet == LABELS[1]:
-                numBrain += 1
-            elif classToSet == LABELS[2]:
-                numPenumbra += 1
+            if classToSet == LABELS[1]: numBrain += 1
+            elif classToSet == LABELS[2]: numPenumbra += 1
             elif classToSet == LABELS[3]:
                 numReplication = 6 if DATA_AUGMENTATION else 1
                 numCore += numReplication
@@ -343,7 +334,12 @@ def fillDatasetOverTime(relativePath, patientIndex, timeFolder):
                 otherInforList[data_aug_idx][str(startingX)][str(startingY)]["sliceIndex"] = sliceIndex
                 otherInforList[data_aug_idx][str(startingX)][str(startingY)]["severity"] = patientIndex.split("_")[0]
 
-        if startingY<IMAGE_HEIGHT-N: startingY += SLICING_PIXELS
+        # if we reach the end of the image, break the while loop.
+        if startingX >= IMAGE_WIDTH - M and startingY >= IMAGE_HEIGHT - N: break
+        # check for M == WIDTH & N == HEIGHT
+        if M == IMAGE_WIDTH and N == IMAGE_HEIGHT: break
+        # going to the next slicingWindow
+        if startingY<=IMAGE_HEIGHT-N: startingY += SLICING_PIXELS
         else:
             if startingX<IMAGE_WIDTH-M:
                 startingY = 0
@@ -642,7 +638,7 @@ def initializeDataset():
 
         subfolders = np.sort(glob.glob(patientFolder+"*/"))
 
-        if numFold<100: continue
+        if numFold<125: continue
 
         print("[INFO] - Analyzing {0}/{1}; patient folder: {2}...".format(numFold+1, len(patientFolders), relativePath))
         # if the manual annotation folder exists

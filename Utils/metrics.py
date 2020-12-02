@@ -13,7 +13,7 @@ from sklearn.metrics import roc_auc_score, average_precision_score, auc, multila
 
 ################################################################################
 # Funtion that calculates the DICE coefficient. Important when calculates the different of two images
-def mod_dice_coef(y_true, y_pred, epsilon=1e-6):
+def squared_dice_coef(y_true, y_pred, epsilon=1e-6):
     """
     Dice = (2*|X & Y|)/ (|X|+ |Y|)
          =  2*sum(|A*B|)/(sum(A^2)+sum(B^2))

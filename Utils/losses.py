@@ -10,7 +10,7 @@ import tensorflow.keras.backend as K
 # Function that calculates the modified DICE coefficient loss. Util for the LOSS
 # function during the training of the model (for image in input and output)!
 def mod_dice_coef_loss(y_true, y_pred):
-    return 1-metrics.mod_dice_coef(y_true, y_pred)
+    return 1 - metrics.squared_dice_coef(y_true, y_pred)
 
 
 ################################################################################

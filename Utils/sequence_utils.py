@@ -72,8 +72,7 @@ class datasetSequence(Sequence):
         elif self.x_label==["CBF","CBV","TTP","TMAX"]: X, weights = self.getX_PM(weights,current_batch,batch_index_list)
 
         # path to the ground truth image
-        # use getY_image for the datasets that have the gt as image, use getY if the gt is a string
-        if self.y_label=="ground_truth": Y, weights = self.getY_image(current_batch,weights)
+        if self.y_label=="ground_truth": Y, weights = self.getY(current_batch,weights)
 
         # Check if any value is NaN
         if np.isnan(np.unique(Y)).any(): print([gt for gt in current_batch.ground_truth])
@@ -137,12 +136,7 @@ class datasetSequence(Sequence):
             for index in self.index_pd_DA[aug_idx]:
                 row_index = self.index_batch[index]
                 filename = current_batch.loc[row_index][self.y_label]
-                if not isinstance(filename, str) and isinstance(filename, pd.Series):
-                    print(filename)
-                    filename = filename.loc[row_index][self.y_label]  # strange thing happens here...
-
                 coord = current_batch.loc[row_index]["x_y"]  # coordinates of the slice window
-
                 img = cv2.imread(filename,cv2.IMREAD_GRAYSCALE)
                 img = general_utils.getSlicingWindow(img, coord[0], coord[1], isgt=True)
 
@@ -150,11 +144,6 @@ class datasetSequence(Sequence):
                 if constants.N_CLASSES<=3: img[img==85] = constants.PIXELVALUES[0]
                 # remove the penumbra ==> it becomes core
                 if constants.N_CLASSES==2: img[img==170] = constants.PIXELVALUES[1]
-
-                # the (M,N) == image dimension
-                # if constants.getM()==constants.IMAGE_WIDTH and constants.getN()==constants.IMAGE_HEIGHT:
-                #     f = lambda x: np.sum(np.where(np.array(x) == constants.PIXELVALUES[2], 150, np.where(np.array(x) == constants.PIXELVALUES[3], 20, 0.1)))
-                #     weights[index] = f(img)/(constants.getM()*constants.getN())
 
                 # Override the weights based on the pixel values
                 if constants.N_CLASSES>2:
@@ -174,38 +163,6 @@ class datasetSequence(Sequence):
                 elif aug_idx=="3": img = np.rot90(img, 3) if not self.to_categ or self.loss=="sparse_categorical_crossentropy" else dataset_utils.getSingleLabelFromIndexCateg(np.rot90(img, 3))
                 elif aug_idx=="4": img = np.flipud(img) if not self.to_categ or self.loss=="sparse_categorical_crossentropy" else dataset_utils.getSingleLabelFromIndexCateg(np.flipud(img))
                 elif aug_idx=="5": img = np.fliplr(img) if not self.to_categ or self.loss=="sparse_categorical_crossentropy" else dataset_utils.getSingleLabelFromIndexCateg(np.fliplr(img))
-
-                Y.append(img)
-
-        return np.array(Y), weights
-
-    def getY_image(self, current_batch, weights):
-        Y = []
-        for aug_idx in self.index_pd_DA.keys():
-            for index in self.index_pd_DA[aug_idx]:
-                row_index = self.index_batch[index]
-                filename = current_batch.loc[row_index][self.y_label]
-                coord = current_batch.loc[row_index]["x_y"]
-                img = cv2.imread(filename, cv2.IMREAD_GRAYSCALE)
-                img = general_utils.getSlicingWindow(img, coord[0], coord[1], isgt=True)
-
-                # remove the brain from the image ==> it becomes background
-                if constants.N_CLASSES <= 3: img[img == 85] = constants.PIXELVALUES[0]
-                # remove the penumbra ==> it becomes core
-                if constants.N_CLASSES == 2: img[img == 170] = constants.PIXELVALUES[1]
-
-                # Override the weights based on the pixel values
-                if constants.N_CLASSES > 2:
-                    core_value = constants.PIXELVALUES[3] if constants.N_CLASSES == 4 else constants.PIXELVALUES[2]
-                    penumbra_value = constants.PIXELVALUES[2] if constants.N_CLASSES == 4 else constants.PIXELVALUES[1]
-                    f = lambda x: np.sum(np.where(np.array(x) == core_value, 150,
-                                                  np.where(np.array(x) == penumbra_value, 20, 0.1)))
-                    weights[index] = f(img) / (constants.getM() * constants.getN())
-
-                # convert the label in [0, 1] values,
-                # for to_categ the division happens inside dataset_utils.getSingleLabelFromIndexCateg
-                if not self.to_categ or self.loss=="sparse_categorical_crossentropy": img = np.divide(img, 255)
-                else: img = dataset_utils.getSingleLabelFromIndexCateg(img)
 
                 Y.append(img)
 

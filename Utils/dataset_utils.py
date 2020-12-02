@@ -8,7 +8,7 @@ import hickle as hkl
 import numpy as np
 import pandas as pd
 import sklearn
-from keras import utils
+from tensorflow.keras import utils
 
 import constants
 from Utils import general_utils

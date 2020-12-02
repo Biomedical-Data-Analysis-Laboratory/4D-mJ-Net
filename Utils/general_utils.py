@@ -170,11 +170,6 @@ def getLoss(name):
     loss = {}
 
     if name in general_losses: loss["loss"] = name
-    elif name == "categorical_focal_loss":
-        alpha = [[.25, .25, .25, .25]]
-        if constants.N_CLASSES==3: alpha = [[.25, .25, .25]]
-        elif constants.N_CLASSES==2: alpha = [[.25, .25]]
-        loss["loss"] = losses.categorical_focal_loss(alpha=alpha)
     else: loss["loss"] = getattr(losses, name)
     loss["name"] = name
 

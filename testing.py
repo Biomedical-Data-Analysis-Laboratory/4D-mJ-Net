@@ -389,10 +389,9 @@ def generateTimeImagesAndConsensus(nn, test_df, YTRUEToEvaluate, YPREDToEvaluate
         if str(test_row.timeIndex) not in arrayTimeIndexImages.keys(): arrayTimeIndexImages[str(test_row.timeIndex)] = np.zeros(shape=(constants.IMAGE_WIDTH, constants.IMAGE_HEIGHT), dtype=np.uint8)
         arrayTimeIndexImages[str(test_row.timeIndex)], checkImageProcessed, YTRUEToEvaluate, YPREDToEvaluate = generate2DImage(nn, test_row.pixels, test_row.x_y, arrayTimeIndexImages[str(test_row.timeIndex)], checkImageProcessed, YTRUEToEvaluate, YPREDToEvaluate)
 
-    if nn.save_images:
-        if constants.N_CLASSES==3:
-            checkImageProcessed[checkImageProcessed==85] = constants.PIXELVALUES[0]  # remove one class from the ground truth
-            # checkImageProcessed[checkImageProcessed==150] = constants.PIXELVALUES[2]  # change the class for core
+    if nn.save_images:              # remove one class from the ground truth
+
+        if constants.N_CLASSES==3: checkImageProcessed[checkImageProcessed==85] = constants.PIXELVALUES[0]
         cv2.imwrite(nn.saveImagesFolder+relativePatientFolderTMP+"orig_"+idx+constants.SUFFIX_IMG, checkImageProcessed)
 
         for tidx in arrayTimeIndexImages.keys():

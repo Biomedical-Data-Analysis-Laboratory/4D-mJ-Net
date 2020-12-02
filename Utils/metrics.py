@@ -63,25 +63,6 @@ def dice_coef(y_true, y_pred, epsilon=1e-6):
 
 
 ################################################################################
-# Strange Dice Similarity Coefficient loss (the numerator is squared??)
-# https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=9098643
-def strange_dice_coef(y_true, y_pred, epsilon=1e-6):
-    axes = -1
-    # y_true = K.flatten(y_true)
-    # y_pred = K.flatten(y_pred)
-    # y_true = K.print_tensor(y_true, message='y_true = ')
-    # y_pred = K.print_tensor(y_pred, message='y_pred = ')
-
-    intersection = 2. * K.sum(K.square(y_true) * K.square(y_pred), axis=axes)
-    denom = K.sum(K.square(y_true), axis=axes) + K.sum(K.square(y_pred), axis=axes)
-
-    ret = K.mean(intersection/(denom+epsilon), axis=axes)
-    # ret = K.print_tensor(ret, message="strange \t")
-    # print(K.int_shape(ret))
-    return ret
-
-
-################################################################################
 # Implementation of the Tversky Index (TI),
 # which is a asymmetric similarity measure that is a generalisation of the dice coefficient and the Jaccard index.
 # Function taken and modified from here: https://github.com/robinvvinod/unet/

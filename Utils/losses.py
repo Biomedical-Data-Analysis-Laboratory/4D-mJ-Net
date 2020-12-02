@@ -21,12 +21,6 @@ def dice_coef_loss(y_true, y_pred):
 
 
 ################################################################################
-# Strage Dice Coefficient loss.
-def strange_dice_loss(y_true, y_pred):
-    return 1-metrics.strange_dice_coef(y_true, y_pred)
-
-
-################################################################################
 # Tversky loss.
 # Based on this paper: https://arxiv.org/abs/1706.05721
 def tversky_loss(y_true, y_pred):

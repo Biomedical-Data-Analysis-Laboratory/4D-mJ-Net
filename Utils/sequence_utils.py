@@ -1,3 +1,6 @@
+import warnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
+
 import math, cv2, glob, time, os
 from typing import Set, Dict, Any
 
@@ -37,6 +40,10 @@ class datasetSequence(Sequence):
             self.dataframe = pd.concat([self.dataframenoback, self.dataframeback], sort=False)
 
         self.index_pd_DA: Dict[str, Set[Any]] = {"0": set(),"1": set(),"2": set(),"3": set(),"4": set(),"5": set()}
+        self.index_batch = None
+
+    def on_epoch_end(self):
+        self.dataframe = self.dataframe.sample(frac=1)  # shuffle the dataframe rows at the end of a epoch
 
     # Every Sequence must implement the __getitem__ and the __len__ methods
     def __len__(self):
@@ -48,9 +55,11 @@ class datasetSequence(Sequence):
 
         batch_index_list = list(range(start,end))
         current_batch = self.dataframe[start:end]
+        self.index_batch = current_batch.index
 
         # empty initialization
         X = np.empty((len(current_batch),constants.getM(),constants.getN(),constants.NUMBER_OF_IMAGE_PER_SECTION,1))
+        Y = np.empty((len(current_batch),constants.getM(),constants.getN()))
         weights = np.empty((len(current_batch),))
 
         if constants.getUSE_PM(): X = np.empty((len(current_batch), constants.getM(), constants.getN()))
@@ -63,7 +72,8 @@ class datasetSequence(Sequence):
         elif self.x_label==["CBF","CBV","TTP","TMAX"]: X, weights = self.getX_PM(weights,current_batch,batch_index_list)
 
         # path to the ground truth image
-        if self.y_label=="ground_truth": Y, weights = self.getY(current_batch,weights)
+        # use getY_image for the datasets that have the gt as image, use getY if the gt is a string
+        if self.y_label=="ground_truth": Y, weights = self.getY_image(current_batch,weights)
 
         # Check if any value is NaN
         if np.isnan(np.unique(Y)).any(): print([gt for gt in current_batch.ground_truth])
@@ -73,13 +83,13 @@ class datasetSequence(Sequence):
     ################################################################################
     # return the X set and the relative weights based on the pixels column
     def getX_pixels(self, X, current_batch, weights, batch_index_list):
-        for index, (row_index, row) in enumerate(current_batch.iterrows()):
-            weights[index] = self.sample_weights[batch_index_list[index]]
+        for index, (_, row) in enumerate(current_batch.iterrows()):
+            # weights[index] = self.sample_weights[batch_index_list[index]]
             folder = row[self.x_label]
             coord = row["x_y"]
             data_aug_idx = row["data_aug_idx"]
             # add the index into the correct set
-            self.index_pd_DA[str(data_aug_idx)].add((index,row_index))
+            self.index_pd_DA[str(data_aug_idx)].add(index)
 
             for timeIndex, filename in enumerate(np.sort(glob.glob(folder + "*" + constants.SUFFIX_IMG))):
                 # TODO: for ISLES2018 (to change in the future) --> if the number of time-points per slice
@@ -99,19 +109,16 @@ class datasetSequence(Sequence):
     def getX_PM(self, weights, current_batch, batch_index_list):
         pms = dict()
 
-        for index, (row_index, row) in enumerate(current_batch.iterrows()):
-            weights[index] = self.sample_weights[batch_index_list[index]]
+        for index, (_, row) in enumerate(current_batch.iterrows()):
+            # weights[index] = self.sample_weights[batch_index_list[index]]
             coord = row["x_y"]
             data_aug_idx = row["data_aug_idx"]
             # add the index into the correct set
-            self.index_pd_DA[str(data_aug_idx)].add((index,row_index))
+            self.index_pd_DA[str(data_aug_idx)].add(index)
 
             for pm in self.x_label:
                 if pm not in pms.keys(): pms[pm] = []
-                pm_filename = row[pm] + general_utils.getStringFromIndex(row["sliceIndex"]) + ".png"
-
-                # totimg = img_to_array(load_img(pm_filename))
-                totimg = cv2.imread(pm_filename)
+                totimg = cv2.imread(row[pm])
 
                 if totimg is not None:
                     img = general_utils.getSlicingWindow(totimg, coord[0], coord[1], removeColorBar=True)
@@ -127,28 +134,39 @@ class datasetSequence(Sequence):
     def getY(self, current_batch, weights):
         Y = []
         for aug_idx in self.index_pd_DA.keys():
-            for index,row_index in self.index_pd_DA[aug_idx]:
+            for index in self.index_pd_DA[aug_idx]:
+                row_index = self.index_batch[index]
                 filename = current_batch.loc[row_index][self.y_label]
-                if not isinstance(filename, str):
+                if not isinstance(filename, str) and isinstance(filename, pd.Series):
                     print(filename)
-                    filename = current_batch.loc[row_index][self.y_label][0]
+                    filename = filename.loc[row_index][self.y_label]  # strange thing happens here...
 
-                coord = current_batch.loc[row_index]["x_y"]
+                coord = current_batch.loc[row_index]["x_y"]  # coordinates of the slice window
 
-                # img = img_to_array(load_img(filename, color_mode="grayscale"))
-                # img = img.reshape(constants.IMAGE_WIDTH, constants.IMAGE_HEIGHT)
                 img = cv2.imread(filename,cv2.IMREAD_GRAYSCALE)
-
-                # if ".tiff" in filename: img = np.rint(img/256)
-
                 img = general_utils.getSlicingWindow(img, coord[0], coord[1], isgt=True)
 
-                # the (M,N) == image dimension
-                if constants.getM()==constants.IMAGE_WIDTH and constants.getN()==constants.IMAGE_HEIGHT:
-                    f = lambda x: np.sum(np.where(np.array(x) == constants.PIXELVALUES[2], 150, np.where(np.array(x) == constants.PIXELVALUES[3], 20, 0.1)))
-                    weights[index] = f(img)/(constants.getM()*constants.getN())
+                # remove the brain from the image ==> it becomes background
+                if constants.N_CLASSES<=3: img[img==85] = constants.PIXELVALUES[0]
+                # remove the penumbra ==> it becomes core
+                if constants.N_CLASSES==2: img[img==170] = constants.PIXELVALUES[1]
 
-                if not self.to_categ: img = np.divide(img,256)  # convert the label in [0, 1] values
+                # the (M,N) == image dimension
+                # if constants.getM()==constants.IMAGE_WIDTH and constants.getN()==constants.IMAGE_HEIGHT:
+                #     f = lambda x: np.sum(np.where(np.array(x) == constants.PIXELVALUES[2], 150, np.where(np.array(x) == constants.PIXELVALUES[3], 20, 0.1)))
+                #     weights[index] = f(img)/(constants.getM()*constants.getN())
+
+                # Override the weights based on the pixel values
+                if constants.N_CLASSES>2:
+                    core_value = constants.PIXELVALUES[3] if constants.N_CLASSES==4 else constants.PIXELVALUES[2]
+                    penumbra_value = constants.PIXELVALUES[2] if constants.N_CLASSES==4 else constants.PIXELVALUES[1]
+                    f = lambda x: np.sum(np.where(np.array(x)==core_value, 150,
+                                                  np.where(np.array(x)==penumbra_value, 20, 0.1)))
+                    weights[index] = f(img) / (constants.getM() * constants.getN())
+
+                # convert the label in [0, 1] values,
+                # for to_categ the division happens inside dataset_utils.getSingleLabelFromIndexCateg
+                if not self.to_categ: img = np.divide(img,255)
 
                 if aug_idx=="0": img = img if not self.to_categ or self.loss=="sparse_categorical_crossentropy" else dataset_utils.getSingleLabelFromIndexCateg(img)
                 elif aug_idx=="1": img = np.rot90(img) if not self.to_categ or self.loss=="sparse_categorical_crossentropy" else dataset_utils.getSingleLabelFromIndexCateg(np.rot90(img))
@@ -156,6 +174,38 @@ class datasetSequence(Sequence):
                 elif aug_idx=="3": img = np.rot90(img, 3) if not self.to_categ or self.loss=="sparse_categorical_crossentropy" else dataset_utils.getSingleLabelFromIndexCateg(np.rot90(img, 3))
                 elif aug_idx=="4": img = np.flipud(img) if not self.to_categ or self.loss=="sparse_categorical_crossentropy" else dataset_utils.getSingleLabelFromIndexCateg(np.flipud(img))
                 elif aug_idx=="5": img = np.fliplr(img) if not self.to_categ or self.loss=="sparse_categorical_crossentropy" else dataset_utils.getSingleLabelFromIndexCateg(np.fliplr(img))
+
+                Y.append(img)
+
+        return np.array(Y), weights
+
+    def getY_image(self, current_batch, weights):
+        Y = []
+        for aug_idx in self.index_pd_DA.keys():
+            for index in self.index_pd_DA[aug_idx]:
+                row_index = self.index_batch[index]
+                filename = current_batch.loc[row_index][self.y_label]
+                coord = current_batch.loc[row_index]["x_y"]
+                img = cv2.imread(filename, cv2.IMREAD_GRAYSCALE)
+                img = general_utils.getSlicingWindow(img, coord[0], coord[1], isgt=True)
+
+                # remove the brain from the image ==> it becomes background
+                if constants.N_CLASSES <= 3: img[img == 85] = constants.PIXELVALUES[0]
+                # remove the penumbra ==> it becomes core
+                if constants.N_CLASSES == 2: img[img == 170] = constants.PIXELVALUES[1]
+
+                # Override the weights based on the pixel values
+                if constants.N_CLASSES > 2:
+                    core_value = constants.PIXELVALUES[3] if constants.N_CLASSES == 4 else constants.PIXELVALUES[2]
+                    penumbra_value = constants.PIXELVALUES[2] if constants.N_CLASSES == 4 else constants.PIXELVALUES[1]
+                    f = lambda x: np.sum(np.where(np.array(x) == core_value, 150,
+                                                  np.where(np.array(x) == penumbra_value, 20, 0.1)))
+                    weights[index] = f(img) / (constants.getM() * constants.getN())
+
+                # convert the label in [0, 1] values,
+                # for to_categ the division happens inside dataset_utils.getSingleLabelFromIndexCateg
+                if not self.to_categ or self.loss=="sparse_categorical_crossentropy": img = np.divide(img, 255)
+                else: img = dataset_utils.getSingleLabelFromIndexCateg(img)
 
                 Y.append(img)
 

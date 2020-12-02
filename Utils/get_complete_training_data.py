@@ -77,7 +77,7 @@ BINARY_CLASSIFICATION = False  # to extract only two classes
 LABELS = ["background", "brain", "penumbra", "core"]
 LABELS_THRESHOLDS = [234, 0, 60, 135]  # [250, 0 , 30, 100]
 LABELS_REALVALUES = [255, 0, 76, 150]
-TILE_DIVISION = 16  # set to >1 if the tile are NOT the entire image
+TILE_DIVISION = 4  # set to >1 if the tile are NOT the entire image
 
 ################################################################################
 ################################################################################
@@ -88,7 +88,6 @@ TILE_DIVISION = 16  # set to >1 if the tile are NOT the entire image
 SEQUENCE_DATASET = True
 NEW_GROUNDTRUTH_VALUES = True  # flag to use the new GT values
 SKIP_TILES = False  # skip the tiles?
-EXTRACT_PM = False  # extract the parametric maps instead of the raw 4D CTP
 
 ORIGINAL_SHAPE = False  # the one from the master thesis
 DATA_AUGMENTATION = True  # use data augmentation?
@@ -97,7 +96,7 @@ FOUR_D = False  # TODO: ??
 ONE_TIME_POINT = -1  # -1 if you don't want to use it
 VERBOSE = 0
 dataset, listPatientsDataset, trainDatasetList = {}, {}, list()
-COLUMNS = ['patient_id', 'label', 'pixels', 'ground_truth', 'label_code', 'x_y',
+COLUMNS = ['patient_id', 'label', 'pixels', 'CBF', 'CBV', 'TTP', 'TMAX', 'ground_truth', 'label_code', 'x_y',
            'data_aug_idx', 'timeIndex', 'sliceIndex', "severity"]
 
 ################################################################################
@@ -107,10 +106,6 @@ SLICING_PIXELS = int(M/4)  # USE ALWAYS M/4
 if NEW_GROUNDTRUTH_VALUES:
     LABELS_THRESHOLDS = [0, 70, 155, 230]  # [250, 0 , 30, 100]
     LABELS_REALVALUES = [0, 85, 170, 255]
-
-if EXTRACT_PM:
-    COLUMNS = ['patient_id', 'label', 'CBF', 'CBV', 'TTP', 'TMAX', 'ground_truth', 'label_code', 'x_y',
-               'data_aug_idx', 'timeIndex', 'sliceIndex', "severity"]
 
 
 ################################################################################
@@ -239,19 +234,16 @@ def fillDatasetOverTime(relativePath, patientIndex, timeFolder):
     train_df = pd.DataFrame(columns=COLUMNS)
 
     numReplication = 1
+    numRep = 1
+    if DATA_AUGMENTATION: numRep = 6
+    numBack, numBrain, numPenumbra, numCore, numSkip = 0, 0, 0, 0, 0
+    startingX, startingY, count = 0, 0, 0
+    pixelsList, otherInforList = list(), list()
 
     sliceIndex = timeFolder.replace(SAVE_REGISTERED_FOLDER+relativePath, '').replace("/", "")
     if len(sliceIndex)==1: sliceIndex="0"+sliceIndex
 
     labelledMatrix = getLabelledAreas(patientIndex, sliceIndex)
-
-    numBack, numBrain, numPenumbra, numCore, numSkip = 0, 0, 0, 0, 0
-    startingX, startingY, count = 0, 0, 0
-    tmpListPixels, tmpListClasses, tmpListGroundTruth = list(), list(), list()
-    backgroundPixelList, backgroundGroundTruthList = list(), list()
-    pixelsList, otherInforList = list(), list()
-    numRep = 1
-    if DATA_AUGMENTATION: numRep = 6
 
     imagesDict = {}  # faster access to the images
     if not SEQUENCE_DATASET:
@@ -330,8 +322,18 @@ def fillDatasetOverTime(relativePath, patientIndex, timeFolder):
 
                 # if we are processing for the sequence dataset, save the path for the ground truth
                 if SEQUENCE_DATASET:
-                    otherInforList[data_aug_idx][str(startingX)][str(startingY)]["ground_truth"] = realLabelledWindowToAdd  #LABELED_IMAGES_FOLDER_LOCATION+IMAGE_PREFIX+patientIndex+"/"+sliceIndex+IMAGE_SUFFIX
+                    otherInforList[data_aug_idx][str(startingX)][str(startingY)]["ground_truth"] = LABELED_IMAGES_FOLDER_LOCATION+IMAGE_PREFIX+patientIndex+"/"+sliceIndex+IMAGE_SUFFIX
                     otherInforList[data_aug_idx][str(startingX)][str(startingY)]["pixels"] = timeFolder
+
+                    for dayfolder in np.sort(glob.glob(PM_FOLDER + IMAGE_PREFIX + patientIndex +"/*/")):
+                        # if the folder contains the correct number of subfolders
+                        if len(glob.glob(dayfolder+"*/"))>=7:
+                            pmlist = ["CBF", "CBV", "TTP", "TMAX"]
+
+                            for subdayfolder in glob.glob(dayfolder+"*/"):
+                                for pm in pmlist:
+                                    if pm in subdayfolder: otherInforList[data_aug_idx][str(startingX)][str(startingY)][pm] = subdayfolder+sliceIndex+".png"
+
                 else: otherInforList[data_aug_idx][str(startingX)][str(startingY)]["ground_truth"] = realLabelledWindowToAdd
 
                 otherInforList[data_aug_idx][str(startingX)][str(startingY)]["label_class"] = classToSet
@@ -364,7 +366,13 @@ def fillDatasetOverTime(relativePath, patientIndex, timeFolder):
         for x in pixelsList[d].keys():
             for y in pixelsList[d][x].keys():
 
-                if SEQUENCE_DATASET: pixels_zoom = otherInforList[d][x][y]["pixels"]
+                if SEQUENCE_DATASET:
+                    pixels_zoom = otherInforList[d][x][y]["pixels"]
+                    cbf = otherInforList[d][x][y]["CBF"]
+                    cbv = otherInforList[d][x][y]["CBV"]
+                    ttp = otherInforList[d][x][y]["TTP"]
+                    tmax = otherInforList[d][x][y]["TMAX"]
+
                 else:
                     if ORIGINAL_SHAPE: totalVol = np.empty((1,M,N))
                     else: totalVol = np.empty((M,N,1))
@@ -405,7 +413,7 @@ def fillDatasetOverTime(relativePath, patientIndex, timeFolder):
 
                 tmp_COLUMNS = list(filter(lambda col:col != 'label_code', COLUMNS))
 
-                tmp_df = pd.DataFrame(np.array([[patientIndex, label, pixels_zoom, gt, x_y, data_aug_idx, timeIndex, sliceIndex, severity]]), columns=tmp_COLUMNS)
+                tmp_df = pd.DataFrame(np.array([[patientIndex, label, pixels_zoom, cbf, cbv, ttp, tmax ,gt, x_y, data_aug_idx, timeIndex, sliceIndex, severity]]), columns=tmp_COLUMNS)
 
                 if BINARY_CLASSIFICATION: tmp_df['label_code'] = tmp_df.label.map({LABELS[0]:0, LABELS[1]:1})
                 else: tmp_df['label_code'] = tmp_df.label.map({LABELS[0]:0, LABELS[1]:1, LABELS[2]:2, LABELS[3]:3})
@@ -607,140 +615,6 @@ def fillDataset3DOneTimePoint(relativePath, patientIndex, timeFolder, subfolders
 
 
 ################################################################################
-# Function to fill the dataset with the parametric maps
-def fillDatasetPM(relativePath, patientIndex, timeFolder):
-    train_df = pd.DataFrame(columns=COLUMNS)
-
-    numRep = 1
-    numReplication = 1
-    if DATA_AUGMENTATION: numRep = 6
-    pixelsList, otherInforList = list(), list()
-    numBack, numBrain, numPenumbra, numCore, numSkip = 0, 0, 0, 0, 0
-    startingX, startingY, count = 0, 0, 0
-
-    sliceIndex = timeFolder.replace(SAVE_REGISTERED_FOLDER + relativePath, '').replace("/", "")
-    if len(sliceIndex) == 1: sliceIndex = "0" + sliceIndex
-
-    labelledMatrix = getLabelledAreas(patientIndex, sliceIndex)
-
-    imagesDict = {}  # faster access to the images
-    if not SEQUENCE_DATASET:
-        for imagename in np.sort(glob.glob(timeFolder + "*" + IMAGE_SUFFIX)):  # sort the images !
-            filename = imagename.replace(timeFolder, '')
-            # don't take the first image (the manually annotated one)
-            if "OLDPREPROC_PATIENTS/" in SAVE_REGISTERED_FOLDER and filename == "01" + IMAGE_SUFFIX: continue
-            image = cv2.imread(imagename, 0)
-            imagesDict[filename] = image
-
-    for rep in range(numRep):
-        pixelsList.append(dict())
-        otherInforList.append(dict())
-
-    while True:
-        if TILE_DIVISION==1:
-            count += 1
-            if count > 1: break
-        else:
-            if startingX>=IMAGE_WIDTH-M and startingY>=IMAGE_HEIGHT-N:
-                break  # if we reach the end of the image, break the while loop.
-
-        realLabelledWindow = getSlicingWindow(labelledMatrix, startingX, startingY, isgt=True)
-
-        # process the window; return the new labeled window and various flags
-        realLabelledWindow, classToSet, processTile, numBack, numSkip = processTheWindow(realLabelledWindow, startingX, startingY, otherInforList, numBack, numSkip)
-
-        if BINARY_CLASSIFICATION:
-            if classToSet != LABELS[0]:
-                numReplication = 6 if DATA_AUGMENTATION else 1
-                numCore += numReplication
-
-            if TILE_DIVISION == 1 and DATA_AUGMENTATION: numReplication = 6
-        else:
-            if classToSet == LABELS[1]:
-                numBrain += 1
-            elif classToSet == LABELS[2]:
-                numPenumbra += 1
-            elif classToSet == LABELS[3]:
-                numReplication = 6 if DATA_AUGMENTATION else 1
-                numCore += numReplication
-
-        if processTile:
-            for data_aug_idx in range(numReplication):  # start from 0
-                # if we are processing for the sequence dataset, save the path for the ground truth
-                for image_idx, imagename in enumerate(np.sort(glob.glob(timeFolder+"*"+IMAGE_SUFFIX))):
-                    if str(startingX) not in pixelsList[data_aug_idx].keys(): pixelsList[data_aug_idx][str(startingX)] = dict()
-                    if str(startingX) not in otherInforList[data_aug_idx].keys(): otherInforList[data_aug_idx][str(startingX)] = dict()
-                    if str(startingY) not in pixelsList[data_aug_idx][str(startingX)].keys(): pixelsList[data_aug_idx][str(startingX)][str(startingY)] = dict()
-                    if str(startingY) not in otherInforList[data_aug_idx][str(startingX)].keys(): otherInforList[data_aug_idx][str(startingX)][str(startingY)] = dict()
-
-                if SEQUENCE_DATASET:
-                    otherInforList[data_aug_idx][str(startingX)][str(startingY)]["ground_truth"] = realLabelledWindow  # LABELED_IMAGES_FOLDER_LOCATION + IMAGE_PREFIX + patientIndex + "/" + sliceIndex + IMAGE_SUFFIX
-
-                    for dayfolder in np.sort(glob.glob(PM_FOLDER + IMAGE_PREFIX + patientIndex +"/*/")):
-                        # if the folder contains the correct number of subfolders
-                        if len(glob.glob(dayfolder+"*/"))>=7:
-                            pmlist = ["CBF", "CBV", "TTP", "TMAX"]
-
-                            for subdayfolder in glob.glob(dayfolder+"*/"):
-                                for pm in pmlist:
-                                    if pm in subdayfolder: otherInforList[data_aug_idx][str(startingX)][str(startingY)][pm] = subdayfolder
-
-                otherInforList[data_aug_idx][str(startingX)][str(startingY)]["label_class"] = classToSet
-                otherInforList[data_aug_idx][str(startingX)][str(startingY)]["x_y"] = (startingX, startingY)
-                otherInforList[data_aug_idx][str(startingX)][str(startingY)]["data_aug_idx"] = data_aug_idx
-                otherInforList[data_aug_idx][str(startingX)][str(startingY)]["timeIndex"] = imagename.replace(timeFolder,'').replace(IMAGE_SUFFIX, "")
-                otherInforList[data_aug_idx][str(startingX)][str(startingY)]["sliceIndex"] = sliceIndex
-                otherInforList[data_aug_idx][str(startingX)][str(startingY)]["severity"] = patientIndex.split("_")[0]
-
-        if startingY<IMAGE_HEIGHT-N: startingY += SLICING_PIXELS
-        else:
-            if startingX<IMAGE_WIDTH-M:
-                startingY = 0
-                startingX += SLICING_PIXELS
-
-    if VERBOSE:
-        print("+++++++++++++++++++++++++++++++++++++++++++++++++++++")
-        print("\t\t Background: {0}".format(numBack))
-        if not BINARY_CLASSIFICATION:
-            print("\t\t Brain: {0}".format(numBrain))
-            print("\t\t Penumbra: {0}".format(numPenumbra))
-        print("\t\t Core: {0}".format(numCore))
-        print("\t\t SKIP: {0}".format(numSkip))
-        print("+++++++++++++++++++++++++++++++++++++++++++++++++++++")
-
-    for d in range(0, len(pixelsList)):
-        for x in pixelsList[d].keys():
-            for y in pixelsList[d][x].keys():
-                cbf, cbv, ttp, tmax = "", "", "", ""
-
-                if SEQUENCE_DATASET:
-                    cbf = otherInforList[d][x][y]["CBF"]
-                    cbv = otherInforList[d][x][y]["CBV"]
-                    ttp = otherInforList[d][x][y]["TTP"]
-                    tmax = otherInforList[d][x][y]["TMAX"]
-
-                label = otherInforList[d][x][y]["label_class"]
-                gt = otherInforList[d][x][y]["ground_truth"]
-                x_y = otherInforList[d][x][y]["x_y"]
-                data_aug_idx = otherInforList[d][x][y]["data_aug_idx"]
-                timeIndex = otherInforList[d][x][y]["timeIndex"]
-                severity = otherInforList[d][x][y]["severity"]
-
-                tmp_COLUMNS = list(filter(lambda col:col != 'label_code', COLUMNS))
-
-                tmp_df = pd.DataFrame(np.array([
-                    [patientIndex, label, cbf, cbv, ttp, tmax, gt, x_y, data_aug_idx, timeIndex, sliceIndex, severity]
-                ]), columns=tmp_COLUMNS)
-
-                if BINARY_CLASSIFICATION: tmp_df['label_code'] = tmp_df.label.map({LABELS[0]:0, LABELS[1]:1})
-                else: tmp_df['label_code'] = tmp_df.label.map({LABELS[0]:0, LABELS[1]:1, LABELS[2]:2, LABELS[3]:3})
-
-                train_df = train_df.append(tmp_df, ignore_index=True, sort=True)
-
-    return train_df
-
-
-################################################################################
 # Function that initialize the dataset: for each subfolder of the patient (section of the brain),
 # it call the `fillDataset` function to get the pixels, save into the dataset and analyze them later.
 def initializeDataset():
@@ -748,7 +622,6 @@ def initializeDataset():
     suffix_filename = "_"+str(SLICING_PIXELS)+"_"+str(M)+"x"+str(N)
     if THREE_D: suffix_filename += "_3D"
     elif FOUR_D: suffix_filename += "_4D"  # TODO: never used...
-    elif EXTRACT_PM: suffix_filename += "_PM"
 
     if ONE_TIME_POINT>0:
         timeIndex = str(ONE_TIME_POINT)
@@ -769,7 +642,7 @@ def initializeDataset():
 
         subfolders = np.sort(glob.glob(patientFolder+"*/"))
 
-        if numFold<40: continue
+        if numFold<100: continue
 
         print("[INFO] - Analyzing {0}/{1}; patient folder: {2}...".format(numFold+1, len(patientFolders), relativePath))
         # if the manual annotation folder exists
@@ -784,7 +657,6 @@ def initializeDataset():
                     if ONE_TIME_POINT>0: tmp_df = fillDataset3DOneTimePoint(relativePath, patientIndex, timeFolder, subfolders)
                     else: tmp_df = fillDataset3D(relativePath, patientIndex, timeFolder, subfolders)
                 elif FOUR_D: tmp_df = fillDataset4D(relativePath, patientIndex, timeFolder, subfolders)
-                elif EXTRACT_PM: tmp_df = fillDatasetPM(relativePath, patientIndex, timeFolder)
                 else:  # insert the data inside the dataset dictionary
                     tmp_df = fillDatasetOverTime(relativePath, patientIndex, timeFolder)
 
@@ -792,7 +664,7 @@ def initializeDataset():
 
                 print("\t Processed {0}/{1} subfolders in {2}s.".format(count+1, len(subfolders), round(time.time()-start, 3)))
                 if VERBOSE:
-                    if not EXTRACT_PM: print("Pixel array shape: ", train_df.iloc[0].pixels.shape)
+                    print("Pixel array shape: ", train_df.iloc[0].pixels.shape)
                     print("Train shape: ", train_df.shape)
 
             ################################################################################

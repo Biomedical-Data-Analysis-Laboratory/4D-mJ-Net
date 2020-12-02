@@ -136,7 +136,7 @@ def getSlicingWindow(img, startX, startY, isgt=False, removeColorBar=False):
         # if the tile is smaller than the entire image
         elif startY+N>=constants.colorbar_coord[1]: img[:,constants.colorbar_coord[1]-startY:] = 0
 
-    return sliceWindow
+    return sliceWindow.astype(np.float32, copy=False)
 
 
 ################################################################################
@@ -241,7 +241,7 @@ def getStringFromIndex(index):
 def getSuffix():
     return "_"+str(constants.SLICING_PIXELS)+\
            "_"+str(constants.getM())+"x"+str(constants.getN())+\
-           constants.get3DFlag()+constants.getONETIMEPOINT()+constants.getPMflag()
+           constants.get3DFlag()+constants.getONETIMEPOINT()
 
 
 ################################################################################

@@ -20,10 +20,10 @@ SUFFIX_IMG = ".tiff"  # ".png"
 colorbar_coord = (129, 435)
 
 suffix_partial_weights = "__"
-threeD_flag, ONE_TIME_POINT, pm_flag = "", "", ""
+threeD_flag, ONE_TIME_POINT = "", ""
 
 list_PMS = []
-dataFrameColumns = ['patient_id', 'label', 'pixels', 'ground_truth', 'x_y', 'data_aug_idx',
+dataFrameColumns = ['patient_id', 'label', 'pixels', 'CBF', 'CBV', 'TTP', 'TMAX', 'ground_truth', 'x_y', 'data_aug_idx',
                     'timeIndex', 'sliceIndex', 'severity', 'label_code']
 
 
@@ -62,10 +62,6 @@ def getPrefixImages():
 
 def getUSE_PM():
     return USE_PM
-
-
-def getPMflag():
-    return pm_flag
 
 
 def getList_PMS():
@@ -147,10 +143,6 @@ def setPrefixImagesSUS2020_v2():
 
 
 def setUSE_PM(pm):
-    global USE_PM, dataFrameColumns, pm_flag, list_PMS
+    global USE_PM, list_PMS
     USE_PM = pm
-    if USE_PM:
-        pm_flag = "_PM"
-        list_PMS = ["CBF", "CBV", "TTP", "TMAX"]
-        dataFrameColumns = ['patient_id', 'label', 'CBF', 'CBV', 'TTP', 'TMAX', 'ground_truth', 'x_y',
-                            'data_aug_idx', 'timeIndex', 'sliceIndex', 'severity', 'label_code']
+    if USE_PM: list_PMS = ["CBF", "CBV", "TTP", "TMAX"]

@@ -12,7 +12,7 @@
   "OVERRIDE_MODELS_ID_PATH": "",
   "init": {
     "TF_CPP_MIN_LOG_LEVEL": "3",
-    "per_process_gpu_memory_fraction": 1,
+    "per_process_gpu_memory_fraction": 0.5,
     "allow_growth": 1,
     "MULTIPROCESSING": 1
   },
@@ -31,11 +31,12 @@
   "models": [
      {
       "name": "mJNet_PM",
-      "loss": "sparse_categorical_crossentropy",
-      "metrics": ["sparse_categorical_crossentropy"],
-      "epochs": 3,
-      "batch_size": 1,
-      "steps_per_epoch_ratio": 1,
+       "loss": "squared_dice_coef_loss",
+      "metrics": ["squared_dice_coef","dice_coef","tversky_coef","tanimoto","focal_loss","accuracy","mean_squared_error"],
+      "epochs": 50,
+      "batch_size": 32,
+      "steps_per_epoch_ratio": 0.8,
+      "validation_steps_ratio": 0.8,
       "classes_to_evaluate": ["penumbra","core","penumbracore"],
       "statistics": ["sensitivity", "specificity", "precision", "f1", "accuracy", "jaccard_index"],
       "val":{
@@ -46,8 +47,12 @@
       },
       "test_steps":1,
       "optimizer": {
-        "name": "rmsprop",
-        "learning_rate": 0.001
+        "name": "Adam",
+        "lr": 0.00001,
+        "beta_1": 0.9,
+        "beta_2":0.999,
+        "epsilon":"None",
+        "decay":0.0
       },
       "params":{
         "max_pool":{
@@ -65,20 +70,24 @@
       "callbacks":{
         "ModelCheckpoint": {
           "monitor": "val_loss",
-          "mode": "max",
+          "mode": "min",
           "period": 1
         },
         "EarlyStopping": {
           "monitor": "val_loss",
           "min_delta": 0.00001,
-          "patience": 12
+          "patience": 15
         },
         "LearningRateScheduler": {
-          "decay_step": 5,
+          "decay_step": 10,
           "decay_rate": 0.01
         },
         "CollectBatchStats": {
-          "acc":"loss"
+          "acc":"squared_dice_coef"
+        },
+        "CSVLogger": {
+          "filename": "logger.csv",
+          "separator": ","
         },
         "TensorBoard": {
           "update_freq":"batch",

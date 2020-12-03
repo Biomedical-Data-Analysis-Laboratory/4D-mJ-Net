@@ -1,10 +1,10 @@
 {
-  "EXPERIMENT": 23,
+  "EXPERIMENT": 28.1,
   "USE_SEQUENCE_TRAIN": 1,
   "root_path": "/home/stud/lucat/PhD_Project/Stroke_segmentation/",
   "dataset_path": "/local/home/lucat/DATASET/SUS2020_TIFF/",
   "PATIENTS_TO_TRAINVAL": ["ALL"],
-    "PATIENTS_TO_TEST": ["01_001","01_007","01_013","01_019","01_025","01_031",
+  "PATIENTS_TO_TEST": ["01_001","01_007","01_013","01_019","01_025","01_031",
     "01_037","01_044","01_049","01_053","01_061","01_067","01_074",
     "02_001","02_007","02_013","02_019","02_025","02_031","02_036",
     "02_043","02_050","02_055","02_062","03_003","03_010","03_014",
@@ -30,8 +30,8 @@
   },
   "models": [
      {
-      "name": "mJNet_v2",
-      "loss": "squared_dice_coef_loss",
+      "name": "mJNet",
+      "loss": "dice_coef_loss",
       "metrics": ["squared_dice_coef","dice_coef","tversky_coef","tanimoto","focal_loss","accuracy","mean_squared_error"],
       "epochs": 50,
       "batch_size": 16,
@@ -63,35 +63,37 @@
         "dropout":{
           "long.1":0.3,
           "1":0,
-          "2":0,
-          "3":0,
-          "3.1":0,
-          "3.2":0,
-          "3.3":0.3,
-          "3.4":0.3
+          "2":0.3,
+          "3":0.3,
+          "4":0,
+          "5":0
         }
       },
       "callbacks":{
         "ModelCheckpoint": {
           "monitor": "val_loss",
-          "mode": "max",
+          "mode": "min",
           "period": 1
         },
         "EarlyStopping": {
           "monitor": "val_loss",
           "min_delta": 0.00001,
-          "patience": 12
+          "patience": 15
         },
         "LearningRateScheduler": {
           "decay_step": 25,
           "decay_rate": 0.01
         },
+        "CollectBatchStats": {
+          "acc":"squared_dice_coef"
+        },
         "CSVLogger": {
           "filename": "logger.csv",
           "separator": ","
         },
-        "CollectBatchStats": {
-          "acc":"squared_dice_coef"
+        "TensorBoard": {
+          "update_freq":"batch",
+          "histogram_freq": 5
         }
       },
       "to_categ": 1,

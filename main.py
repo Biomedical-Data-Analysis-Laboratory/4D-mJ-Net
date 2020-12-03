@@ -105,8 +105,9 @@ def main():
         stats = nn.predictAndSaveImages(listOfPatientsToTest, isAlreadySaved)
         if nn.save_statistics: nn.saveStats(stats, "PATIENTS_TO_TEST")
 
-        stats = nn.predictAndSaveImages(listOfPatientsToTrainVal, isAlreadySaved)
-        if nn.save_statistics: nn.saveStats(stats, "PATIENTS_TO_TRAINVAL")
+        # TODO: Should I do that ?
+        # stats = nn.predictAndSaveImages(listOfPatientsToTrainVal, isAlreadySaved)
+        # if nn.save_statistics: nn.saveStats(stats, "PATIENTS_TO_TRAINVAL")
 
 
 ################################################################################

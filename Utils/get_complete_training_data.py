@@ -339,7 +339,7 @@ def fillDatasetOverTime(relativePath, patientIndex, timeFolder):
         # check for M == WIDTH & N == HEIGHT
         if M == IMAGE_WIDTH and N == IMAGE_HEIGHT: break
         # going to the next slicingWindow
-        if startingY<=IMAGE_HEIGHT-N: startingY += SLICING_PIXELS
+        if startingY<IMAGE_HEIGHT-N: startingY += SLICING_PIXELS
         else:
             if startingX<IMAGE_WIDTH-M:
                 startingY = 0

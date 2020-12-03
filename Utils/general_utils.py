@@ -128,15 +128,15 @@ def getSlicingWindow(img, startX, startY, isgt=False, removeColorBar=False):
                 sliceWindow>=np.rint(pxval-(256/6)), sliceWindow<=np.rint(pxval+(256/6))
             ), pxval, sliceWindow)
 
-        sliceWindow = np.cast["float32"](sliceWindow)  # cast the window into a float
-
     # Remove the colorbar! starting coordinate: (129,435)
     if removeColorBar:
         if M==constants.IMAGE_WIDTH and N==constants.IMAGE_HEIGHT: sliceWindow[:,constants.colorbar_coord[1]:] = 0
         # if the tile is smaller than the entire image
         elif startY+N>=constants.colorbar_coord[1]: img[:,constants.colorbar_coord[1]-startY:] = 0
 
-    return sliceWindow.astype(np.float32, copy=False)
+    sliceWindow = np.cast["float32"](sliceWindow)  # cast the window into a float
+
+    return sliceWindow
 
 
 ################################################################################
@@ -263,8 +263,7 @@ def printSeparation(what, howmuch):
 # Convert the experiment number to a string of 3 letters
 def convertExperimentNumberToString(expnum):
     exp = str(expnum)
-    while len(exp)<3: exp = "0"+exp
-
+    while len(exp.split(".")[0])<3: exp = "0"+exp
     return exp
 
 

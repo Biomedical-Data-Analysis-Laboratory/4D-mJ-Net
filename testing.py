@@ -276,7 +276,6 @@ def saveImageAndStats(nn, stats, relativePatientFolder, idx, imagePredicted, rel
         cv2.imwrite(nn.saveImagesFolder+relativePatientFolder+idx+".png", imagePredicted)
         # create and save the HEATMAP
         heatmap_img = cv2.normalize(imagePredicted, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8U)
-        cv2.imwrite(nn.saveImagesFolder + relativePatientFolderHeatMap + idx + "_a.png", heatmap_img)
         heatmap_img = cv2.applyColorMap(~heatmap_img, cv2.COLORMAP_JET)
         cv2.imwrite(nn.saveImagesFolder+relativePatientFolderHeatMap+idx+"_heatmap.png", heatmap_img)
 
@@ -349,7 +348,7 @@ def generate2DImage(nn, pixels, startingXY, imagePredicted, checkImageProcessed,
     # slicingWindowPredicted contain only the prediction for the last step
     slicingWindowPredicted = predictFromModel(nn, pixels)[nn.test_steps-1]
 
-    if nn.to_categ: slicingWindowPredicted = K.eval((K.argmax(slicingWindowPredicted)*255)/len(constants.LABELS)-1)
+    if nn.to_categ: slicingWindowPredicted = K.eval((K.argmax(slicingWindowPredicted)*255)/(constants.N_CLASSES-1))
     else: slicingWindowPredicted *= 255
 
     if nn.save_statistics and nn.labeledImagesFolder!="":  # for statistics purposes
@@ -447,7 +446,7 @@ def generateImageFromParametricMaps(nn, test_df, checkImageProcessed, YTRUEToEva
             # slicingWindowPredicted contain only the prediction for the last step
             slicingWindowPred = predictFromModel(nn, X)[nn.test_steps - 1]
 
-            if nn.to_categ: slicingWindowPred = K.eval((K.argmax(slicingWindowPred)*255)/(len(constants.LABELS)-1))
+            if nn.to_categ: slicingWindowPred = K.eval((K.argmax(slicingWindowPred)*255)/(constants.N_CLASSES-1))
             else: slicingWindowPred *= 255
 
             if nn.save_statistics and nn.labeledImagesFolder != "":  # for statistics purposes

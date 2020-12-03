@@ -223,7 +223,7 @@ def getSingleLabelFromIndex(singledata):
 ################################################################################
 # Function that convert the data into a categorical array based on the number of classes
 def getSingleLabelFromIndexCateg(singledata):
-    return np.array(utils.to_categorical(np.rint((singledata/255)*constants.N_CLASSES-1), num_classes=constants.N_CLASSES))
+    return np.array(utils.to_categorical(np.rint((singledata/255)*(constants.N_CLASSES-1)), num_classes=constants.N_CLASSES))
 
 
 ################################################################################

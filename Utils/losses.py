@@ -29,25 +29,9 @@ def tversky_loss(y_true, y_pred):
 ################################################################################
 # Focal Tversky loss: a generalisation of the tversky loss.
 # From this paper: https://arxiv.org/abs/1810.07842
-# TODO: check
-def focal_tversky_loss(y_true, y_pred, gamma=0.75):
+def focal_tversky_loss(y_true, y_pred, gamma=1.33):
     tv = metrics.tversky_coef(y_true, y_pred)
     return K.pow((1 - tv), gamma)
-
-
-################################################################################
-# TODO: implement
-def generalized_dice_loss(y_true, y_pred):
-    return 1-metrics.generalized_dice_coeff(y_true, y_pred)
-
-
-################################################################################
-# TODO: implement
-def dice_coef_binary_loss(y_true, y_pred):
-    """
-    Dice loss to minimize. Pass to model as loss during compile statement
-    """
-    return 1-metrics.dice_coef_binary(y_true, y_pred)
 
 
 ################################################################################
@@ -74,3 +58,9 @@ def focal_loss(y_true, y_pred):
 # Tanimoto loss. https://arxiv.org/pdf/1904.00592.pdf
 def tanimoto_loss(y_true, y_pred):
     return 1-metrics.tanimoto(y_true, y_pred)
+
+
+################################################################################
+# Tanimoto loss with its complement. https://arxiv.org/pdf/1904.00592.pdf
+def tanimoto_with_dual_loss(y_true, y_pred):
+    return 1-((metrics.tanimoto(y_true, y_pred)+metrics.tanimoto(1-y_true, 1-y_pred))/2)

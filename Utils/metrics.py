@@ -152,13 +152,13 @@ def tanimoto(y_true, y_pred):
 # Function that calculate the metrics for the SENSITIVITY
 # ALSO CALLED "RECALL"!
 def sensitivity(tn, fn, fp, tp):
-    return (tp+1e-07) / (tp+fn+1e-07)
+    return tp/(tp+fn+1e-07)
 
 
 ################################################################################
 # Function that calculate the metrics for the SPECIFICITY
 def specificity(tn, fn, fp, tp):
-    return (tn+1e-07) / (tn+fp+1e-07)
+    return tn/(tn+fp+1e-07)
 
 
 ################################################################################
@@ -171,8 +171,7 @@ def precision(tn, fn, fp, tp):
     Computes the precision, a metric for multi-label classification of
     how many selected items are relevant.
     """
-    precision = (tp+1e-07)/(tp+fp+1e-07)
-    return precision
+    return tp/(tp+fp+1e-07)
 
 
 ################################################################################
@@ -180,13 +179,13 @@ def precision(tn, fn, fp, tp):
 def f1(tn, fn, fp, tp):
     prec = precision(tn, fn, fp, tp)
     recall = sensitivity(tn, fn, fp, tp)
-    return 2*(((prec*recall)+1e-07)/(prec+recall+1e-07))
+    return 2*((prec*recall)/(prec+recall+1e-07))
 
 
 ################################################################################
 # Function that calculate the metrics for the accuracy
 def accuracy(tn, fn, fp, tp):
-    return (tp+tn+1e-07)/(tn+fn+tp+fn+1e-07)
+    return (tp+tn)/(tn+fn+tp+fn+1e-07)
 
 
 ################################################################################
@@ -201,7 +200,7 @@ def mAP(y_true, y_pred, use_background_in_statistics, label):
     if label==4: label=None
     y_true, y_pred = thresholding(np.array(y_true), np.array(y_pred), use_background_in_statistics, label)
 
-    if label==None:
+    if label is None:
         y_true_p = np.array(y_true==2, dtype="int32")
         y_true_c = np.array(y_true==3, dtype="int32")
         y_true = y_true_p+y_true_c

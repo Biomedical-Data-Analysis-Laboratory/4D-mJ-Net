@@ -1,14 +1,15 @@
 {
-  "EXPERIMENT": 98,
+  "EXPERIMENT": 32.3,
   "USE_SEQUENCE_TRAIN": 1,
   "root_path": "/home/stud/lucat/PhD_Project/Stroke_segmentation/",
   "dataset_path": "/local/home/lucat/DATASET/SUS2020_TIFF/",
   "PATIENTS_TO_TRAINVAL": ["ALL"],
-  "PATIENTS_TO_TEST": ["01_001","01_007","01_013","01_019","01_025","01_031",
+    "PATIENTS_TO_TEST": ["01_001","01_007","01_013","01_019","01_025","01_031",
     "01_037","01_044","01_049","01_053","01_061","01_067","01_074",
     "02_001","02_007","02_013","02_019","02_025","02_031","02_036",
     "02_043","02_050","02_055","02_062","03_003","03_010","03_014",
     "01_057","01_059","01_066","01_068","01_071","01_073"],
+
   "OVERRIDE_MODELS_ID_PATH": "",
   "init": {
     "TF_CPP_MIN_LOG_LEVEL": "3",
@@ -17,8 +18,8 @@
     "MULTIPROCESSING": 1
   },
   "relative_paths": {
-    "labeled_images": "PATIENTS/SUS2020_TIFF/FINALIZE_PM_TIFF/",
-    "patients": "PATIENTS/SUS2020_TIFF/Parametric_Maps/",
+    "labeled_images": "/home/prosjekt/PerfusionCT/StrokeSUS/GT_TIFF/",
+    "patients": "PATIENTS/SUS2020_TIFF/FINAL_TIFF/",
     "save": {
       "model": "MODELS/",
       "partial_model": "TMP_MODELS/",
@@ -30,12 +31,14 @@
   },
   "models": [
      {
-      "name": "mJNet_PM",
-      "loss": "mod_dice_coef_loss",
-      "metrics": ["mod_dice_coef","tversky","dice_coef"],
-      "epochs": 50,
-      "batch_size": 4,
-      "steps_per_epoch_ratio": 0.75,
+      "name": "mJNet_v2",
+      "loss": "focal_tversky_loss",
+      "metrics": ["squared_dice_coef","dice_coef","tversky_coef","sdc_rest","sdc_p",
+        "sdc_c","tversky_rest","tversky_p","tversky_c","tanimoto","focal_loss"],
+      "epochs": 1000,
+      "batch_size": 2,
+      "steps_per_epoch_ratio": 0.5,
+      "validation_steps_ratio": 1,
       "classes_to_evaluate": ["penumbra","core","penumbracore"],
       "statistics": ["sensitivity", "specificity", "precision", "f1", "accuracy", "jaccard_index"],
       "val":{
@@ -46,11 +49,8 @@
       },
       "test_steps":1,
       "optimizer": {
-        "name": "SGD",
-        "learning_rate": 0.01,
-        "decay": 1e-6,
-        "momentum":0.9,
-        "nesterov":"True"
+        "name": "Adadelta",
+        "learning_rate": 0.001
       },
       "params":{
         "max_pool":{
@@ -59,36 +59,36 @@
           "long.3":2
         },
         "dropout":{
-          "cbf_1":0.2,
-          "cbv_1":0.2,
-          "ttp_1":0.2,
-          "tmax_1":0.2
+          "long.1":0.3,
+          "1":0,
+          "2":0,
+          "3":0,
+          "3.1":0,
+          "3.2":0,
+          "3.3":0.3,
+          "3.4":0.3
         }
       },
       "callbacks":{
         "ModelCheckpoint": {
-          "monitor": "val_mod_dice_coef",
-          "mode": "max",
+          "monitor": "val_loss",
+          "mode": "min",
           "period": 1
         },
         "EarlyStopping": {
           "monitor": "val_loss",
-          "min_delta": 0.00001,
-          "patience": 12
+          "min_delta": 0.000001,
+          "patience": 25
         },
-        "LearningRateScheduler": {
-          "decay_step": 5,
-          "decay_rate": 0.01
+        "CSVLogger": {
+          "filename": "logger.csv",
+          "separator": ","
         },
         "CollectBatchStats": {
-          "acc":"mod_dice_coef"
-        },
-        "TensorBoard": {
-          "update_freq":"batch",
-          "histogram_freq": 5
+          "acc":"tversky_coef"
         }
       },
-      "to_categ": 0,
+      "to_categ": 1,
       "save_images": 1,
       "save_statistics": 0,
       "use_background_in_statistics": 0,

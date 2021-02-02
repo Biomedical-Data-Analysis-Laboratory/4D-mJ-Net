@@ -1,5 +1,5 @@
 {
-  "EXPERIMENT": 28.4,
+  "EXPERIMENT": 28.1,
   "USE_SEQUENCE_TRAIN": 1,
   "root_path": "/home/stud/lucat/PhD_Project/Stroke_segmentation/",
   "dataset_path": "/local/home/lucat/DATASET/SUS2020_TIFF/",
@@ -17,7 +17,7 @@
     "MULTIPROCESSING": 1
   },
   "relative_paths": {
-    "labeled_images": "PATIENTS/SUS2020_TIFF/FINALIZE_PM_TIFF/",
+    "labeled_images": "/home/prosjekt/PerfusionCT/StrokeSUS/GT_TIFF/",
     "patients": "PATIENTS/SUS2020_TIFF/FINAL_TIFF/",
     "save": {
       "model": "MODELS/",
@@ -31,7 +31,7 @@
   "models": [
      {
       "name": "mJNet",
-      "loss": "tanimoto_with_dual_loss",
+      "loss": "dice_coef_loss",
       "metrics": ["squared_dice_coef","dice_coef","tversky_coef","tanimoto","focal_loss","accuracy","mean_squared_error"],
       "epochs": 50,
       "batch_size": 16,
@@ -78,11 +78,14 @@
         "EarlyStopping": {
           "monitor": "val_loss",
           "min_delta": 0.00001,
-          "patience": 12
+          "patience": 15
         },
         "LearningRateScheduler": {
           "decay_step": 25,
           "decay_rate": 0.01
+        },
+        "CollectBatchStats": {
+          "acc":"squared_dice_coef"
         },
         "CSVLogger": {
           "filename": "logger.csv",

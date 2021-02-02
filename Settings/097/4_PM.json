@@ -1,8 +1,8 @@
 {
-  "EXPERIMENT": 28.1,
+  "EXPERIMENT": 97.4,
   "USE_SEQUENCE_TRAIN": 1,
   "root_path": "/home/stud/lucat/PhD_Project/Stroke_segmentation/",
-  "dataset_path": "/local/home/lucat/DATASET/SUS2020_TIFF/",
+  "dataset_path": "/local/home/lucat/DATASET/SUS2020_TIFF_HU/",
   "PATIENTS_TO_TRAINVAL": ["ALL"],
   "PATIENTS_TO_TEST": ["01_001","01_007","01_013","01_019","01_025","01_031",
     "01_037","01_044","01_049","01_053","01_061","01_067","01_074",
@@ -12,13 +12,13 @@
   "OVERRIDE_MODELS_ID_PATH": "",
   "init": {
     "TF_CPP_MIN_LOG_LEVEL": "3",
-    "per_process_gpu_memory_fraction": 0.5,
+    "per_process_gpu_memory_fraction": 0.33,
     "allow_growth": 1,
     "MULTIPROCESSING": 1
   },
   "relative_paths": {
-    "labeled_images": "PATIENTS/SUS2020_TIFF/FINALIZE_PM_TIFF/",
-    "patients": "PATIENTS/SUS2020_TIFF/FINAL_TIFF/",
+    "labeled_images": "/home/prosjekt/PerfusionCT/StrokeSUS/GT_TIFF/",
+    "patients": "/home/prosjekt/PerfusionCT/StrokeSUS/Parametric_Maps/",
     "save": {
       "model": "MODELS/",
       "partial_model": "TMP_MODELS/",
@@ -30,13 +30,13 @@
   },
   "models": [
      {
-      "name": "mJNet",
-      "loss": "dice_coef_loss",
-      "metrics": ["squared_dice_coef","dice_coef","tversky_coef","tanimoto","focal_loss","accuracy","mean_squared_error"],
-      "epochs": 50,
-      "batch_size": 16,
-      "steps_per_epoch_ratio": 0.6,
-      "validation_steps_ratio": 0.5,
+      "name": "mJNet_PM",
+       "loss": "tanimoto_with_dual_loss",
+      "metrics": ["squared_dice_coef","dice_coef","tversky_coef","sdc_rest","sdc_p","sdc_c","tanimoto","focal_loss"],
+      "epochs": 1000,
+      "batch_size": 2,
+      "steps_per_epoch_ratio": 1,
+      "validation_steps_ratio": 1,
       "classes_to_evaluate": ["penumbra","core","penumbracore"],
       "statistics": ["sensitivity", "specificity", "precision", "f1", "accuracy", "jaccard_index"],
       "val":{
@@ -55,18 +55,12 @@
         "decay":0.0
       },
       "params":{
-        "max_pool":{
-          "long.1":5,
-          "long.2":3,
-          "long.3":2
-        },
+        "trainable": 0,
         "dropout":{
-          "long.1":0.3,
-          "1":0,
-          "2":0.3,
-          "3":0.3,
-          "4":0,
-          "5":0
+          "cbf.1":0.25,
+          "cbv.1":0.25,
+          "ttp.1":0.25,
+          "tmax.1":0.25
         }
       },
       "callbacks":{
@@ -78,22 +72,14 @@
         "EarlyStopping": {
           "monitor": "val_loss",
           "min_delta": 0.00001,
-          "patience": 15
-        },
-        "LearningRateScheduler": {
-          "decay_step": 25,
-          "decay_rate": 0.01
+          "patience": 25
         },
         "CollectBatchStats": {
-          "acc":"squared_dice_coef"
+          "acc":"tanimoto"
         },
         "CSVLogger": {
           "filename": "logger.csv",
           "separator": ","
-        },
-        "TensorBoard": {
-          "update_freq":"batch",
-          "histogram_freq": 5
         }
       },
       "to_categ": 1,

@@ -1,10 +1,14 @@
 {
-  "EXPERIMENT": 22,
+  "EXPERIMENT": 93.337,
   "USE_SEQUENCE_TRAIN": 1,
   "root_path": "/home/stud/lucat/PhD_Project/Stroke_segmentation/",
-  "dataset_path": "/local/home/lucat/DATASET/SUS2020_TIFF/",
+  "dataset_path": "/local/home/lucat/DATASET/SUS2020_TIFF_HU/",
   "PATIENTS_TO_TRAINVAL": ["ALL"],
-  "PATIENTS_TO_TEST": ["01_010","01_025","01_037","01_057","01_061","01_066","01_077","02_001","02_004","02_009","02_016","02_020","02_027","03_003","03_010","03_014"],
+  "PATIENTS_TO_TEST": ["01_001","01_007","01_013","01_019","01_025","01_031",
+    "01_037","01_044","01_049","01_053","01_061","01_067","01_074",
+    "02_001","02_007","02_013","02_019","02_025","02_031","02_036",
+    "02_043","02_050","02_055","02_062","03_003","03_010","03_014",
+    "01_057","01_059","01_066","01_068","01_071","01_073"],
   "OVERRIDE_MODELS_ID_PATH": "",
   "init": {
     "TF_CPP_MIN_LOG_LEVEL": "3",
@@ -14,7 +18,7 @@
   },
   "relative_paths": {
     "labeled_images": "/home/prosjekt/PerfusionCT/StrokeSUS/GT_TIFF/",
-    "patients": "PATIENTS/SUS2020_TIFF/FINAL_TIFF/",
+    "patients": "/home/prosjekt/PerfusionCT/StrokeSUS/Parametric_Maps/",
     "save": {
       "model": "MODELS/",
       "partial_model": "TMP_MODELS/",
@@ -26,68 +30,62 @@
   },
   "models": [
      {
-      "name": "mJNet",
-      "loss": "mod_dice_coef_loss",
-      "metrics": ["mod_dice_coef", "jaccard_distance", "dice_coef"],
-      "epochs": 15,
-      "batch_size": 32,
-      "steps_per_epoch_ratio": 0.15,
+      "name": "mJNet_PM_NOBatch",
+      "loss": "focal_tversky_loss",
+      "focal_tversky_loss":{
+        "gamma": 3
+      },
+      "metrics": ["squared_dice_coef","dice_coef","tanimoto","tversky_coef","sdc_rest","sdc_p","sdc_c"],
+      "epochs": 1000,
+      "batch_size": 2,
+      "steps_per_epoch_ratio": 1,
+      "validation_steps_ratio": 1,
       "classes_to_evaluate": ["penumbra","core","penumbracore"],
       "statistics": ["sensitivity", "specificity", "precision", "f1", "accuracy", "jaccard_index"],
       "val":{
-        "validation_perc": 5,
-        "number_patients_for_validation": 16,
+        "validation_perc": 15,
+        "number_patients_for_validation": 15,
         "number_patients_for_testing": 0,
         "random_validation_selection": 0
       },
       "test_steps":1,
       "optimizer": {
         "name": "Adam",
-        "lr": 0.001,
+        "lr": 0.00001,
         "beta_1": 0.9,
         "beta_2":0.999,
         "epsilon":"None",
         "decay":0.0
       },
       "params":{
-        "max_pool":{
-          "long.1":5,
-          "long.2":3,
-          "long.3":2
-        },
+        "trainable": 1,
         "dropout":{
-          "long.1":0.3,
-          "1":0,
-          "2":0.3,
-          "3":0.3,
-          "4":0,
-          "5":0
+          "cbf.1":0.25,
+          "cbv.1":0.25,
+          "ttp.1":0.25,
+          "tmax.1":0.25
         }
       },
       "callbacks":{
         "ModelCheckpoint": {
-          "monitor": "val_mod_dice_coef",
-          "mode": "max",
-          "period": 1
+          "monitor": "val_loss",
+          "mode": "min",
+          "period": 5
         },
         "EarlyStopping": {
           "monitor": "val_loss",
           "min_delta": 0.00001,
-          "patience": 12
-        },
-        "LearningRateScheduler": {
-          "decay_step": 5,
-          "decay_rate": 0.05
+          "patience": 25
         },
         "CollectBatchStats": {
-          "acc":"mod_dice_coef"
+          "acc":"tversky_coef"
         },
-        "TensorBoard": {
-          "update_freq":"batch",
-          "histogram_freq": 5
+        "CSVLogger": {
+          "filename": "logger.csv",
+          "separator": ","
         }
       },
-      "to_categ":0,
+      "to_categ": 1,
       "save_images": 1,
       "save_statistics": 0,
       "use_background_in_statistics": 0,

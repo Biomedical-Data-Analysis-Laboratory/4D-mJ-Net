@@ -157,5 +157,5 @@ def TerminateOnNaN():
 
 ################################################################################
 # Callback that streams epoch results to a CSV file.
-def CSVLogger(filename, separator):
-    return callbacks.CSVLogger(filename, separator=separator, append=True)
+def CSVLogger(textFolderPath, filename, separator):
+    return callbacks.CSVLogger(textFolderPath+general_utils.getSuffix()+filename, separator=separator, append=True)

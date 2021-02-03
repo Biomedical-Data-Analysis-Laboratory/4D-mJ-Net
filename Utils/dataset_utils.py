@@ -132,7 +132,7 @@ def splitDataset(nn, p_id, listOfPatientsToTrainVal, listOfPatientsToTest):
     end = time.time()
     if constants.getVerbose(): print("[INFO] - Total time to split the Dataset: {}s".format(round(end - start, 3)))
 
-    return nn.dataset, test_list
+    return nn.dataset, validation_list, test_list
 
 
 ################################################################################

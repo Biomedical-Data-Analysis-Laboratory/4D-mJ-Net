@@ -2,8 +2,8 @@ import constants
 from Utils import general_utils
 
 
-from tensorflow.keras import layers, regularizers, initializers, models
-# from tensorflow.keras.applications import VGG16
+from keras import layers, regularizers, initializers, models
+# from keras.applications import VGG16
 
 def simple_autoencoder(params, to_categ):
     input_shape = (constants.getM(), constants.getN(), constants.NUMBER_OF_IMAGE_PER_SECTION, 1)

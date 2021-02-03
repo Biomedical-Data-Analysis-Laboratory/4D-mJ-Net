@@ -43,6 +43,13 @@ def getOptimizer(optInfo):
             epsilon=1e-07,
             centered=False
         )
+    elif optInfo["name"].lower() == "adadelta":
+        optimizer = optimizers.Adadelta(
+            learning_rate=optInfo["learning_rate"],
+            rho=0.95,
+            epsilon=1e-07,
+            clipvalue=0.5
+        )
 
     return optimizer
 
@@ -72,7 +79,7 @@ def getCallbacks(info, root_path, filename, textFolderPath, dataset, sample_weig
             cbs.append(callback.CollectBatchStats(root_path, filename, textFolderPath, info[key]["acc"]))
         # save the epoch results in a csv file
         elif key == "CSVLogger":
-            cbs.append(callback.CSVLogger(textFolderPath+info[key]["filename"], info[key]["separator"]))
+            cbs.append(callback.CSVLogger(textFolderPath, info[key]["filename"], info[key]["separator"]))
         elif key == "RocCallback":
             training_data = (dataset["train"]["data"], dataset["train"]["labels"])
             validation_data = (dataset["val"]["data"], dataset["val"]["labels"])
@@ -149,8 +156,8 @@ def saveIntermediateLayers(model, intermediate_activation_path):
     count = 0
     pixels = np.zeros(shape=(constants.getM(), constants.getN(), constants.NUMBER_OF_IMAGE_PER_SECTION))
     for imagename in np.sort(glob.glob(
-            "/home/stud/lucat/PhD_Project/Stroke_segmentation/PATIENTS/SUS2020_TIFF/FINAL_TIFF/CTP_01_010/10/" +
-            "*." + constants.SUFFIX_IMG)):
+            "/home/stud/lucat/PhD_Project/Stroke_segmentation/PATIENTS/SUS2020_TIFF/FINAL_TIFF/CTP_01_010/10/*."
+            + constants.SUFFIX_IMG)):
         img = cv2.imread(imagename, 0)
         pixels[:, :, count] = general_utils.getSlicingWindow(img, 320, 320)
         count += 1
@@ -158,7 +165,6 @@ def saveIntermediateLayers(model, intermediate_activation_path):
     pixels = pixels.reshape(1, constants.getM(), constants.getN(), constants.NUMBER_OF_IMAGE_PER_SECTION, 1)
 
     for layer in model.layers:
-        print(layer.name)
         if layer.name != "input_1" and layer.name != "reshape":
             visualizeLayer(model, pixels, layer.name, intermediate_activation_path)
 
@@ -170,8 +176,6 @@ def visualizeLayer(model, pixels, layer_name, intermediate_activation_path, save
     intermediate_model = tf.keras.models.Model(inputs=model.input, outputs=layer_output)
 
     intermediate_prediction = intermediate_model.predict(pixels)
-    print(np.shape(intermediate_prediction))
-
     if save:
         for img_index in range(0, intermediate_prediction.shape[3]):
             for c in range(0, intermediate_prediction.shape[4]):
@@ -182,8 +186,6 @@ def visualizeLayer(model, pixels, layer_name, intermediate_activation_path, save
         col_size = intermediate_prediction.shape[3]
 
         fig, ax = plt.subplots(row_size, col_size, figsize=(10, 8))
-
-        print(intermediate_prediction[0, :, :, 0, 0])
 
         for row in range(0, row_size):
             for col in range(0, col_size):

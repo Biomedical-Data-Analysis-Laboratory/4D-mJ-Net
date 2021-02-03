@@ -1,7 +1,7 @@
 import constants
 from Utils import general_utils, spatial_pyramid
 
-from tensorflow.keras import layers, models, regularizers, initializers
+from keras import layers, models, regularizers, initializers
 import tensorflow.keras.backend as K
 
 ################################################################################

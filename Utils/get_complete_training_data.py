@@ -60,13 +60,14 @@ from scipy import ndimage
 ################################################################################
 # SUS2020_TIFF Setting
 ################################################################################
-DATASET_NAME = "SUS2020_TIFF/"  #"SUS2020_v2/"
-ROOT_PATH = "/home/stud/lucat/PhD_Project/Stroke_segmentation/PATIENTS/SUS2020_TIFF/"
-SCRIPT_PATH = "/local/home/lucat/DATASET/"+DATASET_NAME
+DATASET_NAME = "SUS2020_TIFF_HU/"  # "SUS2020_v2/"
+# ROOT_PATH = "/home/stud/lucat/PhD_Project/Stroke_segmentation/PATIENTS/SUS2020_TIFF/"
+ROOT_PATH = "/home/prosjekt/PerfusionCT/StrokeSUS/"
+SCRIPT_PATH = "/local/home/lucat/DATASET/"+DATASET_NAME  # "/home/stud/lucat/PhD_Project/"+DATASET_NAME
 
-SAVE_REGISTERED_FOLDER = ROOT_PATH + "FINAL_TIFF/"
+SAVE_REGISTERED_FOLDER = ROOT_PATH + "FINAL_TIFF_HU_v1/"
 PM_FOLDER = ROOT_PATH + "Parametric_Maps/"
-LABELED_IMAGES_FOLDER_LOCATION = ROOT_PATH + "FINALIZE_PM_TIFF/"
+LABELED_IMAGES_FOLDER_LOCATION = ROOT_PATH + "GT_TIFF/"  # "FINALIZE_PM_TIFF/"
 IMAGE_PREFIX = "CTP_"
 IMAGE_SUFFIX = ".tiff"  # ".png"
 NUMBER_OF_IMAGE_PER_SECTION = 30  # number of image (divided by time) for each section of the brain
@@ -77,7 +78,7 @@ BINARY_CLASSIFICATION = False  # to extract only two classes
 LABELS = ["background", "brain", "penumbra", "core"]
 LABELS_THRESHOLDS = [234, 0, 60, 135]  # [250, 0 , 30, 100]
 LABELS_REALVALUES = [255, 0, 76, 150]
-TILE_DIVISION = 16  # set to >1 if the tile are NOT the entire image
+TILE_DIVISION = 1  # set to >1 if the tile are NOT the entire image
 
 ################################################################################
 ################################################################################
@@ -96,8 +97,8 @@ FOUR_D = False  # TODO: ??
 ONE_TIME_POINT = -1  # -1 if you don't want to use it
 VERBOSE = 0
 dataset, listPatientsDataset, trainDatasetList = {}, {}, list()
-COLUMNS = ['patient_id', 'label', 'pixels', 'CBF', 'CBV', 'TTP', 'TMAX', 'ground_truth', 'label_code', 'x_y',
-           'data_aug_idx', 'timeIndex', 'sliceIndex', "severity"]
+COLUMNS = ['patient_id', 'label', 'pixels', 'CBF', 'CBV', 'TTP', 'TMAX', 'MIP', 'NIHSS', 'ground_truth',
+           'label_code', 'x_y', 'data_aug_idx', 'timeIndex', 'sliceIndex', "severity", "age", "gender"]
 
 ################################################################################
 M, N = int(IMAGE_WIDTH/TILE_DIVISION), int(IMAGE_HEIGHT/TILE_DIVISION)
@@ -230,7 +231,7 @@ def processTheWindow(realLabelledWindow, startingX, startingY, otherInforList, n
 # a slicing area approach (= start from point 0,0 it takes the areas `MxN` and then move on the right or on the bottom
 # by a pre-fixed number of pixels = `SLICING_PIXELS`) and the corresponding area in the images inside the same folder,
 # which are the registered images of the same section of the brain in different time.
-def fillDatasetOverTime(relativePath, patientIndex, timeFolder):
+def fillDatasetOverTime(relativePath, patientIndex, timeFolder, infor_file):
     train_df = pd.DataFrame(columns=COLUMNS)
 
     numReplication = 1
@@ -319,7 +320,7 @@ def fillDatasetOverTime(relativePath, patientIndex, timeFolder):
                     for dayfolder in np.sort(glob.glob(PM_FOLDER + IMAGE_PREFIX + patientIndex +"/*/")):
                         # if the folder contains the correct number of subfolders
                         if len(glob.glob(dayfolder+"*/"))>=7:
-                            pmlist = ["CBF", "CBV", "TTP", "TMAX"]
+                            pmlist = ["CBF", "CBV", "TTP", "TMAX", "MIP"]
 
                             for subdayfolder in glob.glob(dayfolder+"*/"):
                                 for pm in pmlist:
@@ -368,6 +369,7 @@ def fillDatasetOverTime(relativePath, patientIndex, timeFolder):
                     cbv = otherInforList[d][x][y]["CBV"]
                     ttp = otherInforList[d][x][y]["TTP"]
                     tmax = otherInforList[d][x][y]["TMAX"]
+                    mip = otherInforList[d][x][y]["MIP"]
 
                 else:
                     if ORIGINAL_SHAPE: totalVol = np.empty((1,M,N))
@@ -409,7 +411,13 @@ def fillDatasetOverTime(relativePath, patientIndex, timeFolder):
 
                 tmp_COLUMNS = list(filter(lambda col:col != 'label_code', COLUMNS))
 
-                tmp_df = pd.DataFrame(np.array([[patientIndex, label, pixels_zoom, cbf, cbv, ttp, tmax ,gt, x_y, data_aug_idx, timeIndex, sliceIndex, severity]]), columns=tmp_COLUMNS)
+                nihss = infor_file.nihss[IMAGE_PREFIX+patientIndex]
+                age = int(infor_file.age[IMAGE_PREFIX+patientIndex][:-1])
+                gender = 0 if infor_file.gender[IMAGE_PREFIX+patientIndex] == "M" else 1
+
+                tmp_df = pd.DataFrame(np.array([[patientIndex, label, pixels_zoom, cbf, cbv, ttp, tmax, mip, nihss, gt,
+                                                 x_y, data_aug_idx, timeIndex, sliceIndex, severity, age, gender]]),
+                                      columns=tmp_COLUMNS)
 
                 if BINARY_CLASSIFICATION: tmp_df['label_code'] = tmp_df.label.map({LABELS[0]:0, LABELS[1]:1})
                 else: tmp_df['label_code'] = tmp_df.label.map({LABELS[0]:0, LABELS[1]:1, LABELS[2]:2, LABELS[3]:3})
@@ -498,7 +506,7 @@ def fillDataset4D(relativePath, patientIndex, timeFolder, folders):
 
 ################################################################################
 # Function to fill the dataset with the 3D version of the CTP (take the previous, the current, and the next slice)
-def fillDataset3D(relativePath, patientIndex, timeFolder, folders):
+def fillDataset3D(relativePath, patientIndex, timeFolder, folders, infor_file):
     train_df = pd.DataFrame(columns=COLUMNS)
 
     timeFoldersToProcess = dict()
@@ -506,7 +514,7 @@ def fillDataset3D(relativePath, patientIndex, timeFolder, folders):
 
     sliceIndex = timeFolder.replace(SAVE_REGISTERED_FOLDER+relativePath, '').replace("/", "")
     if int(sliceIndex)==1: Z_ARRAY = [0,0,1] # first slice
-    elif int(sliceIndex)==len(folders): Z_ARRAY = [-1,0,0] # last slice
+    elif int(sliceIndex)==len(folders): Z_ARRAY = [-1,0,0]  # last slice
     else: Z_ARRAY = [-1,0,1] # normal situation
 
     for z in Z_ARRAY:
@@ -525,7 +533,7 @@ def fillDataset3D(relativePath, patientIndex, timeFolder, folders):
 
     reshape_func = lambda x: x.reshape(x.shape[0], x.shape[1], x.shape[2], 1)
 
-    tmp_dt = fillDatasetOverTime(relativePath, patientIndex, pivotFolder)
+    tmp_dt = fillDatasetOverTime(relativePath, patientIndex, pivotFolder, infor_file)
     tmp_dt = tmp_dt.sort_values(by=["x_y"]) # sort based on the coordinates
     tmp_dt["pixels"] = tmp_dt["pixels"].map(reshape_func) # reshape to (t,x,y,1)
 
@@ -538,7 +546,7 @@ def fillDataset3D(relativePath, patientIndex, timeFolder, folders):
                 pixels = tmp_dt.iloc[index]["pixels"][:,:,timeIndexFilename,:]
                 corr_row = train_df[(train_df.timeIndex==timeIndexFilename) & (train_df.x_y==row["x_y"]) & (train_df.sliceIndex==sliceIndex)]
                 if len(corr_row)>0:
-                    pixels = corr_row["pixels"].iloc[0] # if ew already saved the row, take it
+                    pixels = corr_row["pixels"].iloc[0]  # if ew already saved the row, take it
 
                 if tFold==pivotFolder:  # we are in a special case (start of end of the slices)
                     if Z_ARRAY != [-1,0,1]: pixels = np.append(pixels, tmp_dt.iloc[index]["pixels"][:,:,timeIndexFilename,:], axis=2)
@@ -624,6 +632,9 @@ def initializeDataset():
         if len(timeIndex)==1: timeIndex="0"+timeIndex
         suffix_filename += ("_"+timeIndex)
 
+    nihss_name = "../nihss_score.csv"
+    infor_file = pd.read_csv(nihss_name,index_col=0,sep=";")
+
     for numFold, patientFolder in enumerate(patientFolders):  # for each patient
         train_df = pd.DataFrame(columns=COLUMNS)  # reset the dataframe
 
@@ -638,10 +649,8 @@ def initializeDataset():
 
         subfolders = np.sort(glob.glob(patientFolder+"*/"))
 
-        if numFold<125: continue
-
         print("[INFO] - Analyzing {0}/{1}; patient folder: {2}...".format(numFold+1, len(patientFolders), relativePath))
-        # if the manual annotation folder exists
+        # if the manual annotation folder
         if os.path.isdir(LABELED_IMAGES_FOLDER_LOCATION+IMAGE_PREFIX+patientIndex+"/"):
             for count, timeFolder in enumerate(subfolders):  # for each slicing time
                 tmp_df = pd.DataFrame(columns=COLUMNS)
@@ -651,10 +660,10 @@ def initializeDataset():
 
                 if THREE_D:
                     if ONE_TIME_POINT>0: tmp_df = fillDataset3DOneTimePoint(relativePath, patientIndex, timeFolder, subfolders)
-                    else: tmp_df = fillDataset3D(relativePath, patientIndex, timeFolder, subfolders)
+                    else: tmp_df = fillDataset3D(relativePath, patientIndex, timeFolder, subfolders, infor_file)
                 elif FOUR_D: tmp_df = fillDataset4D(relativePath, patientIndex, timeFolder, subfolders)
                 else:  # insert the data inside the dataset dictionary
-                    tmp_df = fillDatasetOverTime(relativePath, patientIndex, timeFolder)
+                    tmp_df = fillDatasetOverTime(relativePath, patientIndex, timeFolder, infor_file)
 
                 train_df = train_df.append(tmp_df, ignore_index=True, sort=True)
 

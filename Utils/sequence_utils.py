@@ -17,20 +17,22 @@ from Utils import general_utils, dataset_utils
 ################################################################################
 # https://faroit.com/keras-docs/2.1.3/models/sequential/#fit_generator
 class datasetSequence(Sequence):
-    def __init__(self, dataframe, indices, sample_weights, x_label, y_label,
-                 to_categ, batch_size, back_perc=2, istest=False, loss=None):
+    def __init__(self, dataframe, indices, sample_weights, x_label, y_label, moreinfo,
+                 to_categ, batch_size, back_perc=2, flagtype="train", loss=None):
         self.indices = indices
         self.dataframe = dataframe.iloc[self.indices]
 
         self.sample_weights = sample_weights
         self.x_label = x_label
         self.y_label = y_label
+        self.moreinfo = moreinfo
         self.batch_size = batch_size
         self.to_categ = to_categ
         self.back_perc = back_perc
+        self.flagtype = flagtype
         self.loss = loss
 
-        if not istest:
+        if self.flagtype != "test":
             # get ALL the rows with label != from background
             self.dataframenoback = self.dataframe.loc[self.dataframe.label != constants.LABELS[0]]
             # also, get a back_perc of rows with label == background
@@ -69,7 +71,7 @@ class datasetSequence(Sequence):
 
         # path to the folder containing the NUMBER_OF_IMAGE_PER_SECTION time point images
         if self.x_label=="pixels":  X, weights = self.getX_pixels(X,current_batch,weights,batch_index_list)
-        elif self.x_label==["CBF","CBV","TTP","TMAX"]: X, weights = self.getX_PM(weights,current_batch,batch_index_list)
+        elif self.x_label==constants.getList_PMS(): X, weights = self.getX_PM(weights,current_batch,batch_index_list)
 
         # path to the ground truth image
         if self.y_label=="ground_truth": Y, weights = self.getY(current_batch,weights)
@@ -107,11 +109,15 @@ class datasetSequence(Sequence):
     # Return the X set and relative weights based on the parametric maps columns
     def getX_PM(self, weights, current_batch, batch_index_list):
         pms = dict()
+        nihss, age, gender = [], [], []
 
         for index, (_, row) in enumerate(current_batch.iterrows()):
             # weights[index] = self.sample_weights[batch_index_list[index]]
             coord = row["x_y"]
             data_aug_idx = row["data_aug_idx"]
+            if "nihss" in self.moreinfo.keys() and self.moreinfo["nihss"]==1: nihss.append(int(row["NIHSS"]) if row["NIHSS"]!="-" else 0)
+            if "age" in self.moreinfo.keys() and self.moreinfo["age"]==1: age.append(int(row["age"]))
+            if "gender" in self.moreinfo.keys() and self.moreinfo["gender"]==1: gender.append(int(row["gender"]))
             # add the index into the correct set
             self.index_pd_DA[str(data_aug_idx)].add(index)
 
@@ -125,6 +131,10 @@ class datasetSequence(Sequence):
                     pms[pm].append(img)
 
         X = [np.array(pms["CBF"]), np.array(pms["CBV"]), np.array(pms["TTP"]), np.array(pms["TMAX"])]
+        if "mip" in self.moreinfo.keys() and self.moreinfo["mip"]==1: X.append(np.array(pms["MIP"]))
+        if "nihss" in self.moreinfo.keys() and self.moreinfo["nihss"]==1: X.append(np.array(nihss))
+        if "age" in self.moreinfo.keys() and self.moreinfo["age"]==1: X.append(np.array(age))
+        if "gender" in self.moreinfo.keys() and self.moreinfo["gender"]==1: X.append(np.array(gender))
 
         return X, weights
 
@@ -147,10 +157,18 @@ class datasetSequence(Sequence):
 
                 # Override the weights based on the pixel values
                 if constants.N_CLASSES>2:
-                    core_value = constants.PIXELVALUES[3] if constants.N_CLASSES==4 else constants.PIXELVALUES[2]
-                    penumbra_value = constants.PIXELVALUES[2] if constants.N_CLASSES==4 else constants.PIXELVALUES[1]
-                    f = lambda x: np.sum(np.where(np.array(x)==core_value, 150,
-                                                  np.where(np.array(x)==penumbra_value, 20, 0.1)))
+                    core_idx, penumbra_idx = 3, 2
+                    if constants.N_CLASSES == 3: core_idx, penumbra_idx = 2, 1
+                    core_value, core_weight = constants.PIXELVALUES[core_idx], constants.HOT_ONE_WEIGHTS[0][core_idx]
+                    penumbra_value, penumbra_weight = constants.PIXELVALUES[penumbra_idx], constants.HOT_ONE_WEIGHTS[0][penumbra_idx]
+
+                    # focus on the SVO core only during training!
+                    if self.flagtype=="train" and current_batch.loc[row_index]["severity"]=="02":
+                        core_weight *= 6  # 4
+                        penumbra_weight *= 6  # 3
+
+                    f = lambda x: np.sum(np.where(np.array(x)==core_value, core_weight,
+                                                  np.where(np.array(x)==penumbra_value, penumbra_weight, constants.HOT_ONE_WEIGHTS[0][0])))
                     weights[index] = f(img) / (constants.getM() * constants.getN())
 
                 # convert the label in [0, 1] values,

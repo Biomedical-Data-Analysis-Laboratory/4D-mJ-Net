@@ -52,12 +52,13 @@ class NeuralNetwork(object):
         # get parameter for the model
         self.optimizerInfo = modelInfo["optimizer"]
         self.params = modelInfo["params"]
-        self.loss = general_utils.getLoss(modelInfo["loss"])
+        self.loss = general_utils.getLoss(modelInfo)
         self.classes_to_evaluate = modelInfo["classes_to_evaluate"]
         self.metricFuncs = general_utils.getStatisticFunctions(modelInfo["metrics"])
         self.statistics = general_utils.getStatisticFunctions(modelInfo["statistics"])
 
         # FLAGS for the model
+        self.moreinfo = modelInfo["moreinfo"] if "moreinfo" in modelInfo.keys() else dict()
         self.to_categ = True if modelInfo["to_categ"]==1 else False
         self.save_images = True if modelInfo["save_images"]==1 else False
         self.save_statistics = True if modelInfo["save_statistics"]==1 else False
@@ -91,8 +92,7 @@ class NeuralNetwork(object):
         # empty variables initialization
         self.callbacks = None
         self.initial_epoch = 0
-        self.train_df = None
-        self.test_list = None
+        self.train_df, self.val_list, self.test_list = None, None, None
         self.N_BACKGROUND, self.N_BRAIN, self.N_PENUMBRA, self.N_CORE, self.N_TOT = 0, 0, 0, 0, 0
         self.optimizer = None
         self.sample_weights = None
@@ -181,9 +181,11 @@ class NeuralNetwork(object):
         # set the dataset inside the class
         self.train_df = train_df
         # split the dataset (return in dataset just the indices and labels)
-        self.dataset, self.test_list = dataset_utils.splitDataset(self, p_id, listOfPatientsToTrainVal, listOfPatientsToTest)
+        self.dataset, self.val_list, self.test_list = dataset_utils.splitDataset(self, p_id, listOfPatientsToTrainVal, listOfPatientsToTest)
         # get the number of element per class in the dataset
         self.N_BACKGROUND, self.N_BRAIN, self.N_PENUMBRA, self.N_CORE, self.N_TOT = dataset_utils.getNumberOfElements(self.train_df)
+
+        return self.val_list
 
 ################################################################################
 # Function to reshape the pixel array and initialize the model.
@@ -214,15 +216,15 @@ class NeuralNetwork(object):
         # based on the number of GPUs available
         # call the function called self.name in models.py
         if n_gpu==1:
-            self.model = getattr(models, self.name)(params=self.params, to_categ=self.to_categ)
+            self.model = getattr(models, self.name)(params=self.params, to_categ=self.to_categ, moreinfo=self.moreinfo)
         else:
             # TODO: problems during the load of the model (?)
             with tf.device('/cpu:0'):
-                self.model = getattr(models, self.name)(params=self.params, to_categ=self.to_categ)
+                self.model = getattr(models, self.name)(params=self.params, to_categ=self.to_categ, moreinfo=self.moreinfo)
             self.model = multi_gpu_model(self.model, gpus=n_gpu)
 
-        if getVerbose() and self.summaryFlag==0:
-            print(self.model.summary())
+        if self.summaryFlag==0:
+            if getVerbose(): print(self.model.summary())
 
             for rankdir in ["LR", "TB"]:
                 plot_model(
@@ -366,9 +368,11 @@ class NeuralNetwork(object):
             sample_weights=self.getSampleWeights("train"),
             x_label="pixels" if not constants.getUSE_PM() else constants.getList_PMS(),
             y_label="ground_truth",
+            moreinfo=self.moreinfo,
             to_categ=self.to_categ,
             batch_size=self.batch_size,
-            back_perc=2 if not constants.getUSE_PM() else 100,
+            back_perc=20 if not constants.getUSE_PM() or (constants.getM()!=constants.IMAGE_WIDTH
+                                                          and constants.getN()!=constants.IMAGE_HEIGHT) else 100,
             loss=self.loss["name"]
         )
 
@@ -379,9 +383,12 @@ class NeuralNetwork(object):
             sample_weights=self.getSampleWeights("val"),
             x_label="pixels" if not constants.getUSE_PM() else constants.getList_PMS(),
             y_label="ground_truth",
+            moreinfo=self.moreinfo,
             to_categ=self.to_categ,
             batch_size=self.batch_size,
-            back_perc=2 if not constants.getUSE_PM() else 100,
+            back_perc=20 if not constants.getUSE_PM() or (constants.getM()!=constants.IMAGE_WIDTH
+                                                          and constants.getN()!=constants.IMAGE_HEIGHT) else 100,
+            flagtype="val",
             loss=self.loss["name"]
         )
 
@@ -394,8 +401,8 @@ class NeuralNetwork(object):
             model=self.model,
             train_sequence=self.train_sequence,
             val_sequence=self.val_sequence,
-            steps_per_epoch=np.rint(self.train_sequence.__len__()*self.steps_per_epoch_ratio),
-            validation_steps=np.rint(self.val_sequence.__len__()*self.validation_steps_ratio),
+            steps_per_epoch=(self.train_sequence.__len__()*self.steps_per_epoch_ratio)//self.batch_size,
+            validation_steps=(self.val_sequence.__len__()*self.validation_steps_ratio)//self.batch_size,
             epochs=self.epochs,
             listOfCallbacks=self.callbacks,
             initial_epoch=self.initial_epoch,
@@ -406,6 +413,7 @@ class NeuralNetwork(object):
 
         # plot the loss and accuracy of the training
         training.plotLossAndAccuracy(self, p_id)
+
 
 ################################################################################
 # Get the sample weight from the dataset
@@ -422,17 +430,21 @@ class NeuralNetwork(object):
                 else:
                     # function that map each PIXELVALUES[2] with 150, PIXELVALUES[3] with 20
                     # and the rest with 0.1 and sum them
-                    f = lambda x: np.sum(np.where(np.array(x) == constants.PIXELVALUES[2], 150, np.where(np.array(x) == constants.PIXELVALUES[3], 20, 0.1)))
+                    f = lambda x: np.sum(np.where(np.array(x)==constants.PIXELVALUES[2],
+                                                  constants.HOT_ONE_WEIGHTS[0][3],
+                                                  np.where(np.array(x) == constants.PIXELVALUES[3],
+                                                           constants.HOT_ONE_WEIGHTS[0][2],
+                                                           constants.HOT_ONE_WEIGHTS[0][0])))
 
                     sample_weights = self.train_df.ground_truth.map(f)
                     sample_weights = sample_weights/(constants.getM()*constants.getN())
             else:
                 # see: "ISBI 2019 C-NMC Challenge: Classification in Cancer Cell Imaging" section 4.1 pag 68
                 sample_weights = self.train_df.label.map({
-                    constants.LABELS[0]: self.N_TOT/(constants.N_CLASSES*self.N_BACKGROUND) if self.N_BACKGROUND>0 else 0,  # N_TOT/N_BACKGROUND,
-                    constants.LABELS[1]: self.N_TOT/(constants.N_CLASSES*self.N_BRAIN) if self.N_BRAIN>0 else 0,  # N_TOT/N_BRAIN,
-                    constants.LABELS[2]: self.N_TOT/(constants.N_CLASSES*self.N_PENUMBRA) if self.N_PENUMBRA>0 else 0,  # N_TOT/N_PENUMBRA,
-                    constants.LABELS[3]: self.N_TOT/(constants.N_CLASSES*self.N_CORE) if self.N_CORE>0 else 0,  # N_TOT/N_CORE
+                    constants.LABELS[0]: self.N_TOT/(constants.N_CLASSES*self.N_BACKGROUND) if self.N_BACKGROUND>0 else 0,
+                    constants.LABELS[1]: self.N_TOT/(constants.N_CLASSES*self.N_BRAIN) if self.N_BRAIN>0 else 0,
+                    constants.LABELS[2]: self.N_TOT/(constants.N_CLASSES*self.N_PENUMBRA) if self.N_PENUMBRA>0 else 0,
+                    constants.LABELS[3]: self.N_TOT/(constants.N_CLASSES*self.N_CORE) if self.N_CORE>0 else 0,
                 })
         elif constants.N_CLASSES==3:
             # and the (M,N) == image dimension
@@ -487,8 +499,8 @@ class NeuralNetwork(object):
     def predictAndSaveImages(self, listPatients, isAlreadySaved):
         stats = {}
         for p_id in listPatients:
-            # evaluate the model with the testing patient
-            if self.supervised: self.evaluateModelWithCategorics(p_id, isAlreadySaved)
+            # evaluate the model with the testing patient (not necessary)
+            # if self.supervised: self.evaluateModelWithCategorics(p_id, isAlreadySaved)
 
             if getVerbose():
                 general_utils.printSeparation("+", 50)
@@ -585,21 +597,19 @@ class NeuralNetwork(object):
 # return NeuralNetwork ID
     def getNNID(self, p_id):
         # CAREFUL WITH THIS
-        if self.OVERRIDE_MODELS_ID_PATH:
-            # needs to override the model id to use a different model to test various patients
-            id = self.OVERRIDE_MODELS_ID_PATH
+        # needs to override the model id to use a different model to test various patients
+        if self.OVERRIDE_MODELS_ID_PATH: ret_id = self.OVERRIDE_MODELS_ID_PATH
         else:
-            id = self.name
-            if self.da: id += "_DA"
-            id += ("_"+self.optimizerInfo["name"].upper())
+            ret_id = self.name
+            if self.da: ret_id += "_DA"
+            ret_id += ("_" + self.optimizerInfo["name"].upper())
 
-            id += ("_VAL"+str(self.val["validation_perc"]))
-            if self.val["random_validation_selection"]: id += ("_RANDOM")
+            ret_id += ("_VAL" + str(self.val["validation_perc"]))
+            if self.val["random_validation_selection"]: ret_id += "_RANDOM"
 
-            if self.to_categ: id += ("_SOFTMAX") # differenciate between softmax and sigmoid last activation layer
+            if self.to_categ: ret_id += "_SOFTMAX"  # differentiate between softmax and sigmoid last activation layer
 
-            # if there is cross validation, add the PATIENT_ID to differenciate the models
-            if self.cross_validation:
-                id += ("_" + p_id)
+            # if there is cross validation, add the PATIENT_ID to differentiate the models
+            if self.cross_validation: ret_id += ("_" + p_id)
 
-        return id
+        return ret_id

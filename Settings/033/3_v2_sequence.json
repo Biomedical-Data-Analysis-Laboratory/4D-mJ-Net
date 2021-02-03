@@ -32,9 +32,8 @@
      {
       "name": "mJNet_v2",
       "loss": "focal_tversky_loss",
-      "metrics": ["squared_dice_coef","dice_coef","tversky_coef","tanimoto","focal_loss","sdc_rest","sdc_p",
-        "sdc_c","tversky_rest","tversky_p","tversky_c"],
-       "epochs": 1000,
+      "metrics": ["squared_dice_coef","dice_coef","tversky_coef","tanimoto","focal_loss","sdc_rest","sdc_p","sdc_c"],
+      "epochs": 1000,
       "batch_size": 2,
       "steps_per_epoch_ratio": 1,
       "validation_steps_ratio": 1,

@@ -34,7 +34,7 @@
       "loss": "squared_dice_coef_loss",
       "metrics": ["squared_dice_coef","dice_coef","tversky_coef","tanimoto","sdc_rest","sdc_p","sdc_c"],
       "epochs": 1000,
-      "batch_size": 2,
+      "batch_size": 6,
       "steps_per_epoch_ratio": 1,
       "validation_steps_ratio": 1,
       "classes_to_evaluate": ["penumbra","core","penumbracore"],
@@ -73,7 +73,7 @@
         "ModelCheckpoint": {
           "monitor": "val_loss",
           "mode": "min",
-          "period": 1
+          "period": 5
         },
         "EarlyStopping": {
           "monitor": "val_loss",

@@ -2,7 +2,6 @@ import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 import constants
-from Utils import general_utils, callback
 
 import numpy as np
 import tensorflow as tf
@@ -13,7 +12,7 @@ from sklearn.metrics import roc_auc_score, average_precision_score, auc, multila
 
 ################################################################################
 # Function that calculates the DICE coefficient. Important when calculates the different of two images
-def squared_dice_coef(y_true, y_pred):
+def _squared_dice_coef(y_true, y_pred, class_weights):
     """
     Compute weighted squared Dice loss.
 
@@ -21,15 +20,37 @@ def squared_dice_coef(y_true, y_pred):
          =  2*sum(|A*B|)/(sum(A^2)+sum(B^2))
     ref: https://arxiv.org/pdf/1606.04797v1.pdf
     """
-    class_weights = tf.constant(constants.HOT_ONE_WEIGHTS)
+
     axis_to_reduce = list(range(1, K.ndim(y_pred)))  # Reduce all axis but first (batch)
     numerator = y_true * y_pred * class_weights  # Broadcasting
     numerator = 2. * K.sum(numerator, axis=axis_to_reduce)
 
     denominator = (K.square(y_true) + K.square(y_pred)) * class_weights  # Broadcasting
     denominator = K.sum(denominator, axis=axis_to_reduce)
-
     return numerator / denominator
+
+
+def squared_dice_coef(y_true, y_pred):
+    class_weights = tf.constant(constants.HOT_ONE_WEIGHTS, dtype=tf.float32)
+    return _squared_dice_coef(y_true, y_pred, class_weights)
+
+
+def sdc_rest(y_true, y_pred):
+    class_weights = tf.constant([[1,1,0,0]], dtype=tf.float32)
+    if constants.N_CLASSES == 3: class_weights = tf.constant([[1, 0, 0]], dtype=tf.float32)
+    return _squared_dice_coef(y_true, y_pred, class_weights)
+
+
+def sdc_p(y_true, y_pred):
+    class_weights = tf.constant([[0,0,1,0]], dtype=tf.float32)
+    if constants.N_CLASSES == 3: class_weights = tf.constant([[0, 1, 0]], dtype=tf.float32)
+    return _squared_dice_coef(y_true, y_pred, class_weights)
+
+
+def sdc_c(y_true, y_pred):
+    class_weights = tf.constant([[0, 0, 0, 1]], dtype=tf.float32)
+    if constants.N_CLASSES == 3: class_weights = tf.constant([[0, 0, 1]], dtype=tf.float32)
+    return _squared_dice_coef(y_true, y_pred, class_weights)
 
 
 ################################################################################
@@ -38,10 +59,9 @@ def squared_dice_coef(y_true, y_pred):
 # but it returns lower values than the other dice_coef + lower specificity and precision
 # == to F1 score for boolean values
 def dice_coef(y_true, y_pred):
-    """
-    Compute weighted Dice loss.
-    """
-    class_weights = tf.constant(constants.HOT_ONE_WEIGHTS)
+    class_weights = tf.constant(constants.HOT_ONE_WEIGHTS, dtype=tf.float32)
+    """ Compute weighted Dice loss. """
+
     axis_to_reduce = list(range(1, K.ndim(y_pred)))  # Reduce all axis but first (batch)
     numerator = y_true * y_pred * class_weights  # Broadcasting
     numerator = 2. * K.sum(numerator, axis=axis_to_reduce)
@@ -55,18 +75,42 @@ def dice_coef(y_true, y_pred):
 # Implementation of the Tversky Index (TI),
 # which is a asymmetric similarity measure that is a generalisation of the dice coefficient and the Jaccard index.
 # Function taken and modified from here: https://github.com/robinvvinod/unet/
-def tversky_coef(y_true, y_pred, smooth=1., alpha=0.7):
-    class_weights = tf.constant(constants.HOT_ONE_WEIGHTS)
+def _tversky_coef(y_true, y_pred, class_weights, smooth=1.):
+    alpha = constants.focal_tversky_loss["alpha"]
     beta = 1-alpha
 
     axis_to_reduce = list(range(1, K.ndim(y_pred)))  # All axis but first (batch)
-    numerator = y_true * y_pred * class_weights  # Broadcasting
-    numerator = K.sum(numerator, axis=axis_to_reduce)  # p*p̂
-    denominator = y_true * y_pred + beta * (1 - y_true) * y_pred + (1 - beta) * y_true * (1 - y_pred)  # p*p̂ + β*(1-p)*p̂ + (1-β)*p*(1-p̂)
+    numerator = (y_true * y_pred) * class_weights  # Broadcasting
+    numerator = K.sum(numerator, axis=axis_to_reduce)
+    denominator = (y_true * y_pred) + alpha * (y_true * (1 - y_pred)) + beta * ((1 - y_true) * y_pred)
     denominator *= class_weights  # Broadcasting
     denominator = K.sum(denominator, axis=axis_to_reduce)
 
-    return (numerator + smooth) / (denominator + smooth)  # (p*p̂ + smooth)/[p*p̂ + β*(1-p)*p̂ + (1-β)*p*(1-p̂) + smooth]
+    return (numerator + smooth) / (denominator + smooth)
+
+
+def tversky_coef(y_true, y_pred):
+    class_weights = tf.constant(constants.HOT_ONE_WEIGHTS, dtype=tf.float32)
+    return _tversky_coef(y_true, y_pred, class_weights)
+
+
+def tversky_rest(y_true, y_pred):
+    class_weights = tf.constant([[1,1,0,0]], dtype=tf.float32)
+    if constants.N_CLASSES == 3: class_weights = tf.constant([[1, 0, 0]], dtype=tf.float32)
+    return _tversky_coef(y_true, y_pred, class_weights)
+
+
+def tversky_p(y_true, y_pred):
+    class_weights = tf.constant([[0,0,1,0]], dtype=tf.float32)
+    if constants.N_CLASSES == 3: class_weights = tf.constant([[0, 1, 0]], dtype=tf.float32)
+    return _tversky_coef(y_true, y_pred, class_weights)
+
+
+def tversky_c(y_true, y_pred):
+    class_weights = tf.constant([[0, 0, 0, 1]], dtype=tf.float32)
+    if constants.N_CLASSES == 3: class_weights = tf.constant([[0, 0, 1]], dtype=tf.float32)
+    return _tversky_coef(y_true, y_pred, class_weights)
+
 
 ################################################################################
 # Function to calculate the Jaccard similarity
@@ -98,10 +142,10 @@ def categorical_crossentropy(y_true, y_pred):
 ################################################################################
 # Function that calculate the metrics for the WEIGHTED CATEGORICAL CROSS ENTROPY
 def weighted_categorical_cross_entropy(y_true, y_pred, epsilon=1e-7):
+    class_weights = tf.constant(constants.HOT_ONE_WEIGHTS, dtype=tf.float32)
     lambda_0 = 1
     lambda_1 = 1e-6
     lambda_2 = 1e-5
-    class_weights = tf.constant(constants.HOT_ONE_WEIGHTS)
 
     cce = categorical_crossentropy(y_true, y_pred)
     weights = K.cast(tf.reduce_sum(class_weights*y_true),'float32')+epsilon
@@ -114,31 +158,55 @@ def weighted_categorical_cross_entropy(y_true, y_pred, epsilon=1e-7):
 
 ################################################################################
 #
-def focal_loss(y_true, y_pred, epsilon=1e-6):
-    """
-    Compute focal loss.
-    """
-    alpha = tf.constant(constants.HOT_ONE_WEIGHTS)
+def _focal_loss(y_true, y_pred, alpha, epsilon=1e-6):
+    """ Compute focal loss. """
     gamma = tf.constant(constants.GAMMA,dtype=y_pred.dtype)
     axis_to_reduce = list(range(1, K.ndim(y_pred)))
-
-    f_loss = -(alpha * K.pow((1 - y_pred), gamma) * y_true * K.log(y_pred+epsilon))
-
+    # Clip the prediction value to prevent NaN's and Inf's
+    epsilon = K.epsilon()
+    y_pred = K.clip(y_pred, epsilon, 1. - epsilon)
+    # Calculate Cross Entropy
+    cross_entropy = -(y_true * K.log(y_pred))
+    f_loss = alpha * K.pow((1 - y_pred), gamma) * cross_entropy
     # Average over each data point/image in batch
     f_loss = K.mean(f_loss, axis=axis_to_reduce)
 
     return f_loss
 
 
+def focal_loss(y_true, y_pred):
+    alpha = tf.constant(constants.ALPHA, dtype=y_pred.dtype)
+    return _focal_loss(y_true, y_pred, alpha)
+
+
+def focal_rest(y_true, y_pred):
+    alpha = tf.constant(constants.ALPHA, dtype=y_pred.dtype)
+    if constants.N_CLASSES == 3: alpha = tf.constant([[0.25, 0, 0]], dtype=tf.float32)
+    return _focal_loss(y_true, y_pred, alpha)
+
+
+def focal_p(y_true, y_pred):
+    alpha = tf.constant(constants.ALPHA, dtype=y_pred.dtype)
+    if constants.N_CLASSES == 3: alpha = tf.constant([[0, 0.25, 0]], dtype=tf.float32)
+    return _focal_loss(y_true, y_pred, alpha)
+
+
+def focal_c(y_true, y_pred):
+    alpha = tf.constant(constants.ALPHA, dtype=y_pred.dtype)
+    if constants.N_CLASSES == 3: alpha = tf.constant([[0, 0, 0.25]], dtype=tf.float32)
+    return _focal_loss(y_true, y_pred, alpha)
+
+
 ################################################################################
 #
 def tanimoto(y_true, y_pred):
+    class_weights = tf.constant(constants.HOT_ONE_WEIGHTS, dtype=tf.float32)
     """
     Compute weighted Tanimoto loss.
     Defined in the paper "ResUNet-a: a deep learning framework for semantic segmentation of remotely sensed data",
     under 3.2.4. Generalization to multiclass imbalanced problems. See https://arxiv.org/pdf/1904.00592.pdf
     """
-    class_weights = tf.constant(constants.HOT_ONE_WEIGHTS)
+
     axis_to_reduce = list(range(1, K.ndim(y_pred)))  # All axis but first (batch)
     numerator = y_true * y_pred * class_weights
     numerator = K.sum(numerator, axis=axis_to_reduce)
@@ -191,12 +259,6 @@ def accuracy(tn, fn, fp, tp):
 ################################################################################
 # Function that calculate the metrics for the average precision
 def mAP(y_true, y_pred, use_background_in_statistics, label):
-    # if label==2: # penumbra
-    #     y_true, y_pred = thresholdingPenumbra(np.array(y_true), np.array(y_pred))
-    # elif label==3: # Core
-    #     y_true, y_pred = thresholdingCore(np.array(y_true), np.array(y_pred))
-    # elif label==4: # Penumbra + Core
-    #     y_true, y_pred = thresholdingPenumbraCore(np.array(y_true), np.array(y_pred))
     if label==4: label=None
     y_true, y_pred = thresholding(np.array(y_true), np.array(y_pred), use_background_in_statistics, label)
 
@@ -210,28 +272,12 @@ def mAP(y_true, y_pred, use_background_in_statistics, label):
 
     return average_precision_score(y_true, y_pred)
 
-# def AUC(y_true, y_pred, label):
-#     if label==2: # penumbra
-#         y_true, y_pred = thresholdingPenumbra(np.array(y_true), np.array(y_pred))
-#     elif label==3: # Core
-#         y_true, y_pred = thresholdingCore(np.array(y_true), np.array(y_pred))
-#     elif label==4: # Penumbra + Core
-#         y_true, y_pred = thresholdingPenumbraCore(np.array(y_true), np.array(y_pred))
-#
-#     return auc(y_true, y_pred)
-
 
 def ROC_AUC(y_true, y_pred, use_background_in_statistics, label):
-    # if label==2: # penumbra
-    #     y_true, y_pred = thresholdingPenumbra(np.array(y_true), np.array(y_pred))
-    # elif label==3: # Core
-    #     y_true, y_pred = thresholdingCore(np.array(y_true), np.array(y_pred))
-    # elif label==4: # Penumbra + Core
-    #     y_true, y_pred = thresholdingPenumbraCore(np.array(y_true), np.array(y_pred))
     if label==4: label=None
     y_true, y_pred = thresholding(np.array(y_true), np.array(y_pred), use_background_in_statistics, label)
 
-    if label==None:
+    if label is None:
         y_true_p = np.array(y_true==2, dtype="int32")
         y_true_c = np.array(y_true==3, dtype="int32")
         y_true = y_true_p+y_true_c
@@ -286,11 +332,11 @@ def thresholding(y_true, y_pred, use_background_in_statistics, epsilons, percEps
     y_pred_brain = np.array(y_pred<=(thresBrain+eps1), dtype="int32")
 
     # if label==None it means that the y_true & y_pred are coming from label=4 in ROC and mAP ...
-    if percEps==None: # no need to calculate the ROC with thresholding
+    if percEps is None:  # no need to calculate the ROC with thresholding
         y_true_p = np.array(y_true>(thresBrain+eps1), dtype="int32") * np.array(y_true<=(thresPenumbra+eps2), dtype="int32")
         y_pred_p = np.array(y_pred>(thresBrain+eps1), dtype="int32") * np.array(y_pred<=(thresPenumbra+eps2), dtype="int32")
     else:
-        if label==2: # penumbra 
+        if label==2:  # penumbra
             upperBound = ((thresBack-thresPenumbra)*percEps)/100
             lowerBound = ((thresPenumbra-thresBrain)*percEps)/100
             y_true_brain = np.array(y_true<=(thresPenumbra-lowerBound), dtype="int32")
@@ -302,7 +348,7 @@ def thresholding(y_true, y_pred, use_background_in_statistics, epsilons, percEps
             y_true_c = np.array(y_true>(thresPenumbra+upperBound), dtype="int32")
             y_pred_c = np.array(y_pred>(thresPenumbra+upperBound), dtype="int32")
 
-    if percEps==None: # no need to calculate the ROC with thresholding
+    if percEps is None:  # no need to calculate the ROC with thresholding
         y_true_c = np.array(y_true>(thresPenumbra+eps2), dtype="int32") * np.array(y_true<=(thresCore+eps3), dtype="int32")
         y_pred_c = np.array(y_pred>(thresPenumbra+eps2), dtype="int32") * np.array(y_pred<=(thresCore+eps3), dtype="int32")
     else:
@@ -337,44 +383,4 @@ def thresholding(y_true, y_pred, use_background_in_statistics, epsilons, percEps
             y_true_new = np.append(y_true_new, y_true[row])
             y_pred_new = np.append(y_pred_new, y_pred[row])
 
-    return (y_true_new, y_pred_new)
-
-################################################################################
-# function to map the y_true and y_pred for penumbra
-# def thresholdingPenumbra(y_true, y_pred):
-#     thresPenumbra = constants.PIXELVALUES[2]
-#     thresCore = constants.PIXELVALUES[3]
-#     eps = 36
-#
-#     y_true_brain = np.array(y_true<=(thresBrain+eps), dtype="int32")
-#     y_pred_brain = np.array(y_pred<=(thresBrain+eps), dtype="int32")
-#     y_true_p = np.array(y_true>=(thresPenumbra-eps), dtype="int32") * np.array(y_true<=(thresPenumbra+eps), dtype="int32")
-#     y_pred_p = np.array(y_pred>=(thresPenumbra-eps), dtype="int32") * np.array(y_pred<=(thresPenumbra+eps), dtype="int32")
-#
-#     y_true_p = y_true_p * 2
-#     y_pred_p = y_pred_p * 2
-#
-#
-#     return (y_true, y_pred)
-#
-# ################################################################################
-# # function to map the y_true and y_pred for core
-# def thresholdingCore(y_true, y_pred):
-#     thresPenumbra = constants.PIXELVALUES[2]
-#     thresCore = constants.PIXELVALUES[3]
-#     eps = 36
-#     eps_plus = 79 # for upper bounding ~229
-#     y_true = np.array(y_true>=(thresCore-eps), dtype="int32") * np.array(y_true<=(thresCore+eps_plus), dtype="int32")
-#     y_pred = np.array(y_pred>=(thresCore-eps), dtype="int32") * np.array(y_pred<=(thresCore+eps_plus), dtype="int32")
-#     return (y_true, y_pred)
-#
-# ################################################################################
-# # function to map the y_true and y_pred for penumbra & core
-# def thresholdingPenumbraCore(y_true, y_pred):
-#     thresPenumbra = constants.PIXELVALUES[2]
-#     thresCore = constants.PIXELVALUES[3]
-#     eps = 36
-#     eps_plus = 79 # for upper bounding ~229
-#     y_true = np.array(y_true>=(thresPenumbra-eps), dtype="int32") * np.array(y_true<=(thresCore+eps_plus), dtype="int32")
-#     y_pred = np.array(y_pred>=(thresPenumbra-eps), dtype="int32") * np.array(y_pred<=(thresCore+eps_plus), dtype="int32")
-#     return (y_true, y_pred)
+    return y_true_new, y_pred_new

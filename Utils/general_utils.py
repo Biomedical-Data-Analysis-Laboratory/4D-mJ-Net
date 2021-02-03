@@ -28,6 +28,8 @@ def getCommandLineArguments():
     parser.add_argument("-t", "--tile", help="Set the tile pixels dimension (MxM)", type=int)
     parser.add_argument("-dim", "--dimension", help="Set the dimension of the input images (widthXheight)", type=int)
     parser.add_argument("-c", "--classes", help="Set the # of classes involved (default = 4)", default=4, type=int, choices=[2,3,4])
+    parser.add_argument("-w", "--weights", help="Set the weights for the categorical losses", type=float, nargs='+')
+    parser.add_argument("-e", "--exp", help="Set the number of the experiment", type=float)
     parser.add_argument("gpu", help="Give the id of gpu (or a list of the gpus) to use")
     parser.add_argument("sname", help="Select the setting filename")
     args = parser.parse_args()
@@ -39,6 +41,7 @@ def getCommandLineArguments():
     constants.setTileDimension(args.tile)
     constants.setImageDimension(args.dimension)
     constants.setNumberOfClasses(args.classes)
+    constants.setWeights(args.weights)
 
     return args
 
@@ -132,7 +135,7 @@ def getSlicingWindow(img, startX, startY, isgt=False, removeColorBar=False):
     if removeColorBar:
         if M==constants.IMAGE_WIDTH and N==constants.IMAGE_HEIGHT: sliceWindow[:,constants.colorbar_coord[1]:] = 0
         # if the tile is smaller than the entire image
-        elif startY+N>=constants.colorbar_coord[1]: img[:,constants.colorbar_coord[1]-startY:] = 0
+        elif startY+N>=constants.colorbar_coord[1]: sliceWindow[:,constants.colorbar_coord[1]-startY:] = 0
 
     sliceWindow = np.cast["float32"](sliceWindow)  # cast the window into a float
 
@@ -160,7 +163,11 @@ def getEpochFromPartialWeightFilename(partialWeightsPath):
 
 ################################################################################
 # Get the loss defined in the settings
-def getLoss(name):
+def getLoss(modelInfo):
+    name = modelInfo["loss"]
+    hyperparameters = modelInfo[name] if name in modelInfo.keys() else {}
+    if name=="focal_tversky_loss": constants.setFocal_Tversky(hyperparameters)
+
     general_losses = [
         "binary_crossentropy",
         "categorical_crossentropy",
@@ -171,6 +178,7 @@ def getLoss(name):
 
     if name in general_losses: loss["loss"] = name
     else: loss["loss"] = getattr(losses, name)
+
     loss["name"] = name
 
     if constants.getVerbose(): print("[INFO] - Use {} Loss".format(name))

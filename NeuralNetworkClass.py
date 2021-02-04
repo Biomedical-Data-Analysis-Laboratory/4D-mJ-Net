@@ -54,16 +54,12 @@ class NeuralNetwork(object):
         self.params = modelInfo["params"]
         self.loss = general_utils.getLoss(modelInfo)
         self.classes_to_evaluate = modelInfo["classes_to_evaluate"]
-        self.metricFuncs = general_utils.getStatisticFunctions(modelInfo["metrics"])
-        self.statistics = general_utils.getStatisticFunctions(modelInfo["statistics"])
+        self.metricFuncs = general_utils.getMetricFunctions(modelInfo["metrics"])
 
         # FLAGS for the model
         self.moreinfo = modelInfo["moreinfo"] if "moreinfo" in modelInfo.keys() else dict()
         self.to_categ = True if modelInfo["to_categ"]==1 else False
         self.save_images = True if modelInfo["save_images"]==1 else False
-        self.save_statistics = True if modelInfo["save_statistics"]==1 else False
-        self.use_background_in_statistics = True if modelInfo["use_background_in_statistics"]==1 else False
-        self.calculate_ROC = True if modelInfo["calculate_ROC"]==1 else False
         self.da = True if modelInfo["data_augmentation"]==1 else False
         self.train_again = True if modelInfo["train_again"]==1 else False
         self.cross_validation = True if modelInfo["cross_validation"]==1 else False
@@ -99,12 +95,6 @@ class NeuralNetwork(object):
         self.train = None
         self.train_sequence, self.val_sequence = None, None
         self.mp = False
-
-        if constants.N_CLASSES == 4: self.epsilons = [(63.75-constants.PIXELVALUES[1]-1, 127.5-constants.PIXELVALUES[2], 191.25-constants.PIXELVALUES[3])]
-        else: self.epsilons = [(63.75-constants.PIXELVALUES[1]-1)]
-
-        # epsiloList is the same list of epsilons multiply for the percentage (thresholding) involved to calculate ROC
-        self.epsiloList = list(range(0,110, 10)) if self.calculate_ROC else [None]
 
         # change the prefix if SUS2020_v2 is in the dataset name
         if "SUS2020" in self.datasetFolder: constants.setPrefixImagesSUS2020_v2()
@@ -506,60 +496,10 @@ class NeuralNetwork(object):
                 general_utils.printSeparation("+", 50)
                 print("[INFO] - Executing function: predictAndSaveImages for patient {}".format(p_id))
 
-            tmpStats = testing.predictAndSaveImages(self, p_id)
-            if self.save_statistics: self.saveStats(tmpStats, p_id)
-
-            if self.save_statistics:
-                for func in self.statistics:
-                    for classToEval in self.classes_to_evaluate:
-                        if func.__name__ not in stats.keys(): stats[func.__name__] = {}
-                        if classToEval not in stats[func.__name__].keys(): stats[func.__name__][classToEval] = {}
-                        if self.epsiloList[0] is not None:
-                            for idxE, _ in enumerate(self.epsiloList):
-                                if idxE not in stats[func.__name__][classToEval].keys(): stats[func.__name__][classToEval][idxE] = []
-                                stats[func.__name__][classToEval][idxE].extend(tmpStats[func.__name__][classToEval][idxE])
+            testing.predictAndSaveImages(self, p_id)
 
         return stats
 
-################################################################################
-# Function to save in a file the statistic for the test patients
-    def saveStats(self, stats, p_id):
-        suffix = general_utils.getSuffix()
-        if p_id == "ALL":
-            with open(general_utils.getFullDirectoryPath(self.saveTextFolder)+self.getNNID(p_id)+suffix+".txt", "a+") as text_file:
-                text_file.write("====================================================\n")
-                text_file.write("====================================================\n")
-                for func in self.statistics:
-                    for classToEval in self.classes_to_evaluate:
-                        if self.epsiloList[0] is not None:
-                            for idxE, epsilons in enumerate(self.epsiloList):
-                                tn = sum(cm[0] for cm in stats[func.__name__][classToEval][idxE])
-                                fn = sum(cm[1] for cm in stats[func.__name__][classToEval][idxE])
-                                fp = sum(cm[2] for cm in stats[func.__name__][classToEval][idxE])
-                                tp = sum(cm[3] for cm in stats[func.__name__][classToEval][idxE])
-                                res = func(tn,fn,fp,tp)
-                                standard_dev = 0
-                                # meanV = np.mean(stats[func.__name__][classToEval])
-                                # stdV = np.std(stats[func.__name__][classToEval])
-                                #text_file.write("\n\n EPSILONS: *{0} **{1} ***{2} ... {3} idx  \n".format(epsilons[0], epsilons[1], epsilons[2], idxE))
-                                text_file.write("TEST MEAN {0} {1}: {2} \n".format(func.__name__, classToEval, round(float(res), 3)))
-                                text_file.write("TEST STD {0} {1}: {2} \n".format(func.__name__, classToEval, round(float(standard_dev), 3)))
-                            # text_file.write("TEST MEAN %s %s: %.2f%% \n" % (func.__name__, classToEval, round(meanV,6)*100))
-                            # text_file.write("TEST STD %s %s: %.2f \n" % (func.__name__, classToEval, round(stdV,6)))
-                    text_file.write("----------------------------------------------------- \n")
-        else:
-            for func in self.statistics:
-                for classToEval in self.classes_to_evaluate:
-                    if self.epsiloList[0] is not None:
-                        for idxE, epsilons in enumerate(self.epsiloList):
-                            tn = sum(cm[0] for cm in stats[func.__name__][classToEval][idxE])
-                            fn = sum(cm[1] for cm in stats[func.__name__][classToEval][idxE])
-                            fp = sum(cm[2] for cm in stats[func.__name__][classToEval][idxE])
-                            tp = sum(cm[3] for cm in stats[func.__name__][classToEval][idxE])
-
-                            res = func(tn,fn,fp,tp)
-                            #print("EPSILONS: *{0} **{1} ***{2} ... {3}\%  \n".format(epsilons[0], epsilons[1], epsilons[2], idxE))
-                            print("TEST {0} {1}: {2}".format(func.__name__, classToEval, round(float(res), 3)))
 
 ################################################################################
 # Test the model with the selected patient (if the number of patient to test is > 0)

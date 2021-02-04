@@ -188,7 +188,7 @@ def getLoss(modelInfo):
 
 ################################################################################
 # Get the statistic functions (& metrics) defined in the settings
-def getStatisticFunctions(listStats):
+def getMetricFunctions(listStats):
     general_metrics = [
         "binary_crossentropy",
         "categorical_crossentropy",

@@ -113,7 +113,6 @@ def main():
         nn.predictAndSaveImages(val_list, isAlreadySaved)
         # PERFORM TESTING: predict and save the images
         stats = nn.predictAndSaveImages(listOfPatientsToTest, isAlreadySaved)
-        if nn.save_statistics: nn.saveStats(stats, "PATIENTS_TO_TEST")
 
 
 ################################################################################

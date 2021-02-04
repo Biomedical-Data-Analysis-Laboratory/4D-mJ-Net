@@ -23,7 +23,6 @@ def predictFromModel(nn, x_input):
 # Generate the images for the patient and save the images
 def predictAndSaveImages(nn, p_id):
     start = time.time()
-    stats = {}
     suffix = general_utils.getSuffix()  # es == "_4_16x16"
 
     suffix_filename = ".pkl"
@@ -52,22 +51,12 @@ def predictAndSaveImages(nn, p_id):
         patientFolderGT = prefix+relativePatientFolderGT
         patientFolderTMP = prefix+relativePatientFolderTMP
 
-        # Predict the image and generate stats
-        if constants.getUSE_PM(): tmpStats = predictImagesFromParametricMaps(nn, subfolder, p_id, patientFolder, subpatientFolder, patientFolderHeatMap, patientFolderGT, patientFolderTMP, filename_test)
-        else: tmpStats = predictImage(nn, subfolder, p_id, patientFolder, subpatientFolder, patientFolderHeatMap, patientFolderGT, patientFolderTMP, filename_test)
-
-        if nn.save_statistics:
-            for func in nn.statistics:
-                if func.__name__ not in stats.keys(): stats[func.__name__] = {}
-                for classToEval in nn.classes_to_evaluate:
-                    if classToEval not in stats[func.__name__].keys(): stats[func.__name__][classToEval] = {}
-                    for idxE, _ in enumerate(nn.epsiloList):
-                        if idxE not in stats[func.__name__][classToEval].keys(): stats[func.__name__][classToEval][idxE] = []
-                        stats[func.__name__][classToEval][idxE].append(tmpStats[func.__name__][classToEval][idxE])
+        # Predict the images
+        if constants.getUSE_PM(): predictImagesFromParametricMaps(nn, subfolder, p_id, patientFolder, subpatientFolder, patientFolderHeatMap, patientFolderGT, patientFolderTMP, filename_test)
+        else: predictImage(nn, subfolder, p_id, patientFolder, subpatientFolder, patientFolderHeatMap, patientFolderGT, patientFolderTMP, filename_test)
 
     end = time.time()
 
-    return stats
 
 
 ################################################################################
@@ -85,15 +74,10 @@ def predictImage(nn, subfolder, p_id, patientFolder, relativePatientFolder, rela
     - relativepatientFolderGT      : relative name of the patient gt folder
     - relativePatientFolderTMP      : relative name of the patient tmp folder
     - filename_test                 : Name of the test pandas dataframe
-
-    Return:
-    - stats                         : statistics dictionary
     """
 
     start = time.time()
-    stats = {}
     imagesDict = {}  # faster access to the images
-    YTRUEToEvaluate, YPREDToEvaluate = [], []
     startingX, startingY = 0, 0
     imagePredicted = np.zeros(shape=(constants.IMAGE_WIDTH, constants.IMAGE_HEIGHT))
     categoricalImage = np.zeros(shape=(constants.IMAGE_WIDTH, constants.IMAGE_HEIGHT, constants.N_CLASSES))
@@ -130,13 +114,13 @@ def predictImage(nn, subfolder, p_id, patientFolder, relativePatientFolder, rela
     if constants.get3DFlag()!="":
         if not os.path.exists(filename_test):
             if constants.getVerbose(): print("[WARNING] - File {} does NOT exist".format(filename_test))
-            return stats
+            return
 
         test_df = dataset_utils.readFromPickleOrHickle(filename_test, nn.use_hickle)
         # get only the rows with data_aug_idx==0 (no rotation or any data augmentation)
         test_df = test_df[test_df.data_aug_idx==0]
         test_df = test_df[test_df.timeIndex==idx]  # todo: why timeindex?
-        imagePredicted, YTRUEToEvaluate, YPREDToEvaluate = generateTimeImagesAndConsensus(nn, test_df, YTRUEToEvaluate, YPREDToEvaluate, relativepatientFolderGT, relativePatientFolderTMP, idx)
+        imagePredicted = generateTimeImagesAndConsensus(nn, test_df, relativepatientFolderGT, relativePatientFolderTMP, idx)
     else:  # usual behaviour
         while True:
             if constants.ORIGINAL_SHAPE: pixels_shape = (constants.NUMBER_OF_IMAGE_PER_SECTION,constants.getM(),constants.getN())
@@ -169,7 +153,7 @@ def predictImage(nn, subfolder, p_id, patientFolder, relativePatientFolder, rela
             tileImageProcessed = general_utils.getSlicingWindow(checkImageProcessed, startingX, startingY)
             if constants.get3DFlag()=="": pixels = pixels.reshape(1,pixels.shape[0],pixels.shape[1],pixels.shape[2],1)
             else: pixels = pixels.reshape(1, pixels.shape[0], pixels.shape[1], pixels.shape[2])
-            imagePredicted, YTRUEToEvaluate, YPREDToEvaluate, categoricalImage = generate2DImage(nn, pixels, (startingX,startingY), imagePredicted, categoricalImage, tileImageProcessed, YTRUEToEvaluate, YPREDToEvaluate, binary_mask)
+            imagePredicted, categoricalImage = generate2DImage(nn, pixels, (startingX,startingY), imagePredicted, categoricalImage, tileImageProcessed, binary_mask)
 
             # if we reach the end of the image, break the while loop.
             if startingX>=constants.IMAGE_WIDTH-constants.getM() and startingY>=constants.IMAGE_HEIGHT-constants.getN(): break
@@ -182,13 +166,12 @@ def predictImage(nn, subfolder, p_id, patientFolder, relativePatientFolder, rela
                     startingX+=constants.getM()
 
     s2 = time.time()
-    # save the image and update the stats
-    stats = saveImageAndStats(nn, stats, relativePatientFolder, idx, imagePredicted, categoricalImage, relativePatientFolderHeatMap, relativepatientFolderGT,
-                              relativePatientFolderTMP, checkImageProcessed, YTRUEToEvaluate, YPREDToEvaluate)
+    # save the image
+    saveImage(nn, relativePatientFolder, idx, imagePredicted, categoricalImage,
+                      relativePatientFolderHeatMap, relativepatientFolderGT, relativePatientFolderTMP,
+                      checkImageProcessed)
 
     end = time.time()
-
-    return stats
 
 
 ################################################################################
@@ -207,12 +190,8 @@ def predictImagesFromParametricMaps(nn, subfolder, p_id, patientFolder, relative
     - relativepatientFolderGT      : relative name of the patient gt folder
     - relativePatientFolderTMP      : relative name of the patient tmp folder
     - filename_test                 : Name of the test pandas dataframe
-
-    Return:
-    - stats                         : statistics dictionary
     """
 
-    stats = {}
     # if the patient folder contains the correct number of subfolders
     # ATTENTION: careful here...
     if len(glob.glob(subfolder+"*/"))>=7:
@@ -220,7 +199,6 @@ def predictImagesFromParametricMaps(nn, subfolder, p_id, patientFolder, relative
             idx = general_utils.getStringFromIndex(idx.replace(subfolder, '').replace("/TTP/", ""))  # image index
             idx = idx.replace(".png","")
             start = time.time()
-            YTRUEToEvaluate, YPREDToEvaluate = [], []
             checkImageProcessed = np.zeros(shape=(constants.IMAGE_WIDTH, constants.IMAGE_HEIGHT))
 
             # remove the old logs.
@@ -243,7 +221,7 @@ def predictImagesFromParametricMaps(nn, subfolder, p_id, patientFolder, relative
 
             if not os.path.exists(filename_test):
                 if constants.getVerbose(): print("[WARNING] - File {} does NOT exist".format(filename_test))
-                return stats
+                return
 
             # get the pandas dataframe
             test_df = dataset_utils.readFromPickleOrHickle(filename_test, nn.use_hickle)
@@ -251,22 +229,21 @@ def predictImagesFromParametricMaps(nn, subfolder, p_id, patientFolder, relative
             test_df = test_df[test_df.data_aug_idx == 0]
             test_df = test_df[test_df.sliceIndex == idx]
 
-            imagePredicted, YTRUEToEvaluate, YPREDToEvaluate, categoricalImage = generateImageFromParametricMaps(nn, test_df, checkImageProcessed, YTRUEToEvaluate, YPREDToEvaluate, idx)
+            imagePredicted, categoricalImage = generateImageFromParametricMaps(nn, test_df, checkImageProcessed, idx)
             s2 = time.time()
 
-            # save the image and update the stats
-            stats = saveImageAndStats(nn, stats, relativePatientFolder, idx, imagePredicted, categoricalImage,
-                                      relativePatientFolderHeatMap, relativepatientFolderGT, relativePatientFolderTMP,
-                                      checkImageProcessed, YTRUEToEvaluate, YPREDToEvaluate)
+            # save the image
+            saveImage(nn, relativePatientFolder, idx, imagePredicted, categoricalImage,
+                      relativePatientFolderHeatMap, relativepatientFolderGT, relativePatientFolderTMP, YPREDToEvaluate)
 
             end = time.time()
 
 
 ################################################################################
-# Util function to save image and stats
-def saveImageAndStats(nn, stats, relativePatientFolder, idx, imagePredicted, categoricalImage,
+# Util function to save image
+def saveImage(nn, relativePatientFolder, idx, imagePredicted, categoricalImage,
                       relativePatientFolderHeatMap, relativepatientFolderGT, relativePatientFolderTMP,
-                      checkImageProcessed, YTRUEToEvaluate, YPREDToEvaluate):
+                      checkImageProcessed):
 
     if nn.save_images:
         s1 = time.time()
@@ -306,44 +283,10 @@ def saveImageAndStats(nn, stats, relativePatientFolder, idx, imagePredicted, cat
         s2 = time.time()
         # if constants.getVerbose(): print("save time: {}".format(round(s2-s1, 3)))
 
-    if nn.save_statistics:
-        s1 = time.time()
-        tn, fn, fp, tp = {}, {}, {}, {}
-        for classToEval in nn.classes_to_evaluate:
-            if classToEval=="penumbra": label=2
-            elif classToEval=="core":
-                label=3
-                if constants.N_CLASSES==2: label=1 # binary classification
-            elif classToEval=="penumbracore": label=4
-
-            if classToEval not in tn.keys(): tn[classToEval] = {}
-            if classToEval not in fn.keys(): fn[classToEval] = {}
-            if classToEval not in fp.keys(): fp[classToEval] = {}
-            if classToEval not in tp.keys(): tp[classToEval] = {}
-
-            for idxE, percEps in enumerate(nn.epsiloList): tn[classToEval][idxE], fn[classToEval][idxE], fp[classToEval][idxE], tp[classToEval][idxE] = metrics.mappingPrediction(YTRUEToEvaluate, YPREDToEvaluate, nn.use_background_in_statistics, nn.epsilons, percEps, label)
-
-        for func in nn.statistics:
-            if func.__name__ not in stats.keys(): stats[func.__name__] = {}
-            for classToEval in nn.classes_to_evaluate:
-                if classToEval=="penumbra": label=2
-                elif classToEval=="core":
-                    label=3
-                    if constants.N_CLASSES==2: label=1  # binary classification
-                elif classToEval=="penumbracore": label=4
-
-                if classToEval not in stats[func.__name__].keys(): stats[func.__name__][classToEval] = {}
-
-                for idxE, _ in enumerate(nn.epsiloList): stats[func.__name__][classToEval][idxE] = (tn[classToEval][idxE], fn[classToEval][idxE], fp[classToEval][idxE], tp[classToEval][idxE])
-
-        s2 = time.time()
-
-    return stats
-
 
 ################################################################################
 # Helpful function that return the 2D image from the pixel and the starting coordinates
-def generate2DImage(nn, pixels, startingXY, imagePredicted, categoricalImage, checkImageProcessed, YTRUEToEvaluate, YPREDToEvaluate, binary_mask,
+def generate2DImage(nn, pixels, startingXY, imagePredicted, categoricalImage, checkImageProcessed, binary_mask,
                     slicingWindowPredicted=None):
     """
     Generate a 2D image from the test_df
@@ -354,13 +297,9 @@ def generate2DImage(nn, pixels, startingXY, imagePredicted, categoricalImage, ch
     - startingXY            : (x,y) coordinates
     - imagePredicted        : the predicted image
     - checkImageProcessed   : the ground truth image
-    - YTRUEToEvaluate       : list for stats corresponding to the ground truth image
-    - YPREDToEvaluate       : list for stats corresponding to the predicted image
 
     Return:
     - imagePredicted        : the predicted image
-    - YTRUEToEvaluate       : list for stats corresponding to the ground truth image
-    - YPREDToEvaluate       : list for stats corresponding to the predicted image
     """
     startingX, startingY = startingXY
     # slicingWindowPredicted_orig contain only the prediction for the last step
@@ -369,10 +308,6 @@ def generate2DImage(nn, pixels, startingXY, imagePredicted, categoricalImage, ch
     # convert the categorical into a single array using a threshold (0.6) for removing some uncertain predictions
     if nn.to_categ: slicingWindowPredicted = K.eval((K.argmax(slicingWindowPredicted_orig)*255)/(constants.N_CLASSES-1))
     else: slicingWindowPredicted *= 255
-
-    if nn.save_statistics and nn.labeledImagesFolder!="":  # for statistics purposes
-        YPREDToEvaluate.extend(slicingWindowPredicted)
-        YTRUEToEvaluate.extend(checkImageProcessed)
 
     # save the predicted images
     if nn.save_images:
@@ -384,26 +319,22 @@ def generate2DImage(nn, pixels, startingXY, imagePredicted, categoricalImage, ch
         slicingWindowPredicted += (binary_mask-overlapping_pred)  # add the brain to the prediction window
         imagePredicted[startingX:startingX+constants.getM(), startingY:startingY+constants.getN()] = slicingWindowPredicted
         if nn.to_categ: categoricalImage[startingX:startingX+constants.getM(), startingY:startingY+constants.getN()] = slicingWindowPredicted_orig
-    return imagePredicted, YTRUEToEvaluate, YPREDToEvaluate, categoricalImage
+    return imagePredicted, categoricalImage
 
 
 ################################################################################
-def generateTimeImagesAndConsensus(nn, test_df, YTRUEToEvaluate, YPREDToEvaluate, relativePatientFolderTMP, idx):
+def generateTimeImagesAndConsensus(nn, test_df, relativePatientFolderTMP, idx):
     """
     Generate the image from the 3D sequence of time index (create also these images) with a consensus
 
     Input:
     - nn                        : NeuralNetwork class
     - test_df                   : pandas dataframe for testing
-    - YTRUEToEvaluate           : list for stats corresponding to the ground truth image
-    - YPREDToEvaluate           : list for stats corresponding to the predicted image
     - relativePatientFolderTMP  : tmp folder for the patient
     - idx                       : image index (slice)
 
     Return:
     - imagePredicted        : the predicted image
-    - YTRUEToEvaluate       : list for stats corresponding to the ground truth image
-    - YPREDToEvaluate       : list for stats corresponding to the predicted image
     """
 
     imagePredicted = np.zeros(shape=(constants.IMAGE_WIDTH, constants.IMAGE_HEIGHT))
@@ -415,7 +346,7 @@ def generateTimeImagesAndConsensus(nn, test_df, YTRUEToEvaluate, YPREDToEvaluate
         if str(test_row.timeIndex) not in arrayTimeIndexImages.keys(): arrayTimeIndexImages[str(test_row.timeIndex)] = np.zeros(shape=(constants.IMAGE_WIDTH, constants.IMAGE_HEIGHT), dtype=np.uint8)
         if constants.get3DFlag() == "": test_row.pixels = test_row.pixels.reshape(1, test_row.pixels.shape[0], test_row.pixels.shape[1], test_row.pixels.shape[2], 1)
         else: test_row.pixels = test_row.pixels.reshape(1, test_row.pixels.shape[0], test_row.pixels.shape[1], test_row.pixels.shape[2])
-        arrayTimeIndexImages[str(test_row.timeIndex)], YTRUEToEvaluate, YPREDToEvaluate, categoricalImage = generate2DImage(nn, test_row.pixels, test_row.x_y, arrayTimeIndexImages[str(test_row.timeIndex)], categoricalImage, checkImageProcessed, YTRUEToEvaluate, YPREDToEvaluate)
+        arrayTimeIndexImages[str(test_row.timeIndex)], categoricalImage = generate2DImage(nn, test_row.pixels, test_row.x_y, arrayTimeIndexImages[str(test_row.timeIndex)], categoricalImage, checkImageProcessed)
 
     if nn.save_images:              # remove one class from the ground truth
         if constants.N_CLASSES==3: checkImageProcessed[checkImageProcessed==85] = constants.PIXELVALUES[0]
@@ -430,12 +361,12 @@ def generateTimeImagesAndConsensus(nn, test_df, YTRUEToEvaluate, YPREDToEvaluate
 
         imagePredicted /= len(arrayTimeIndexImages.keys())
 
-    return imagePredicted, YTRUEToEvaluate, YPREDToEvaluate, categoricalImage
+    return imagePredicted, categoricalImage
 
 
 ################################################################################
 # Function to predict an image starting from the parametric maps
-def generateImageFromParametricMaps(nn, test_df, checkImageProcessed, YTRUEToEvaluate, YPREDToEvaluate, idx):
+def generateImageFromParametricMaps(nn, test_df, checkImageProcessed, idx):
     """
     Generate a 2D image from the test_df using the parametric maps
 
@@ -443,15 +374,11 @@ def generateImageFromParametricMaps(nn, test_df, checkImageProcessed, YTRUEToEva
     - nn                        : NeuralNetwork class
     - test_df                   : pandas dataframe for testing
     - checkImageProcessed       : the labeled image (Ground truth img)
-    - YTRUEToEvaluate           : list for stats corresponding to the ground truth image
-    - YPREDToEvaluate           : list for stats corresponding to the predicted image
     - relativePatientFolderTMP  : tmp folder for the patient
     - idx                       : image index (slice)
 
     Return:
     - imagePredicted        : the predicted image
-    - YTRUEToEvaluate       : list for stats corresponding to the ground truth image
-    - YPREDToEvaluate       : list for stats corresponding to the predicted image
     """
 
     imagePredicted = np.zeros(shape=(constants.IMAGE_WIDTH, constants.IMAGE_HEIGHT))
@@ -487,7 +414,7 @@ def generateImageFromParametricMaps(nn, test_df, checkImageProcessed, YTRUEToEva
 
             checkImageProcessed_slice = general_utils.getSlicingWindow(checkImageProcessed, startX, startY)
             # slicingWindowPredicted contain only the prediction for the last step
-            imagePredicted, YTRUEToEvaluate, YPREDToEvaluate, categoricalImage = generate2DImage(nn, X, (startX,startY), imagePredicted, categoricalImage, checkImageProcessed_slice, YTRUEToEvaluate, YPREDToEvaluate, binary_mask)
+            imagePredicted, categoricalImage = generate2DImage(nn, X, (startX,startY), imagePredicted, categoricalImage, checkImageProcessed_slice, binary_mask)
 
         # if we reach the end of the image, break the while loop.
         if startX>=constants.IMAGE_WIDTH-constants.getM() and startY>=constants.IMAGE_HEIGHT-constants.getN(): break
@@ -502,7 +429,7 @@ def generateImageFromParametricMaps(nn, test_df, checkImageProcessed, YTRUEToEva
                 startY = 0
                 startX += constants.getM()
 
-    return imagePredicted, YTRUEToEvaluate, YPREDToEvaluate, categoricalImage
+    return imagePredicted, categoricalImage
 
 
 ################################################################################

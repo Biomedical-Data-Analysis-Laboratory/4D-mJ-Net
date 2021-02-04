@@ -198,7 +198,7 @@ def focal_c(y_true, y_pred):
 
 
 ################################################################################
-#
+# Function that computes the Tanimoto loss
 def tanimoto(y_true, y_pred):
     class_weights = tf.constant(constants.HOT_ONE_WEIGHTS, dtype=tf.float32)
     """
@@ -215,3 +215,14 @@ def tanimoto(y_true, y_pred):
     denominator = K.sum(denominator, axis=axis_to_reduce)
     return numerator / denominator
 
+
+################################################################################
+# Return precision as a metric
+def precision():
+    return tf.keras.metrics.Precision()
+
+
+################################################################################
+# Return recall as a metric
+def recall():
+    return tf.keras.metrics.Recall()

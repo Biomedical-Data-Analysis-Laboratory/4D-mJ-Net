@@ -122,9 +122,9 @@ def predictImage(nn, subfolder, p_id, patientFolder, relativePatientFolder, rela
     # get the images in a dictionary
     for imagename in np.sort(glob.glob(subfolder+"*"+constants.SUFFIX_IMG)):  # sort the images !
         filename = imagename.replace(subfolder, '')
-        if not nn.supervised or nn.patientsFolder!="OLDPREPROC_PATIENTS/": imagesDict[filename] = cv2.imread(imagename, cv2.IMREAD_GRAYSCALE)
+        if not nn.supervised or nn.patientsFolder!="OLDPREPROC_PATIENTS/": imagesDict[filename] = cv2.imread(imagename, cv2.IMREAD_UNCHANGED)
         else:  # don't take the first image (the manually annotated one)
-            if filename != "01"+constants.SUFFIX_IMG: imagesDict[filename] = cv2.imread(imagename, cv2.IMREAD_GRAYSCALE)
+            if filename != "01"+constants.SUFFIX_IMG: imagesDict[filename] = cv2.imread(imagename,cv2.IMREAD_UNCHANGED)
 
     # Portion for the prediction of the image
     if constants.get3DFlag()!="":

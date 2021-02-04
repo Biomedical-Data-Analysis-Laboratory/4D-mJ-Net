@@ -74,7 +74,6 @@ def dice_coef(y_true, y_pred):
 ################################################################################
 # Implementation of the Tversky Index (TI),
 # which is a asymmetric similarity measure that is a generalisation of the dice coefficient and the Jaccard index.
-# Function taken and modified from here: https://github.com/robinvvinod/unet/
 def _tversky_coef(y_true, y_pred, class_weights, smooth=1.):
     alpha = constants.focal_tversky_loss["alpha"]
     beta = 1-alpha
@@ -157,8 +156,9 @@ def weighted_categorical_cross_entropy(y_true, y_pred, epsilon=1e-7):
 
 
 ################################################################################
-#
-def _focal_loss(y_true, y_pred, alpha, epsilon=1e-6):
+# Implementation of the Focal loss.
+# first proposed here: https://openaccess.thecvf.com/content_ICCV_2017/papers/Lin_Focal_Loss_for_ICCV_2017_paper.pdf
+def _focal_loss(y_true, y_pred, alpha):
     """ Compute focal loss. """
     gamma = tf.constant(constants.GAMMA,dtype=y_pred.dtype)
     axis_to_reduce = list(range(1, K.ndim(y_pred)))

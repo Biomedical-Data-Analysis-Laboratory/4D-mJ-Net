@@ -158,7 +158,7 @@ def saveIntermediateLayers(model, intermediate_activation_path):
     for imagename in np.sort(glob.glob(
             "/home/stud/lucat/PhD_Project/Stroke_segmentation/PATIENTS/SUS2020_TIFF/FINAL_TIFF/CTP_01_010/10/*."
             + constants.SUFFIX_IMG)):
-        img = cv2.imread(imagename, 0)
+        img = cv2.imread(imagename, cv2.IMREAD_UNCHANGED)
         pixels[:, :, count] = general_utils.getSlicingWindow(img, 320, 320)
         count += 1
 

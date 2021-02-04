@@ -124,7 +124,7 @@ def initializeLabels(patientIndex):
 
 ################################################################################
 def getLabelledAreas(patientIndex, timeIndex):
-    return cv2.imread(LABELED_IMAGES_FOLDER_LOCATION+IMAGE_PREFIX+patientIndex+"/"+timeIndex+IMAGE_SUFFIX, cv2.IMREAD_GRAYSCALE)
+    return cv2.imread(LABELED_IMAGES_FOLDER_LOCATION+IMAGE_PREFIX+patientIndex+"/"+timeIndex+IMAGE_SUFFIX, cv2.IMREAD_UNCHANGED)
 
 
 ################################################################################
@@ -252,7 +252,7 @@ def fillDatasetOverTime(relativePath, patientIndex, timeFolder, infor_file):
             filename = imagename.replace(timeFolder, '')
             # don't take the first image (the manually annotated one)
             if "OLDPREPROC_PATIENTS/" in SAVE_REGISTERED_FOLDER and filename == "01"+IMAGE_SUFFIX: continue
-            image = cv2.imread(imagename, 0)
+            image = cv2.imread(imagename, cv2.IMREAD_UNCHANGED)
             imagesDict[filename] = image
 
     for rep in range(numRep):
@@ -454,7 +454,7 @@ def fillDataset4D(relativePath, patientIndex, timeFolder, folders):
             # don't take the first image (the manually annotated one)
             if "OLDPREPROC_PATIENTS/" in SAVE_REGISTERED_FOLDER and filename == "01"+IMAGE_SUFFIX: continue
 
-            timeFoldersToProcess[folders[curr_idx]]["imagesDict"][filename] = cv2.imread(imagename, 0)
+            timeFoldersToProcess[folders[curr_idx]]["imagesDict"][filename] = cv2.imread(imagename,cv2.IMREAD_UNCHANGED)
 
     curr_dt = pd.DataFrame(columns=COLUMNS)
     reshape_func = lambda x: x.reshape(x.shape[0], x.shape[1], x.shape[2], 1)
@@ -529,7 +529,7 @@ def fillDataset3D(relativePath, patientIndex, timeFolder, folders, infor_file):
             # don't take the first image (the manually annotated one)
             if "OLDPREPROC_PATIENTS/" in SAVE_REGISTERED_FOLDER and filename == "01"+IMAGE_SUFFIX: continue
 
-            timeFoldersToProcess[folders[curr_idx]]["imagesDict"][filename] = cv2.imread(imagename, 0)
+            timeFoldersToProcess[folders[curr_idx]]["imagesDict"][filename] = cv2.imread(imagename,cv2.IMREAD_UNCHANGED)
 
     reshape_func = lambda x: x.reshape(x.shape[0], x.shape[1], x.shape[2], 1)
 
@@ -591,7 +591,7 @@ def fillDataset3DOneTimePoint(relativePath, patientIndex, timeFolder, subfolders
 
     startingX, startingY = 0, 0
 
-    image = cv2.imread(timeFolder+timeIndex+IMAGE_SUFFIX, cv2.IMREAD_GRAYSCALE)
+    image = cv2.imread(timeFolder+timeIndex+IMAGE_SUFFIX,cv2.IMREAD_UNCHANGED)
     while True:
         # if we reach the end of the image, break the while loop.
         if startingX>=IMAGE_WIDTH-M and startingY>=IMAGE_HEIGHT-N: break

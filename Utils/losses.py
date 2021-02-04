@@ -24,7 +24,8 @@ def dice_coef_loss(y_true, y_pred):
 # Tversky loss.
 # Based on this paper: https://arxiv.org/abs/1706.05721
 def tversky_loss(y_true, y_pred):
-    return 1 - metrics.tversky_coef(y_true, y_pred)
+    tv = metrics.tversky_coef(y_true, y_pred)
+    return 1 - tv
 
 
 ################################################################################

@@ -53,7 +53,6 @@ class NeuralNetwork(object):
         self.optimizerInfo = modelInfo["optimizer"]
         self.params = modelInfo["params"]
         self.loss = general_utils.getLoss(modelInfo)
-        self.classes_to_evaluate = modelInfo["classes_to_evaluate"]
         self.metricFuncs = general_utils.getMetricFunctions(modelInfo["metrics"])
 
         # FLAGS for the model

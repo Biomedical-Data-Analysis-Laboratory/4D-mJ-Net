@@ -97,7 +97,7 @@ class datasetSequence(Sequence):
                 #  is > constants.NUMBER_OF_IMAGE_PER_SECTION
                 if timeIndex >= constants.NUMBER_OF_IMAGE_PER_SECTION: break
 
-                sliceW = general_utils.getSlicingWindow(cv2.imread(filename,cv2.IMREAD_UNCHANGED),coord[0],coord[1])
+                sliceW = general_utils.getSlicingWindow(cv2.imread(filename,cv2.IMREAD_GRAYSCALE),coord[0],coord[1])
                 sliceW = general_utils.performDataAugmentationOnTheImage(sliceW, data_aug_idx)
 
                 # reshape it for the correct input in the model
@@ -123,7 +123,7 @@ class datasetSequence(Sequence):
 
             for pm in self.x_label:
                 if pm not in pms.keys(): pms[pm] = []
-                totimg = cv2.imread(row[pm], cv2.IMREAD_UNCHANGED)
+                totimg = cv2.imread(row[pm])
 
                 if totimg is not None:
                     img = general_utils.getSlicingWindow(totimg, coord[0], coord[1], removeColorBar=True)
@@ -147,7 +147,7 @@ class datasetSequence(Sequence):
                 row_index = self.index_batch[index]
                 filename = current_batch.loc[row_index][self.y_label]
                 coord = current_batch.loc[row_index]["x_y"]  # coordinates of the slice window
-                img = cv2.imread(filename,cv2.IMREAD_UNCHANGED)
+                img = cv2.imread(filename,cv2.IMREAD_GRAYSCALE)
                 img = general_utils.getSlicingWindow(img, coord[0], coord[1], isgt=True)
 
                 # remove the brain from the image ==> it becomes background

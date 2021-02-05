@@ -106,9 +106,9 @@ def predictImage(nn, subfolder, p_id, patientFolder, relativePatientFolder, rela
     # get the images in a dictionary
     for imagename in np.sort(glob.glob(subfolder+"*"+constants.SUFFIX_IMG)):  # sort the images !
         filename = imagename.replace(subfolder, '')
-        if not nn.supervised or nn.patientsFolder!="OLDPREPROC_PATIENTS/": imagesDict[filename] = cv2.imread(imagename, cv2.IMREAD_UNCHANGED)
+        if not nn.supervised or nn.patientsFolder!="OLDPREPROC_PATIENTS/": imagesDict[filename] = cv2.imread(imagename, cv2.IMREAD_GRAYSCALE)
         else:  # don't take the first image (the manually annotated one)
-            if filename != "01"+constants.SUFFIX_IMG: imagesDict[filename] = cv2.imread(imagename,cv2.IMREAD_UNCHANGED)
+            if filename != "01"+constants.SUFFIX_IMG: imagesDict[filename] = cv2.imread(imagename,cv2.IMREAD_GRAYSCALE)
 
     # Portion for the prediction of the image
     if constants.get3DFlag()!="":
@@ -233,17 +233,16 @@ def predictImagesFromParametricMaps(nn, subfolder, p_id, patientFolder, relative
             s2 = time.time()
 
             # save the image
-            saveImage(nn, relativePatientFolder, idx, imagePredicted, categoricalImage,
-                      relativePatientFolderHeatMap, relativepatientFolderGT, relativePatientFolderTMP, YPREDToEvaluate)
+            saveImage(nn, relativePatientFolder, idx, imagePredicted, categoricalImage, relativePatientFolderHeatMap,
+                      relativepatientFolderGT, relativePatientFolderTMP, checkImageProcessed)
 
             end = time.time()
 
 
 ################################################################################
 # Util function to save image
-def saveImage(nn, relativePatientFolder, idx, imagePredicted, categoricalImage,
-                      relativePatientFolderHeatMap, relativepatientFolderGT, relativePatientFolderTMP,
-                      checkImageProcessed):
+def saveImage(nn, relativePatientFolder, idx, imagePredicted, categoricalImage, relativePatientFolderHeatMap,
+              relativepatientFolderGT, relativePatientFolderTMP, checkImageProcessed):
 
     if nn.save_images:
         s1 = time.time()

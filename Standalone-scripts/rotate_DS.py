@@ -32,7 +32,7 @@ def readAndMirrorImages(ORIGINAL_FOLDER,MIRRORED_REGISTERED_FOLDER,MIRRORED_GT_F
 
             for image_name in glob.glob(subfold + "*"):
                 image_idx = image_name.replace(subfold,'')
-                img = cv2.imread(image_name, cv2.IMREAD_UNCHANGED)
+                img = cv2.imread(image_name, cv2.IMREAD_GRAYSCALE)
                 mirror_img = np.fliplr(img)
                 cv2.imwrite(MIRRORED_REGISTERED_FOLDER + relativePatientPath + slicefold + image_idx, mirror_img)
 
@@ -43,7 +43,7 @@ def readAndMirrorGT(relativePatientPath,MIRRORED_GT_FOLDER):
         os.mkdir(MIRRORED_GT_FOLDER + relativePatientPath)
         for image_name in glob.glob(GT_FOLDER+relativePatientPath + "*"):
             image_idx = image_name.replace(GT_FOLDER+relativePatientPath, '')
-            img = cv2.imread(image_name, cv2.IMREAD_UNCHANGED)
+            img = cv2.imread(image_name, cv2.IMREAD_GRAYSCALE)
             mirror_img = np.fliplr(img)
             cv2.imwrite(MIRRORED_GT_FOLDER + relativePatientPath + image_idx, mirror_img)
 

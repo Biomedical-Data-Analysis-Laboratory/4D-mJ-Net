@@ -69,7 +69,7 @@ def main():
 
         # remove the patients to exclude (if any)
         listOfPatientsToTest = list(set(listOfPatientsToTest) - set(listOfPatientsToExclude))
-        listOfPatientsToTrainVal = list(set(listOfPatientsToTrainVal)-set(listOfPatientsToExclude))
+        listOfPatientsToTrainVal = list(set(listOfPatientsToTrainVal) - set(listOfPatientsToExclude))
 
         # loop over all the list of patients.
         # Useful for creating a model for each patient (if cross-validation is set)

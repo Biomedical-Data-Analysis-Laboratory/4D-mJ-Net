@@ -111,7 +111,8 @@ class NeuralNetwork(object):
             filename=self.getSavedInformation(p_id, path=self.savePartialModelFolder),
             textFolderPath=self.saveTextFolder,
             dataset=self.dataset,
-            sample_weights=sample_weights # only for ROC callback (NOT working)
+            sample_weights=sample_weights, # only for ROC callback (NOT working)
+            nn_id=self.getNNID(p_id)
         )
 
 ################################################################################

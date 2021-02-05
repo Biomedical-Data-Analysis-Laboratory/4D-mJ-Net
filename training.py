@@ -56,7 +56,7 @@ def getOptimizer(optInfo):
 
 ################################################################################
 # Return the callbacks defined in the setting
-def getCallbacks(info, root_path, filename, textFolderPath, dataset, sample_weights):
+def getCallbacks(info, root_path, filename, textFolderPath, dataset, sample_weights, nn_id):
     # add by default the TerminateOnNaN callback
     cbs = [callback.TerminateOnNaN()]
 
@@ -79,7 +79,7 @@ def getCallbacks(info, root_path, filename, textFolderPath, dataset, sample_weig
             cbs.append(callback.CollectBatchStats(root_path, filename, textFolderPath, info[key]["acc"]))
         # save the epoch results in a csv file
         elif key == "CSVLogger":
-            cbs.append(callback.CSVLogger(textFolderPath, info[key]["filename"], info[key]["separator"]))
+            cbs.append(callback.CSVLogger(textFolderPath, nn_id, info[key]["filename"], info[key]["separator"]))
         elif key == "RocCallback":
             training_data = (dataset["train"]["data"], dataset["train"]["labels"])
             validation_data = (dataset["val"]["data"], dataset["val"]["labels"])
@@ -155,10 +155,9 @@ def fit_generator(model, train_sequence, val_sequence, steps_per_epoch, validati
 def saveIntermediateLayers(model, intermediate_activation_path):
     count = 0
     pixels = np.zeros(shape=(constants.getM(), constants.getN(), constants.NUMBER_OF_IMAGE_PER_SECTION))
-    for imagename in np.sort(glob.glob(
-            "/home/stud/lucat/PhD_Project/Stroke_segmentation/PATIENTS/SUS2020_TIFF/FINAL_TIFF/CTP_01_010/10/*."
-            + constants.SUFFIX_IMG)):
-        img = cv2.imread(imagename, cv2.IMREAD_UNCHANGED)
+    path = "/home/prosjekt/PerfusionCT/StrokeSUS/FINAL_TIFF_HU_v1/CTP_01_010/10/*."
+    for imagename in np.sort(glob.glob(path + constants.SUFFIX_IMG)):
+        img = cv2.imread(imagename, cv2.IMREAD_GRAYSCALE)
         pixels[:, :, count] = general_utils.getSlicingWindow(img, 320, 320)
         count += 1
 

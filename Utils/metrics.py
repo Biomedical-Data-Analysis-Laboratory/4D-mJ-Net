@@ -218,11 +218,44 @@ def tanimoto(y_true, y_pred):
 
 ################################################################################
 # Return precision as a metric
-def precision():
-    return tf.keras.metrics.Precision()
+def prec_p(y_true, y_pred):
+    class_weights = tf.constant([[0, 0, 1, 0]], dtype=tf.float32)
+    if constants.N_CLASSES == 3: class_weights = tf.constant([[0, 1, 0]], dtype=tf.float32)
+    return _precision(y_true, y_pred, class_weights)
+
+
+def prec_c(y_true, y_pred):
+    class_weights = tf.constant([[0, 0, 0, 1]], dtype=tf.float32)
+    if constants.N_CLASSES == 3: class_weights = tf.constant([[0, 0, 1]], dtype=tf.float32)
+    return _precision(y_true, y_pred, class_weights)
+
+
+def _precision(y_true, y_pred, class_weights):
+    axis_to_reduce = list(range(1, K.ndim(y_pred)))  # All axis but first (batch)
+    numerator = y_true * y_pred * class_weights
+    numerator = K.sum(numerator, axis=axis_to_reduce)
+    denominator = K.sum(y_pred * class_weights, axis=axis_to_reduce)
+    return numerator / (denominator + K.epsilon())
 
 
 ################################################################################
 # Return recall as a metric
-def recall():
-    return tf.keras.metrics.Recall()
+def rec_p(y_true, y_pred):
+    class_weights = tf.constant([[0, 0, 1, 0]], dtype=tf.float32)
+    if constants.N_CLASSES == 3: class_weights = tf.constant([[0, 1, 0]], dtype=tf.float32)
+    return _recall(y_true, y_pred, class_weights)
+
+
+def rec_c(y_true, y_pred):
+    class_weights = tf.constant([[0, 0, 0, 1]], dtype=tf.float32)
+    if constants.N_CLASSES == 3: class_weights = tf.constant([[0, 0, 1]], dtype=tf.float32)
+    return _recall(y_true, y_pred, class_weights)
+
+
+def _recall(y_true, y_pred, class_weights):
+    axis_to_reduce = list(range(1, K.ndim(y_pred)))  # All axis but first (batch)
+    numerator = y_true * y_pred * class_weights
+    numerator = K.sum(numerator, axis=axis_to_reduce)
+    denominator = y_true * class_weights
+    denominator = K.sum(denominator, axis=axis_to_reduce)
+    return numerator / (denominator + K.epsilon())

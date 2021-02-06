@@ -60,14 +60,14 @@ from scipy import ndimage
 ################################################################################
 # SUS2020_TIFF Setting
 ################################################################################
-DATASET_NAME = "SUS2020_TIFF_HU/"  # "SUS2020_v2/"
-# ROOT_PATH = "/home/stud/lucat/PhD_Project/Stroke_segmentation/PATIENTS/SUS2020_TIFF/"
+DATASET_NAME = "MIRRORED_SUS2020_TIFF_HU/"  #"SUS2020_TIFF_HU/"
 ROOT_PATH = "/home/prosjekt/PerfusionCT/StrokeSUS/"
-SCRIPT_PATH = "/local/home/lucat/DATASET/"+DATASET_NAME  # "/home/stud/lucat/PhD_Project/"+DATASET_NAME
+SCRIPT_PATH = "/local/home/lucat/DATASET/"+DATASET_NAME
+# SCRIPT_PATH = "/home/stud/lucat/PhD_Project/"+DATASET_NAME
 
-SAVE_REGISTERED_FOLDER = ROOT_PATH + "FINAL_TIFF_HU_v1/"
+SAVE_REGISTERED_FOLDER = ROOT_PATH + "MIRRORED/MIRRORED_FINAL_TIFF_HU_v1/" #"FINAL_TIFF_HU_v1/"
 PM_FOLDER = ROOT_PATH + "Parametric_Maps/"
-LABELED_IMAGES_FOLDER_LOCATION = ROOT_PATH + "GT_TIFF/"  # "FINALIZE_PM_TIFF/"
+LABELED_IMAGES_FOLDER_LOCATION = ROOT_PATH + "GT_TIFF/"
 IMAGE_PREFIX = "CTP_"
 IMAGE_SUFFIX = ".tiff"  # ".png"
 NUMBER_OF_IMAGE_PER_SECTION = 30  # number of image (divided by time) for each section of the brain

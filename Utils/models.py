@@ -1,5 +1,5 @@
 import constants
-from Models import arch_mJNet, arch_autoencoder, arch_van_De_Leemput, arch_UNet, arch_VNet
+from Models import arch_mJNet, arch_PMs_segm, arch_autoencoder, arch_van_De_Leemput, arch_UNet, arch_VNet
 from Utils import general_utils, spatial_pyramid
 
 
@@ -46,23 +46,23 @@ def mJNet_v3D(params, to_categ, moreinfo):
 
 
 ################################################################################
-def mJNet_PM(params, to_categ, moreinfo):
-    return arch_mJNet.mJNet_PM(params, to_categ)
+def PMs_segmentation(params, to_categ, moreinfo):
+    return arch_PMs_segm.PMs_segmentation(params, to_categ, moreinfo)
 
 
 ################################################################################
-def mJNet_PM_NOBatch(params, to_categ, moreinfo):
-    return arch_mJNet.mJNet_PM(params, to_categ, moreinfo, batch=False)
+def PMs_segmentation_NOBatch(params, to_categ, moreinfo):
+    return arch_PMs_segm.PMs_segmentation(params, to_categ, moreinfo, batch=False)
 
 
 ################################################################################
-def mJNet_PM_MoreInfo(params, to_categ, moreinfo):
-    return arch_mJNet.mJNet_PM(params, to_categ, moreinfo)
+def PMs_segmentation_MoreInfo(params, to_categ, moreinfo):
+    return arch_PMs_segm.PMs_segmentation(params, to_categ, moreinfo)
 
 
 ################################################################################
-def mJNet_PM_MoreInfo_NOBatch(params, to_categ, moreinfo):
-    return arch_mJNet.mJNet_PM(params, to_categ, moreinfo, batch=False)
+def PMs_segmentation_MoreInfo_NOBatch(params, to_categ, moreinfo):
+    return arch_PMs_segm.PMs_segmentation(params, to_categ, moreinfo, batch=False)
 
 
 ################################################################################

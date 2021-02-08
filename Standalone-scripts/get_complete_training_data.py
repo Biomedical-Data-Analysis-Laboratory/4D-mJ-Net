@@ -60,14 +60,15 @@ from scipy import ndimage
 ################################################################################
 # SUS2020_TIFF Setting
 ################################################################################
-DATASET_NAME = "MIRRORED_SUS2020_TIFF_HU/"  #"SUS2020_TIFF_HU/"
+DATASET_NAME = "SUS2020_TIFF_HU_COMBINED/"
 ROOT_PATH = "/home/prosjekt/PerfusionCT/StrokeSUS/"
 SCRIPT_PATH = "/local/home/lucat/DATASET/"+DATASET_NAME
 # SCRIPT_PATH = "/home/stud/lucat/PhD_Project/"+DATASET_NAME
 
-SAVE_REGISTERED_FOLDER = ROOT_PATH + "MIRRORED/MIRRORED_FINAL_TIFF_HU_v1/" #"FINAL_TIFF_HU_v1/"
-PM_FOLDER = ROOT_PATH + "Parametric_Maps/"
-LABELED_IMAGES_FOLDER_LOCATION = ROOT_PATH + "GT_TIFF/"
+SAVE_REGISTERED_FOLDER = ROOT_PATH + "COMBINED/FINAL_TIFF_HU_v1/" #"FINAL_TIFF_HU_v1/"
+PM_FOLDER = ROOT_PATH + "COMBINED/Parametric_Maps/"
+LABELED_IMAGES_FOLDER_LOCATION = ROOT_PATH + "COMBINED/GT_TIFF/"
+MASKS_IMAGES_FOLDER_LOCATION = ROOT_PATH + "COMBINED/MASKS_HU/"
 IMAGE_PREFIX = "CTP_"
 IMAGE_SUFFIX = ".tiff"  # ".png"
 NUMBER_OF_IMAGE_PER_SECTION = 30  # number of image (divided by time) for each section of the brain
@@ -97,7 +98,7 @@ FOUR_D = False  # TODO: ??
 ONE_TIME_POINT = -1  # -1 if you don't want to use it
 VERBOSE = 0
 dataset, listPatientsDataset, trainDatasetList = {}, {}, list()
-COLUMNS = ['patient_id', 'label', 'pixels', 'CBF', 'CBV', 'TTP', 'TMAX', 'MIP', 'NIHSS', 'ground_truth',
+COLUMNS = ['patient_id', 'label', 'pixels', 'CBF', 'CBV', 'TTP', 'TMAX', 'MIP', 'NIHSS', 'ground_truth', "mask",
            'label_code', 'x_y', 'data_aug_idx', 'timeIndex', 'sliceIndex', "severity", "age", "gender"]
 
 ################################################################################
@@ -315,11 +316,15 @@ def fillDatasetOverTime(relativePath, patientIndex, timeFolder, infor_file):
                 # if we are processing for the sequence dataset, save the path for the ground truth
                 if SEQUENCE_DATASET:
                     otherInforList[data_aug_idx][str(startingX)][str(startingY)]["ground_truth"] = LABELED_IMAGES_FOLDER_LOCATION+IMAGE_PREFIX+patientIndex+"/"+sliceIndex+IMAGE_SUFFIX
+                    otherInforList[data_aug_idx][str(startingX)][str(startingY)]["mask"] = MASKS_IMAGES_FOLDER_LOCATION + IMAGE_PREFIX + patientIndex + "/" + sliceIndex + IMAGE_SUFFIX
                     otherInforList[data_aug_idx][str(startingX)][str(startingY)]["pixels"] = timeFolder
 
                     for dayfolder in np.sort(glob.glob(PM_FOLDER + IMAGE_PREFIX + patientIndex +"/*/")):
                         # if the folder contains the correct number of subfolders
-                        if len(glob.glob(dayfolder+"*/"))>=7:
+                        n_fold = 7
+                        if "20_" in patientIndex or "21_" in patientIndex or "22_" in patientIndex or "23_" in patientIndex: n_fold=5
+
+                        if len(glob.glob(dayfolder+"*/"))>=n_fold:
                             pmlist = ["CBF", "CBV", "TTP", "TMAX", "MIP"]
 
                             for subdayfolder in glob.glob(dayfolder+"*/"):
@@ -404,6 +409,7 @@ def fillDatasetOverTime(relativePath, patientIndex, timeFolder, infor_file):
 
                 label = otherInforList[d][x][y]["label_class"]
                 gt = otherInforList[d][x][y]["ground_truth"]
+                mask = otherInforList[d][x][y]["mask"]
                 x_y = otherInforList[d][x][y]["x_y"]
                 data_aug_idx = otherInforList[d][x][y]["data_aug_idx"]
                 timeIndex = otherInforList[d][x][y]["timeIndex"]
@@ -415,7 +421,7 @@ def fillDatasetOverTime(relativePath, patientIndex, timeFolder, infor_file):
                 age = int(infor_file.age[IMAGE_PREFIX+patientIndex][:-1])
                 gender = 0 if infor_file.gender[IMAGE_PREFIX+patientIndex] == "M" else 1
 
-                tmp_df = pd.DataFrame(np.array([[patientIndex, label, pixels_zoom, cbf, cbv, ttp, tmax, mip, nihss, gt,
+                tmp_df = pd.DataFrame(np.array([[patientIndex, label, pixels_zoom, cbf, cbv, ttp, tmax, mip, nihss, gt, mask,
                                                  x_y, data_aug_idx, timeIndex, sliceIndex, severity, age, gender]]),
                                       columns=tmp_COLUMNS)
 
@@ -570,7 +576,7 @@ def fillDataset3D(relativePath, patientIndex, timeFolder, folders, infor_file):
                     if timeFoldersToProcess[tFold]["index"] < 0: pixels = np.append(slicingWindow, pixels, axis=2)
                     else: pixels = np.append(pixels, slicingWindow, axis=2)
 
-                curr_dt = pd.DataFrame(np.array([[row["patient_id"], row["label"], pixels, row["ground_truth"], row["label_code"], row["x_y"], row["data_aug_idx"], timeIndexFilename, sliceIndex]]), columns=COLUMNS)
+                curr_dt = pd.DataFrame(np.array([[row["patient_id"], row["label"], pixels, row["ground_truth"], row["mask"], row["label_code"], row["x_y"], row["data_aug_idx"], timeIndexFilename, sliceIndex]]), columns=COLUMNS)
                 check_row = train_df[(train_df.timeIndex==timeIndexFilename) & (train_df.x_y==row["x_y"]) & (train_df.sliceIndex==sliceIndex)]
                 # if there is already a row, update the row otherwise append it
                 if len(check_row)>0: train_df.loc[(train_df.timeIndex==timeIndexFilename) & (train_df.x_y==row["x_y"]) & (train_df.sliceIndex==sliceIndex), 'pixels'] = [pixels]
@@ -640,8 +646,12 @@ def initializeDataset():
 
         relativePath = patientFolder.replace(SAVE_REGISTERED_FOLDER, '')
         patientIndex = relativePath.replace(IMAGE_PREFIX, "").replace("/", "")
+        orig_patientIndex = patientIndex
+
         filename_train = SCRIPT_PATH+"patient"+str(patientIndex)+suffix_filename+".pkl"
         filename_train_hkl = SCRIPT_PATH+"patient"+str(patientIndex)+suffix_filename+".hkl"
+
+        patientIndex = orig_patientIndex
 
         if os.path.isfile(filename_train):
             print("File {} already exist, continue...".format(filename_train))

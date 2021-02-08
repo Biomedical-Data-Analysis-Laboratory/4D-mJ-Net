@@ -25,6 +25,7 @@ def readAndMirrorImages():
 
         readAndMirror4DCTP(relativePatientPath,patientFolder)
 
+        readAndMirrorMask(relativePatientPath)
 
 ################################################################################
 def readAndMirror4DCTP(relativePatientPath,patientFolder):
@@ -87,6 +88,19 @@ def readAndMirrorGT(relativePatientPath):
         cv2.imwrite(MIRRORED_GT_FOLDER + relativePatientPath + image_idx, mirror_img)
 
 
+def readAndMirrorMask(relativePatientPath):
+    if not os.path.isdir(MIRRORED_MASK_FOLDER + relativePatientPath): os.mkdir(MIRRORED_MASK_FOLDER + relativePatientPath)
+    else:
+        print("MAsk for {} already exists, continue...".format(MIRRORED_MASK_FOLDER + relativePatientPath))
+        return
+
+    for image_name in glob.glob(MASK_FOLDER + relativePatientPath + "*"):
+        image_idx = image_name.replace(MASK_FOLDER + relativePatientPath, '')
+        img = cv2.imread(image_name, cv2.IMREAD_GRAYSCALE)
+        mirror_img = np.fliplr(img)
+        cv2.imwrite(MIRRORED_MASK_FOLDER + relativePatientPath + image_idx, mirror_img)
+
+
 ################################################################################
 # ## Main
 ################################################################################
@@ -96,23 +110,28 @@ if __name__ == '__main__':
     parser.add_argument("ds_name", help="Set the dataset folder name")
     parser.add_argument("pm_name", help="Set the pms folder name")
     parser.add_argument("gt_name", help="Set the ground truth folder name")
+    parser.add_argument("mask_name", help="Set the mask folder name")
     args = parser.parse_args()
 
     ROOT_PATH = args.root
     DS_NAME = args.ds_name
     PM_NAME = args.pm_name
     GT_NAME = args.gt_name
+    MASK_NAME = args.mask_name
     ORIGINAL_FOLDER = ROOT_PATH + DS_NAME
     MIRRORED_REGISTERED_FOLDER = ROOT_PATH + "MIRRORED/MIRRORED_" + DS_NAME
     PM_FOLDER = ROOT_PATH + PM_NAME
     MIRRORED_PM_FOLDER = ROOT_PATH + "MIRRORED/MIRRORED_" + PM_NAME
     GT_FOLDER = ROOT_PATH + GT_NAME
     MIRRORED_GT_FOLDER = ROOT_PATH + "MIRRORED/MIRRORED_" + GT_NAME
+    MASK_FOLDER = ROOT_PATH + MASK_NAME
+    MIRRORED_MASK_FOLDER = ROOT_PATH + "MIRRORED/MIRRORED_" + MASK_NAME
 
     start = time.time()
     if not os.path.isdir(MIRRORED_REGISTERED_FOLDER): os.mkdir(MIRRORED_REGISTERED_FOLDER)
     if not os.path.isdir(MIRRORED_PM_FOLDER): os.mkdir(MIRRORED_PM_FOLDER)
     if not os.path.isdir(MIRRORED_GT_FOLDER): os.mkdir(MIRRORED_GT_FOLDER)
+    if not os.path.isdir(MIRRORED_MASK_FOLDER): os.mkdir(MIRRORED_MASK_FOLDER)
 
     print("Mirror the dataset...")
     readAndMirrorImages()

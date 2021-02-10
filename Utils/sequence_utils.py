@@ -18,7 +18,7 @@ from Utils import general_utils, dataset_utils
 # https://faroit.com/keras-docs/2.1.3/models/sequential/#fit_generator
 class datasetSequence(Sequence):
     def __init__(self, dataframe, indices, sample_weights, x_label, y_label, moreinfo,
-                 to_categ, batch_size, back_perc=2, flagtype="train", loss=None):
+                 to_categ, batch_size, back_perc, flagtype="train", loss=None):
         self.indices = indices
         self.dataframe = dataframe.iloc[self.indices]
 

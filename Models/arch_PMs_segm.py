@@ -100,16 +100,13 @@ def PMs_segmentation(params, to_categ, moreinfo, batch=True):
         layersAfterTransferLearning.append(moreinfo_mdl.output)
 
     conc_layer = Concatenate(-1)(layersAfterTransferLearning)
-    general_utils.print_int_shape(conc_layer)
 
     transp_1 = layers.Conv2DTranspose(256, kernel_size=(2, 2), strides=(2, 2), padding='same',activation=activ_func,
                                       kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init,
                                       kernel_constraint=kernel_constraint, bias_constraint=bias_constraint)(conc_layer)
-    general_utils.print_int_shape(transp_1)
 
     block5_conv3_conc = Concatenate(-1)(block5_conv3)
     up_1 = Concatenate(-1)([transp_1,block5_conv3_conc])
-    general_utils.print_int_shape(up_1)
 
     # going up with the layers
     up_2 = upLayer(up_1, 128, block4_conv3, len(PMS), activ_func, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint)
@@ -121,12 +118,12 @@ def PMs_segmentation(params, to_categ, moreinfo, batch=True):
                                  kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init,
                                  kernel_constraint=kernel_constraint, bias_constraint=bias_constraint)(up_5)
     if batch: final_conv_1 = layers.BatchNormalization()(final_conv_1)
-    general_utils.print_int_shape(final_conv_1)
+    # general_utils.print_int_shape(final_conv_1)
     final_conv_2 = layers.Conv2D(16, kernel_size=(3, 3), padding='same',activation=activ_func,
                                  kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init,
                                  kernel_constraint=kernel_constraint, bias_constraint=bias_constraint)(final_conv_1)
     if batch: final_conv_2 = layers.BatchNormalization()(final_conv_2)
-    general_utils.print_int_shape(final_conv_2)
+    # general_utils.print_int_shape(final_conv_2)
 
     act_name = "sigmoid"
     n_chann = 1
@@ -141,10 +138,10 @@ def PMs_segmentation(params, to_categ, moreinfo, batch=True):
     final_conv_3 = layers.Conv2D(n_chann, kernel_size=(1, 1), activation=act_name, padding='same',
                                  kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init,
                                  kernel_constraint=kernel_constraint, bias_constraint=bias_constraint)(final_conv_2)
-    general_utils.print_int_shape(final_conv_3)
+    # general_utils.print_int_shape(final_conv_3)
 
     y = layers.Reshape(shape_output)(final_conv_3)
-    general_utils.print_int_shape(y)
+    # general_utils.print_int_shape(y)
 
     model = models.Model(inputs=inputs, outputs=[y])
     return model

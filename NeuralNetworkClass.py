@@ -1,11 +1,10 @@
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
-from Utils import general_utils, dataset_utils, sequence_utils, models
+from Utils import general_utils, dataset_utils, sequence_utils, models, losses
 import training, testing, constants
 
-import os
-import glob
+import os, glob, math
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras.models import model_from_json
@@ -214,8 +213,7 @@ class NeuralNetwork(object):
             self.model = multi_gpu_model(self.model, gpus=n_gpu)
 
         if self.summaryFlag==0:
-            if getVerbose(): print(self.model.summary())
-
+            # if getVerbose(): print(self.model.summary())
             for rankdir in ["LR", "TB"]:
                 plot_model(
                     self.model,
@@ -291,8 +289,6 @@ class NeuralNetwork(object):
                 self.model = getattr(models, self.name)(self.dataset["val"]["data"], params=self.params, to_categ=self.to_categ)
             self.model = multi_gpu_model(self.model, gpus=n_gpu)
 
-        if getVerbose(): print(self.model.summary())
-
         # check if the model has some saved weights to load...
         self.initial_epoch = 0
         if self.arePartialWeightsSaved(p_id): self.loadModelFromPartialWeights(p_id)
@@ -361,7 +357,7 @@ class NeuralNetwork(object):
             moreinfo=self.moreinfo,
             to_categ=self.to_categ,
             batch_size=self.batch_size,
-            back_perc=20 if not constants.getUSE_PM() or (constants.getM()!=constants.IMAGE_WIDTH
+            back_perc=2 if not constants.getUSE_PM() or (constants.getM()!=constants.IMAGE_WIDTH
                                                           and constants.getN()!=constants.IMAGE_HEIGHT) else 100,
             loss=self.loss["name"]
         )
@@ -376,7 +372,7 @@ class NeuralNetwork(object):
             moreinfo=self.moreinfo,
             to_categ=self.to_categ,
             batch_size=self.batch_size,
-            back_perc=20 if not constants.getUSE_PM() or (constants.getM()!=constants.IMAGE_WIDTH
+            back_perc=2 if not constants.getUSE_PM() or (constants.getM()!=constants.IMAGE_WIDTH
                                                           and constants.getN()!=constants.IMAGE_HEIGHT) else 100,
             flagtype="val",
             loss=self.loss["name"]
@@ -391,8 +387,8 @@ class NeuralNetwork(object):
             model=self.model,
             train_sequence=self.train_sequence,
             val_sequence=self.val_sequence,
-            steps_per_epoch=(self.train_sequence.__len__()*self.steps_per_epoch_ratio)//self.batch_size,
-            validation_steps=(self.val_sequence.__len__()*self.validation_steps_ratio)//self.batch_size,
+            steps_per_epoch=math.ceil((self.train_sequence.__len__()*self.steps_per_epoch_ratio)),
+            validation_steps=math.ceil((self.val_sequence.__len__()*self.validation_steps_ratio)),
             epochs=self.epochs,
             listOfCallbacks=self.callbacks,
             initial_epoch=self.initial_epoch,

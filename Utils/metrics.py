@@ -74,7 +74,7 @@ def dice_coef(y_true, y_pred):
 ################################################################################
 # Implementation of the Tversky Index (TI),
 # which is a asymmetric similarity measure that is a generalisation of the dice coefficient and the Jaccard index.
-def _tversky_coef(y_true, y_pred, class_weights, smooth=1.):
+def _tversky_coef(y_true, y_pred, class_weights):
     alpha = constants.focal_tversky_loss["alpha"]
     beta = 1-alpha
 
@@ -85,7 +85,7 @@ def _tversky_coef(y_true, y_pred, class_weights, smooth=1.):
     denominator *= class_weights  # Broadcasting
     denominator = K.sum(denominator, axis=axis_to_reduce)
 
-    return (numerator + smooth) / (denominator + smooth)
+    return numerator / (denominator + K.epsilon())
 
 
 def tversky_coef(y_true, y_pred):
@@ -120,10 +120,10 @@ def tversky_c(y_true, y_pred):
 #             = sum(|A*B|)/(sum(|A|)+sum(|B|)-sum(|A*B|))
 #
 # http://www.bmva.org/bmvc/2013/Papers/paper0032/paper0032.pdf
-def jaccard_distance(y_true, y_pred, smooth=100):
+def jaccard_distance(y_true, y_pred):
     intersection = K.sum(K.abs(y_true * y_pred), axis=-1)
     sum_ = K.sum(K.abs(y_true) + K.abs(y_pred), axis=-1)
-    jac = (intersection + smooth) / (sum_ - intersection + smooth)
+    jac = intersection / (sum_ - intersection + K.epsilon())
     return jac
 
 
@@ -140,17 +140,17 @@ def categorical_crossentropy(y_true, y_pred):
 
 ################################################################################
 # Function that calculate the metrics for the WEIGHTED CATEGORICAL CROSS ENTROPY
-def weighted_categorical_cross_entropy(y_true, y_pred, epsilon=1e-7):
+def weighted_categorical_cross_entropy(y_true, y_pred):
     class_weights = tf.constant(constants.HOT_ONE_WEIGHTS, dtype=tf.float32)
     lambda_0 = 1
     lambda_1 = 1e-6
     lambda_2 = 1e-5
 
     cce = categorical_crossentropy(y_true, y_pred)
-    weights = K.cast(tf.reduce_sum(class_weights*y_true),'float32')+epsilon
+    weights = K.cast(tf.reduce_sum(class_weights*y_true),'float32')+K.epsilon()
     wcce = (weights * cce)/weights
-    l1_norm = K.sum(K.abs(y_true - y_pred))+epsilon
-    l2_norm = K.sum(K.square(y_true - y_pred))+epsilon
+    l1_norm = K.sum(K.abs(y_true - y_pred))+K.epsilon()
+    l2_norm = K.sum(K.square(y_true - y_pred))+K.epsilon()
 
     return (lambda_0 * wcce) + (lambda_1 * l1_norm) + (lambda_2 * l2_norm)
 
@@ -163,8 +163,7 @@ def _focal_loss(y_true, y_pred, alpha):
     gamma = tf.constant(constants.GAMMA,dtype=y_pred.dtype)
     axis_to_reduce = list(range(1, K.ndim(y_pred)))
     # Clip the prediction value to prevent NaN's and Inf's
-    epsilon = K.epsilon()
-    y_pred = K.clip(y_pred, epsilon, 1. - epsilon)
+    y_pred = K.clip(y_pred, K.epsilon(), 1. - K.epsilon())
     # Calculate Cross Entropy
     cross_entropy = -(y_true * K.log(y_pred))
     f_loss = alpha * K.pow((1 - y_pred), gamma) * cross_entropy
@@ -259,3 +258,17 @@ def _recall(y_true, y_pred, class_weights):
     denominator = y_true * class_weights
     denominator = K.sum(denominator, axis=axis_to_reduce)
     return numerator / (denominator + K.epsilon())
+
+
+################################################################################
+# Return F1-score as a metric
+def f1_p(y_true, y_pred):
+    p = prec_p(y_true, y_pred)
+    r = rec_p(y_true, y_pred)
+    return 2. * ((p*r)/(p+r+K.epsilon()))
+
+
+def f1_c(y_true, y_pred):
+    p = prec_c(y_true, y_pred)
+    r = rec_c(y_true, y_pred)
+    return 2. * ((p*r)/(p+r+K.epsilon()))

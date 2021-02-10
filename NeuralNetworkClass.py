@@ -31,7 +31,6 @@ class NeuralNetwork(object):
 
         self.name = modelInfo["name"]
         self.epochs = modelInfo["epochs"]
-        self.train_on_batch = modelInfo["train_on_batch"] if "train_on_batch" in modelInfo.keys() else 0
         self.batch_size = modelInfo["batch_size"] if "batch_size" in modelInfo.keys() else 32
 
         # use only for the fit_generator
@@ -262,87 +261,6 @@ class NeuralNetwork(object):
         for flag in ["train", "val", "test"]:
             for t in ["labels", "data"]:
                 if t in self.dataset[flag]: del self.dataset[flag][t]
-
-################################################################################
-# Run the training for every batch and LOAD only the necessary dataset (one patient at the time)
-    def runTrainingOnBatch(self, p_id, n_gpu):
-        suffix = general_utils.getSuffix() # es == "_4_16x16"
-        dict_metrics = list()
-        filename = self.getSavedInformation(p_id, path=self.savePartialModelFolder)
-
-        if getVerbose():
-            general_utils.printSeparation("*", 50)
-            print("[WARNING] - Using train_on_batch flag!")
-            print("[INFO] - Start runTrainingOnBatch function.")
-
-        if getVerbose():
-            general_utils.printSeparation("-", 50)
-            print("[INFO] - Getting model {0} with {1} optimizer...".format(self.name, self.optimizerInfo["name"]))
-
-        # based on the number of GPUs availables
-        # call the function called self.name in models.py
-        if n_gpu==1:
-            self.model = getattr(models, self.name)(self.dataset["val"]["data"], params=self.params, to_categ=self.to_categ)
-        else:
-            # TODO: problems during the load of the model (?)
-            with tf.device('/cpu:0'):
-                self.model = getattr(models, self.name)(self.dataset["val"]["data"], params=self.params, to_categ=self.to_categ)
-            self.model = multi_gpu_model(self.model, gpus=n_gpu)
-
-        # check if the model has some saved weights to load...
-        self.initial_epoch = 0
-        if self.arePartialWeightsSaved(p_id): self.loadModelFromPartialWeights(p_id)
-
-        # compile the model with optimizer, loss function and metrics
-        self.compileModel()
-
-        sample_weights = self.getSampleWeights("train")
-
-        # Set the callbacks
-        self.setCallbacks(p_id, sample_weights)
-
-        self.dataset["val"]["labels"] = None if self.val["validation_perc"]==0 else dataset_utils.getLabelsFromIndex(train_df=self.train_df, dataset=self.dataset["val"], modelname=self.name, to_categ=self.to_categ, flag="val")
-        if self.supervised: self.dataset["test"]["labels"] = dataset_utils.getLabelsFromIndex(train_df=self.train_df, dataset=self.dataset["test"], modelname=self.name, to_categ=self.to_categ, flag="test")
-
-        for metric_name in self.model.metrics_names: dict_metrics.append({"name":metric_name, "val":list()})
-
-        for epoch in range(self.initial_epoch, self.epochs):
-            print("Epoch: {}".format(epoch+1))
-            count_trained_elements = 0
-
-            # going over all the element in the dataset
-            while count_trained_elements<len(self.dataset["train"]["indices"]):
-                indices = self.dataset["train"]["indices"][count_trained_elements:count_trained_elements+self.batch_size]
-                x = [a for a in np.array(self.train_df.pixels.values[indices], dtype=object)]
-                y = [a for a in np.array(self.train_df.ground_truth.values[indices])]
-                if type(x) is not np.array: x = np.array(x)
-                if type(y) is not np.array: y = np.array(y)
-                y = y.astype("float32")
-                y /= 255 # convert the label in [0, 1] values
-
-                w = sample_weights[count_trained_elements:count_trained_elements+self.batch_size]
-
-                self.model, ret = training.trainOnBatch(self.model, x, y, w)
-
-                for i, r in enumerate(ret): dict_metrics[i]["val"].append(r)
-                if count_trained_elements%200==0 and count_trained_elements!=0: print(ret)  #print the values every 200 batches
-
-                count_trained_elements += self.batch_size
-
-            if (epoch+1)%2==0 and epoch!=0: self.model.save_weights(filename+constants.suffix_partial_weights+"{:02d}.h5".format(epoch)) # save the model weights every 2 epochs
-
-            tmpSavedModels = glob.glob(filename+constants.suffix_partial_weights+"*.h5")
-            if len(tmpSavedModels) > 1:  # just to be sure and not delete everything
-                for file in tmpSavedModels:
-                    if filename+constants.suffix_partial_weights in file:
-                        tmpEpoch = general_utils.getEpochFromPartialWeightFilename(file)
-                        if tmpEpoch < epoch:  # Remove the old saved weights
-                            os.remove(file)
-
-        # plot the loss and accuracy of the training
-        training.plotMetrics(self, p_id, dict_metrics)
-        # save the activation filters
-        if self.save_activation_filter: training.saveIntermediateLayers(self.model, intermediate_activation_path=self.intermediateActivationFolder)
 
 ################################################################################
 # Function to prepare the train and validation sequence using the datasetSequence class

@@ -119,13 +119,6 @@ def fitModel(model, dataset, batch_size, epochs, listOfCallbacks, sample_weights
 
 
 ################################################################################
-# Train the model only with a single batch
-def trainOnBatch(model, x, y, sample_weights):
-    ret = model.train_on_batch(x, y, sample_weight=sample_weights, reset_metrics=False)
-    return model, ret
-
-
-################################################################################
 # Function that call a fit_generator to load the training dataset on the fly
 def fit_generator(model, train_sequence, val_sequence, steps_per_epoch, validation_steps, epochs, listOfCallbacks,
                   initial_epoch, save_activation_filter, intermediate_activation_path, use_multiprocessing):

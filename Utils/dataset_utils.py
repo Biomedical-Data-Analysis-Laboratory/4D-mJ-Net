@@ -141,9 +141,8 @@ def splitDataset(nn, p_id, listOfPatientsToTrainVal, listOfPatientsToTest):
 # Prepare the dataset (NOT for the sequence class)
 def prepareDataset(nn, p_id):
     start = time.time()
-    # set the train data only if we have NOT set the train_on_batch flag
-    if not nn.train_on_batch:
-        nn.dataset["train"]["data"] = getDataFromIndex(nn.train_df,nn.dataset["train"]["indices"],"train",nn.mp)
+    # set the train data
+    nn.dataset["train"]["data"] = getDataFromIndex(nn.train_df,nn.dataset["train"]["indices"],"train",nn.mp)
     # the validation data is None if validation_perc and number_patients_for_validation are BOTH equal to 0
     nn.dataset["val"]["data"] = None if nn.val["validation_perc"] == 0 and nn.val[
         "number_patients_for_validation"] == 0 else getDataFromIndex(nn.train_df, nn.dataset["val"]["indices"], "val",

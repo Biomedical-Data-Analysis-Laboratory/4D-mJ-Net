@@ -104,8 +104,7 @@ def main():
                     # # PREPARE DATASET (=divide in train/val/test)
                     nn.prepareDataset(p_id)
                     # # SET THE CALLBACKS, RUN TRAINING & SAVE THE MODELS WEIGHTS
-                    if nn.train_on_batch: nn.runTrainingOnBatch(p_id, n_gpu)
-                    else: nn.runTraining(p_id, n_gpu)
+                    nn.runTraining(p_id, n_gpu)
 
             nn.saveModelAndWeight(p_id)
 

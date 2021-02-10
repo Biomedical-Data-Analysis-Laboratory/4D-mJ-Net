@@ -485,19 +485,18 @@ def evaluateModel(nn, p_id, isAlreadySaved):
             use_multiprocessing=nn.mp
         )
 
-    if not nn.train_on_batch:
-        general_utils.printSeparation("-",50)
+    general_utils.printSeparation("-",50)
+    if not isAlreadySaved:
+        for metric_name in nn.train.history:
+            print("TRAIN %s: %.2f%%" % (metric_name, round(float(nn.train.history[metric_name][-1]), 6)*100))
+    for index, val in enumerate(testing):
+        print("TEST %s: %.2f%%" % (nn.model.metrics_names[index], round(val,6)*100))
+    general_utils.printSeparation("-",50)
+
+    with open(general_utils.getFullDirectoryPath(nn.saveTextFolder)+nn.getNNID(p_id)+suffix+".txt", "a+") as text_file:
         if not isAlreadySaved:
             for metric_name in nn.train.history:
-                print("TRAIN %s: %.2f%%" % (metric_name, round(float(nn.train.history[metric_name][-1]), 6)*100))
+                text_file.write("TRAIN %s: %.2f%% \n" % (metric_name, round(float(nn.train.history[metric_name][-1]), 6)*100))
         for index, val in enumerate(testing):
-            print("TEST %s: %.2f%%" % (nn.model.metrics_names[index], round(val,6)*100))
-        general_utils.printSeparation("-",50)
-
-        with open(general_utils.getFullDirectoryPath(nn.saveTextFolder)+nn.getNNID(p_id)+suffix+".txt", "a+") as text_file:
-            if not isAlreadySaved:
-                for metric_name in nn.train.history:
-                    text_file.write("TRAIN %s: %.2f%% \n" % (metric_name, round(float(nn.train.history[metric_name][-1]), 6)*100))
-            for index, val in enumerate(testing):
-                text_file.write("TEST %s: %.2f%% \n" % (nn.model.metrics_names[index], round(val,6)*100))
-            text_file.write("----------------------------------------------------- \n")
+            text_file.write("TEST %s: %.2f%% \n" % (nn.model.metrics_names[index], round(val,6)*100))
+        text_file.write("----------------------------------------------------- \n")

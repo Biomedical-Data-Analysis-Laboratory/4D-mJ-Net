@@ -35,6 +35,10 @@ list_PMS = list()
 dataFrameColumns = ['patient_id', 'label', 'pixels', 'CBF', 'CBV', 'TTP', 'TMAX', "MIP", "NIHSS", 'ground_truth', 'x_y',
                     'data_aug_idx','timeIndex', 'sliceIndex', 'severity', "age", "gender", 'label_code']
 
+ENABLE_WATCHDOG = True
+PID_WATCHDOG_PICKLE_PATH = '../PID_list_g6.obj'
+PID_WATCHDOG_FINISHED_PICKLE_PATH = '../PID_finished_list_g6.obj'
+
 
 ################################################################################
 def getVerbose():

@@ -96,8 +96,8 @@ class NeuralNetwork(object):
         # change the prefix if SUS2020_v2 is in the dataset name
         if "SUS2020" in self.datasetFolder: constants.setPrefixImagesSUS2020_v2()
 
-################################################################################
-# Initialize the callbacks
+    ################################################################################
+    # Initialize the callbacks
     def setCallbacks(self, p_id, sample_weights=None):
         if getVerbose():
             general_utils.printSeparation("-", 50)
@@ -113,16 +113,16 @@ class NeuralNetwork(object):
             nn_id=self.getNNID(p_id)
         )
 
-################################################################################
-# return a Boolean to control if the model was already saved
+    ################################################################################
+    # return a Boolean to control if the model was already saved
     def isModelSaved(self, p_id):
         saved_modelname = self.getSavedModel(p_id)
         saved_weightname = self.getSavedWeight(p_id)
 
         return os.path.isfile(saved_modelname) and os.path.isfile(saved_weightname)
 
-################################################################################
-# load json and create model
+    ################################################################################
+    # load json and create model
     def loadSavedModel(self, p_id):
         saved_modelname = self.getSavedModel(p_id)
         saved_weightname = self.getSavedWeight(p_id)
@@ -138,8 +138,8 @@ class NeuralNetwork(object):
             print("[INFO - Loading] - --- MODEL {} LOADED FROM DISK! --- ".format(saved_modelname))
             print("[INFO - Loading] - --- WEIGHTS {} LOADED FROM DISK! --- ".format(saved_weightname))
 
-################################################################################
-# Check if there are saved partial weights
+    ################################################################################
+    # Check if there are saved partial weights
     def arePartialWeightsSaved(self, p_id):
         self.partialWeightsPath = ""
         # path ==> weight name plus a suffix ":" <-- constants.suffix_partial_weights
@@ -151,8 +151,8 @@ class NeuralNetwork(object):
 
         return False
 
-################################################################################
-# Load the partial weights and set the initial epoch where the weights were saved
+    ################################################################################
+    # Load the partial weights and set the initial epoch where the weights were saved
     def loadModelFromPartialWeights(self, p_id):
         if self.partialWeightsPath!="":
             self.model.load_weights(self.partialWeightsPath)
@@ -163,8 +163,8 @@ class NeuralNetwork(object):
                 print("[INFO - Loading] - --- WEIGHTS {} LOADED FROM DISK! --- ".format(self.partialWeightsPath))
                 print("[INFO] - --- Start training from epoch {} --- ".format(str(self.initial_epoch)))
 
-################################################################################
-# Function to divide the dataframe in train and test based on the patient id;
+    ################################################################################
+    # Function to divide the dataframe in train and test based on the patient id;
     def splitDataset(self, train_df, p_id, listOfPatientsToTrainVal, listOfPatientsToTest):
         # set the dataset inside the class
         self.train_df = train_df
@@ -175,14 +175,14 @@ class NeuralNetwork(object):
 
         return self.val_list
 
-################################################################################
-# Function to reshape the pixel array and initialize the model.
+    ################################################################################
+    # Function to reshape the pixel array and initialize the model.
     def prepareDataset(self, p_id):
         # split the dataset (set the data key inside dataset [NOT for the sequence generator])
         self.dataset = dataset_utils.prepareDataset(self, p_id)
 
-################################################################################
-# compile the model, callable also from outside
+    ################################################################################
+    # compile the model, callable also from outside
     def compileModel(self):
         # set the optimizer (or reset)
         self.optimizer = training.getOptimizer(optInfo=self.optimizerInfo)
@@ -193,20 +193,19 @@ class NeuralNetwork(object):
             metrics=self.metricFuncs
         )
 
-################################################################################
-# Function that initialize the training, print the model summary and set the weights
+    ################################################################################
+    # Function that initialize the training, print the model summary and set the weights
     def initializeTraining(self, p_id, n_gpu):
         if getVerbose():
             general_utils.printSeparation("*", 50)
             print("[INFO] - Start runTraining function.")
             print("[INFO] - Getting model {0} with {1} optimizer...".format(self.name, self.optimizerInfo["name"]))
 
-        # based on the number of GPUs available
-        # call the function called self.name in models.py
+        # Based on the number of GPUs available, call the function called self.name in models.py
         if n_gpu==1:
             self.model = getattr(models, self.name)(params=self.params, to_categ=self.to_categ, moreinfo=self.moreinfo)
         else:
-            # TODO: problems during the load of the model (?)
+            # TODO: problems during the load of the model with multiple GPUs...
             with tf.device('/cpu:0'):
                 self.model = getattr(models, self.name)(params=self.params, to_categ=self.to_categ, moreinfo=self.moreinfo)
             self.model = multi_gpu_model(self.model, gpus=n_gpu)
@@ -222,18 +221,18 @@ class NeuralNetwork(object):
                 )
             self.summaryFlag+=1
 
-        # check if the model has some saved weights to load...
+        # Check if the model has some saved weights to load...
         if self.arePartialWeightsSaved(p_id):  self.loadModelFromPartialWeights(p_id)
 
-        # compile the model with optimizer, loss function and metrics
+        # Compile the model with optimizer, loss function and metrics
         self.compileModel()
-
+        # Get the sample weights
         self.sample_weights = self.getSampleWeights("train")
         # Set the callbacks
         self.setCallbacks(p_id, self.sample_weights)
 
-################################################################################
-# Run the training over the dataset based on the model
+    ################################################################################
+    # Run the training over the dataset based on the model
     def runTraining(self, p_id, n_gpu):
         self.initializeTraining(p_id, n_gpu)
 
@@ -262,8 +261,8 @@ class NeuralNetwork(object):
             for t in ["labels", "data"]:
                 if t in self.dataset[flag]: del self.dataset[flag][t]
 
-################################################################################
-# Function to prepare the train and validation sequence using the datasetSequence class
+    ################################################################################
+    # Function to prepare the train and validation sequence using the datasetSequence class
     def prepareSequenceClass(self):
         # train data sequence
         self.train_sequence = sequence_utils.datasetSequence(
@@ -296,11 +295,10 @@ class NeuralNetwork(object):
             loss=self.loss["name"]
         )
 
-################################################################################
-# Function to start the train using the sequence as input and the fit_generator function
-    def runTrainSequence(self, p_id, n_gpu):
-        self.initializeTraining(p_id, n_gpu)
 
+    ################################################################################
+    # Function to start the train using the sequence as input and the fit_generator function
+    def runTrainSequence(self):
         self.train = training.fit_generator(
             model=self.model,
             train_sequence=self.train_sequence,
@@ -314,13 +312,49 @@ class NeuralNetwork(object):
             intermediate_activation_path=self.intermediateActivationFolder,
             use_multiprocessing=self.mp
         )
-
-        # plot the loss and accuracy of the training
-        training.plotLossAndAccuracy(self, p_id)
+        self.hybridTrainableSolution()
 
 
-################################################################################
-# Get the sample weight from the dataset
+    ################################################################################
+    # Check if we need to perform the hybrid solution or not
+    def hybridTrainableSolution(self):
+        # Hybrid solution to fine-tuning the model unfreezing the layers in the VGG-16 architectures
+        if "hybrid_trainable_solution" in self.params.keys() and self.params["trainable"] == 0:
+            finished_first_half = False
+            layer_indexes = []
+            for pm in constants.getList_PMS(): layer_indexes.extend([i for i, l in enumerate(self.model.layers) if pm in l.name])
+            layer_indexes = np.sort(layer_indexes)
+
+            # The optimizer (==ADAM) should have a low learning rate
+            if self.optimizerInfo["name"].lower() != "adam":
+                print("The optimizer is not Adam!")
+                return
+
+            self.optimizerInfo["lr"] = 1e-5
+
+            if self.params["hybrid_trainable_solution"]["type"] == "half":
+                # Perform fine tuning twice: first on the bottom half, then on the totality
+                # Make the bottom half of the VGG-16 layers trainable
+                for ind in layer_indexes[len(layer_indexes) // 2:]: self.model.layers[ind].trainable = True
+                if getVerbose(): print("Fine-tuning setting these {} layers trainable").format(layer_indexes[len(layer_indexes) // 2:])
+                # Compile the model again
+                self.compileModel()
+                # Train the model again
+                self.runTrainSequence()
+                finished_first_half = True
+
+            if self.params["hybrid_trainable_solution"]["type"] == "full" or finished_first_half:
+                # Make ALL the VGG-16 layers trainable
+                for ind in layer_indexes: self.model.layers[ind].trainable = True
+                if getVerbose(): print("Fine-tuning setting these {} layers trainable").format(layer_indexes)
+                # Compile the model again
+                self.compileModel()
+                # Train the model again
+                self.runTrainSequence()
+
+
+    ################################################################################
+    # Get the sample weight from the dataset
     def getSampleWeights(self, flagDataset):
         sample_weights = None
         self.N_BACKGROUND, self.N_BRAIN, self.N_PENUMBRA, self.N_CORE, self.N_TOT = dataset_utils.getNumberOfElements(self.train_df)
@@ -380,8 +414,8 @@ class NeuralNetwork(object):
 
         return np.array(sample_weights.values[self.dataset[flagDataset]["indices"]])
 
-################################################################################
-# Save the trained model and its relative weights
+    ################################################################################
+    # Save the trained model and its relative weights
     def saveModelAndWeight(self, p_id):
         saved_modelname = self.getSavedModel(p_id)
         saved_weightname = self.getSavedWeight(p_id)
@@ -398,8 +432,8 @@ class NeuralNetwork(object):
             general_utils.printSeparation("-", 50)
             print("[INFO - Saving] - Saved model and weights to disk!")
 
-################################################################################
-# Call the function located in testing for predicting and saved the images
+    ################################################################################
+    # Call the function located in testing for predicting and saved the images
     def predictAndSaveImages(self, listPatients, isAlreadySaved):
         stats = {}
         for p_id in listPatients:
@@ -415,8 +449,8 @@ class NeuralNetwork(object):
         return stats
 
 
-################################################################################
-# Test the model with the selected patient (if the number of patient to test is > 0)
+    ################################################################################
+    # Test the model with the selected patient (if the number of patient to test is > 0)
     def evaluateModelWithCategorics(self, p_id, isAlreadySaved):
         if getVerbose():
             general_utils.printSeparation("+", 50)
@@ -424,31 +458,31 @@ class NeuralNetwork(object):
 
         self.testing_score.append(testing.evaluateModel(self, p_id, isAlreadySaved))
 
-################################################################################
-# set the flag for single/multi PROCESSING
+    ################################################################################
+    # set the flag for single/multi PROCESSING
     def setProcessingEnv(self, mp):
         self.mp = mp
 
-################################################################################
-# return the saved model or weight (based on the suffix)
+    ################################################################################
+    # return the saved model or weight (based on the suffix)
     def getSavedInformation(self, p_id, path, other_info="", suffix=""):
         # mJ-Net_DA_ADAM_4_16x16.json <-- example weights name
         # mJ-Net_DA_ADAM_4_16x16.h5 <-- example model name
         path = general_utils.getFullDirectoryPath(path)+self.getNNID(p_id)+other_info+general_utils.getSuffix()
         return path+suffix
 
-################################################################################
-# return the saved model
+    ################################################################################
+    # return the saved model
     def getSavedModel(self, p_id):
         return self.getSavedInformation(p_id, path=self.savedModelFolder, suffix=".json")
 
-################################################################################
-# return the saved weight
+    ################################################################################
+    # return the saved weight
     def getSavedWeight(self, p_id):
         return self.getSavedInformation(p_id, path=self.savedModelFolder, suffix=".h5")
 
-################################################################################
-# return NeuralNetwork ID
+    ################################################################################
+    # return NeuralNetwork ID
     def getNNID(self, p_id):
         # CAREFUL WITH THIS
         # needs to override the model id to use a different model to test various patients

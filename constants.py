@@ -1,3 +1,5 @@
+import socket
+
 verbose = False
 USE_PM = False
 DEBUG = False
@@ -13,7 +15,7 @@ N_CLASSES = 4
 LABELS = ["background", "brain", "penumbra", "core"]  # background:0, brain:85, penumbra:170, core:255
 PIXELVALUES = [0, 85, 170, 255]
 # weights for the various weighted losses: 1) position: background, 2) brain, 3) penumbra, 4) core
-HOT_ONE_WEIGHTS = [[0, 1, 50, 100]]  # [[0.1, 0.1, 2, 15]]
+HOT_ONE_WEIGHTS = [[0, 0.1, 50, 440]]  # [[0.1, 0.1, 2, 15]]
 
 # hyperparameters for the multi focal loss
 ALPHA = [[0.25,0.25,0.25,0.25]]
@@ -36,8 +38,8 @@ dataFrameColumns = ['patient_id', 'label', 'pixels', 'CBF', 'CBV', 'TTP', 'TMAX'
                     'data_aug_idx','timeIndex', 'sliceIndex', 'severity', "age", "gender", 'label_code']
 
 ENABLE_WATCHDOG = True
-PID_WATCHDOG_PICKLE_PATH = '../PID_list_g6.obj'
-PID_WATCHDOG_FINISHED_PICKLE_PATH = '../PID_finished_list_g6.obj'
+PID_WATCHDOG_PICKLE_PATH = '../PID_list_{}.obj'.format(socket.gethostname())
+PID_WATCHDOG_FINISHED_PICKLE_PATH = '../PID_finished_list_{}.obj'.format(socket.gethostname())
 
 
 ################################################################################
@@ -139,7 +141,7 @@ def setNumberOfClasses(c):
         N_CLASSES = c
         LABELS = ["background", "penumbra", "core"]
         PIXELVALUES = [0, 170, 255]
-        HOT_ONE_WEIGHTS = [[0, 50, 100]]
+        HOT_ONE_WEIGHTS = [[0.1, 50, 440]]
         GAMMA = [[2., 2., 2.]]
         ALPHA = [[0.25,0.25,0.25]]
 

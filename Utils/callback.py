@@ -38,8 +38,7 @@ class CollectBatchStats(callbacks.Callback):
             for file in tmpSavedModels:
                 if self.savedModelName+constants.suffix_partial_weights in file:
                     tmpEpoch = general_utils.getEpochFromPartialWeightFilename(file)
-                    if tmpEpoch < epoch:  # Remove the old saved weights
-                        os.remove(file)
+                    if tmpEpoch < epoch: os.remove(file)  # Remove the old saved weights
 
 
 ################################################################################

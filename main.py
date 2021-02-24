@@ -105,7 +105,8 @@ def main():
                     # if we are doing a sequence train (for memory issue)
                     nn.prepareSequenceClass()
                     nn.initializeTraining(p_id, n_gpu)
-                    nn.runTrainSequence()
+                    if not args.jump: nn.runTrainSequence()
+                    nn.gradualFineTuningSolution(p_id)
                     # plot the loss and accuracy of the training
                     training.plotLossAndAccuracy(nn, p_id)
                 else:
@@ -119,7 +120,7 @@ def main():
         # VALIDATION SET: predict the images for decision on the model
         nn.predictAndSaveImages(val_list, isAlreadySaved)
         # PERFORM TESTING: predict and save the images
-        stats = nn.predictAndSaveImages(listOfPatientsToTest, isAlreadySaved)
+        nn.predictAndSaveImages(listOfPatientsToTest, isAlreadySaved)
 
     general_utils.stopPIDToWatchdog()
 

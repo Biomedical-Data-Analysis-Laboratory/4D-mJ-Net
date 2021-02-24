@@ -79,10 +79,11 @@ class NeuralNetwork(object):
         self.intermediateActivationFolder = self.experimentFolder+setting["relative_paths"]["save"]["intermediate_activation"] if "intermediate_activation" in setting["relative_paths"]["save"].keys() else None
 
         self.infoCallbacks = modelInfo["callbacks"]
-        self.model = None
-        self.testing_score = []
 
         # empty variables initialization
+        self.model = None
+        self.testing_score = []
+        self.partialWeightsPath = ""
         self.callbacks = None
         self.initial_epoch = 0
         self.train_df, self.val_list, self.test_list = None, None, None
@@ -98,7 +99,7 @@ class NeuralNetwork(object):
 
     ################################################################################
     # Initialize the callbacks
-    def setCallbacks(self, p_id, sample_weights=None):
+    def setCallbacks(self, p_id, sample_weights=None, add_for_finetuning=""):
         if getVerbose():
             general_utils.printSeparation("-", 50)
             print("[INFO] - Setting callbacks...")
@@ -110,7 +111,8 @@ class NeuralNetwork(object):
             textFolderPath=self.saveTextFolder,
             dataset=self.dataset,
             sample_weights=sample_weights, # only for ROC callback (NOT working)
-            nn_id=self.getNNID(p_id)
+            nn_id=self.getNNID(p_id),
+            add_for_finetuning=add_for_finetuning
         )
 
     ################################################################################
@@ -141,7 +143,6 @@ class NeuralNetwork(object):
     ################################################################################
     # Check if there are saved partial weights
     def arePartialWeightsSaved(self, p_id):
-        self.partialWeightsPath = ""
         # path ==> weight name plus a suffix ":" <-- constants.suffix_partial_weights
         path = self.getSavedInformation(p_id, path=self.savePartialModelFolder)+constants.suffix_partial_weights
         for file in glob.glob(self.savePartialModelFolder+"*.h5"):
@@ -153,7 +154,7 @@ class NeuralNetwork(object):
 
     ################################################################################
     # Load the partial weights and set the initial epoch where the weights were saved
-    def loadModelFromPartialWeights(self, p_id):
+    def loadModelFromPartialWeights(self):
         if self.partialWeightsPath!="":
             self.model.load_weights(self.partialWeightsPath)
             self.initial_epoch = general_utils.getEpochFromPartialWeightFilename(self.partialWeightsPath)
@@ -211,7 +212,7 @@ class NeuralNetwork(object):
             self.model = multi_gpu_model(self.model, gpus=n_gpu)
 
         if self.summaryFlag==0:
-            # if getVerbose(): print(self.model.summary())
+            if getVerbose(): print(self.model.summary())
             for rankdir in ["LR", "TB"]:
                 plot_model(
                     self.model,
@@ -222,7 +223,7 @@ class NeuralNetwork(object):
             self.summaryFlag+=1
 
         # Check if the model has some saved weights to load...
-        if self.arePartialWeightsSaved(p_id):  self.loadModelFromPartialWeights(p_id)
+        if self.arePartialWeightsSaved(p_id):  self.loadModelFromPartialWeights()
 
         # Compile the model with optimizer, loss function and metrics
         self.compileModel()
@@ -295,10 +296,10 @@ class NeuralNetwork(object):
             loss=self.loss["name"]
         )
 
-
     ################################################################################
     # Function to start the train using the sequence as input and the fit_generator function
-    def runTrainSequence(self):
+    def runTrainSequence(self, clear=True):
+        if "gradual_finetuning_solution" not in self.params.keys(): clear=False
         self.train = training.fit_generator(
             model=self.model,
             train_sequence=self.train_sequence,
@@ -310,19 +311,18 @@ class NeuralNetwork(object):
             initial_epoch=self.initial_epoch,
             save_activation_filter=self.save_activation_filter,
             intermediate_activation_path=self.intermediateActivationFolder,
-            use_multiprocessing=self.mp
+            use_multiprocessing=self.mp,
+            clear=clear
         )
-        self.hybridTrainableSolution()
-
 
     ################################################################################
     # Check if we need to perform the hybrid solution or not
-    def hybridTrainableSolution(self):
+    def gradualFineTuningSolution(self, p_id):
         # Hybrid solution to fine-tuning the model unfreezing the layers in the VGG-16 architectures
-        if "hybrid_trainable_solution" in self.params.keys() and self.params["trainable"] == 0:
+        if "gradual_finetuning_solution" in self.params.keys() and self.params["trainable"] == 0:
             finished_first_half = False
             layer_indexes = []
-            for pm in constants.getList_PMS(): layer_indexes.extend([i for i, l in enumerate(self.model.layers) if pm in l.name])
+            for pm in constants.getList_PMS(): layer_indexes.extend([i for i, l in enumerate(self.model.layers) if pm.lower() in l.name])
             layer_indexes = np.sort(layer_indexes)
 
             # The optimizer (==ADAM) should have a low learning rate
@@ -331,27 +331,43 @@ class NeuralNetwork(object):
                 return
 
             self.optimizerInfo["lr"] = 1e-5
+            self.infoCallbacks["ModelCheckpoint"]["period"] = 1
+            previousEarlyStoppingPatience = self.infoCallbacks["EarlyStopping"]["patience"]
+            self.infoCallbacks["EarlyStopping"]["patience"] = 25
 
-            if self.params["hybrid_trainable_solution"]["type"] == "half":
+            if self.params["gradual_finetuning_solution"]["type"] == "half":
                 # Perform fine tuning twice: first on the bottom half, then on the totality
                 # Make the bottom half of the VGG-16 layers trainable
                 for ind in layer_indexes[len(layer_indexes) // 2:]: self.model.layers[ind].trainable = True
-                if getVerbose(): print("Fine-tuning setting these {} layers trainable").format(layer_indexes[len(layer_indexes) // 2:])
+                if getVerbose(): print("Fine-tuning setting these {} layers trainable".format(layer_indexes[len(layer_indexes) // 2:]))
+                if self.arePartialWeightsSaved(p_id):
+                    self.model.load_weights(self.partialWeightsPath)
+                    self.initial_epoch = general_utils.getEpochFromPartialWeightFilename(self.partialWeightsPath) + previousEarlyStoppingPatience
                 # Compile the model again
                 self.compileModel()
+                # Get the sample weights
+                self.sample_weights = self.getSampleWeights("train")
+                # Set the callbacks
+                self.setCallbacks(p_id, self.sample_weights, "_half")
                 # Train the model again
                 self.runTrainSequence()
                 finished_first_half = True
 
-            if self.params["hybrid_trainable_solution"]["type"] == "full" or finished_first_half:
+            if self.params["gradual_finetuning_solution"]["type"] == "full" or finished_first_half:
                 # Make ALL the VGG-16 layers trainable
                 for ind in layer_indexes: self.model.layers[ind].trainable = True
-                if getVerbose(): print("Fine-tuning setting these {} layers trainable").format(layer_indexes)
+                if getVerbose(): print("Fine-tuning setting these {} layers trainable".format(layer_indexes))
+                if self.arePartialWeightsSaved(p_id):
+                    self.model.load_weights(self.partialWeightsPath)
+                    self.initial_epoch = general_utils.getEpochFromPartialWeightFilename(self.partialWeightsPath) + previousEarlyStoppingPatience
                 # Compile the model again
                 self.compileModel()
+                # Get the sample weights
+                self.sample_weights = self.getSampleWeights("train")
+                # Set the callbacks
+                self.setCallbacks(p_id, self.sample_weights, "_full")
                 # Train the model again
-                self.runTrainSequence()
-
+                self.runTrainSequence(clear=False)
 
     ################################################################################
     # Get the sample weight from the dataset

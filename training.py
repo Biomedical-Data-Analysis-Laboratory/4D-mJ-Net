@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras import optimizers
+import tensorflow.keras.backend as K
 
 
 ################################################################################
@@ -24,7 +25,7 @@ def getOptimizer(optInfo):
             beta_2=optInfo["beta_2"],
             epsilon=None if optInfo["epsilon"] == "None" else optInfo["epsilon"],
             decay=optInfo["decay"],
-            amsgrad=False,
+            amsgrad=True if "amsgrad" in optInfo.keys() and optInfo["amsgrad"] == "True" else False,
             clipvalue=0.5
         )
     elif optInfo["name"].lower() == "sgd":
@@ -56,7 +57,7 @@ def getOptimizer(optInfo):
 
 ################################################################################
 # Return the callbacks defined in the setting
-def getCallbacks(info, root_path, filename, textFolderPath, dataset, sample_weights, nn_id):
+def getCallbacks(info, root_path, filename, textFolderPath, dataset, sample_weights, nn_id, add_for_finetuning):
     # add by default the TerminateOnNaN callback
     cbs = [callback.TerminateOnNaN()]
 
@@ -79,7 +80,7 @@ def getCallbacks(info, root_path, filename, textFolderPath, dataset, sample_weig
             cbs.append(callback.CollectBatchStats(root_path, filename, textFolderPath, info[key]["acc"]))
         # save the epoch results in a csv file
         elif key == "CSVLogger":
-            cbs.append(callback.CSVLogger(textFolderPath, nn_id, info[key]["filename"], info[key]["separator"]))
+            cbs.append(callback.CSVLogger(textFolderPath, nn_id, add_for_finetuning+info[key]["filename"], info[key]["separator"]))
         elif key == "RocCallback":
             training_data = (dataset["train"]["data"], dataset["train"]["labels"])
             validation_data = (dataset["val"]["data"], dataset["val"]["labels"])
@@ -121,7 +122,7 @@ def fitModel(model, dataset, batch_size, epochs, listOfCallbacks, sample_weights
 ################################################################################
 # Function that call a fit_generator to load the training dataset on the fly
 def fit_generator(model, train_sequence, val_sequence, steps_per_epoch, validation_steps, epochs, listOfCallbacks,
-                  initial_epoch, save_activation_filter, intermediate_activation_path, use_multiprocessing):
+                  initial_epoch, save_activation_filter, intermediate_activation_path, use_multiprocessing, clear):
     multiplier = 16
     # steps_per_epoch is given by the len(train_sequence)*steps_per_epoch_ratio rounded to the nearest integer
     training = model.fit_generator(
@@ -139,6 +140,8 @@ def fit_generator(model, train_sequence, val_sequence, steps_per_epoch, validati
         use_multiprocessing=use_multiprocessing)
 
     if save_activation_filter: saveIntermediateLayers(model, intermediate_activation_path=intermediate_activation_path)
+
+    if clear: K.clear_session()
 
     return training
 

@@ -30,6 +30,7 @@ def getCommandLineArguments():
     parser.add_argument("-c", "--classes", help="Set the # of classes involved (default = 4)", default=4, type=int, choices=[2,3,4])
     parser.add_argument("-w", "--weights", help="Set the weights for the categorical losses", type=float, nargs='+')
     parser.add_argument("-e", "--exp", help="Set the number of the experiment", type=float)
+    parser.add_argument("-j", "--jump", help="Jump the training and go directly on the gradual fine-tuning function", action="store_true")
     parser.add_argument("gpu", help="Give the id of gpu (or a list of the gpus) to use")
     parser.add_argument("sname", help="Select the setting filename")
     args = parser.parse_args()

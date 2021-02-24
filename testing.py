@@ -6,11 +6,15 @@ from Utils import general_utils, dataset_utils, sequence_utils, metrics
 import constants, training
 
 import os, time, cv2, glob
+import seaborn as sns
+import matplotlib.pyplot as plt
 import multiprocessing
 from scipy import ndimage
 import numpy as np
 import tensorflow.keras.backend as K
 from tensorflow.keras.preprocessing.image import load_img, img_to_array
+
+import pickle as pkl
 
 
 ################################################################################
@@ -52,7 +56,7 @@ def predictAndSaveImages(nn, p_id):
         patientFolderTMP = prefix+relativePatientFolderTMP
 
         # Predict the images
-        if constants.getUSE_PM(): predictImagesFromParametricMaps(nn, subfolder, p_id, patientFolder, subpatientFolder, patientFolderHeatMap, patientFolderGT, patientFolderTMP, filename_test)
+        if constants.getUSE_PM(): predictImagesFromParametricMaps(nn, subfolder, p_id, subpatientFolder, patientFolderHeatMap, patientFolderGT, patientFolderTMP, filename_test)
         else: predictImage(nn, subfolder, p_id, patientFolder, subpatientFolder, patientFolderHeatMap, patientFolderGT, patientFolderTMP, filename_test)
 
     end = time.time()
@@ -150,10 +154,9 @@ def predictImage(nn, subfolder, p_id, patientFolder, relativePatientFolder, rela
             # the final binary mask is a consensus among the all timepoints
             binary_mask = (binary_mask/(count+1) >= 0.5)
 
-            tileImageProcessed = general_utils.getSlicingWindow(checkImageProcessed, startingX, startingY)
             if constants.get3DFlag()=="": pixels = pixels.reshape(1,pixels.shape[0],pixels.shape[1],pixels.shape[2],1)
             else: pixels = pixels.reshape(1, pixels.shape[0], pixels.shape[1], pixels.shape[2])
-            imagePredicted, categoricalImage = generate2DImage(nn, pixels, (startingX,startingY), imagePredicted, categoricalImage, tileImageProcessed, binary_mask)
+            imagePredicted, categoricalImage = generate2DImage(nn, pixels, (startingX,startingY), imagePredicted, categoricalImage, binary_mask)
 
             # if we reach the end of the image, break the while loop.
             if startingX>=constants.IMAGE_WIDTH-constants.getM() and startingY>=constants.IMAGE_HEIGHT-constants.getN(): break
@@ -176,7 +179,7 @@ def predictImage(nn, subfolder, p_id, patientFolder, relativePatientFolder, rela
 
 ################################################################################
 #
-def predictImagesFromParametricMaps(nn, subfolder, p_id, patientFolder, relativePatientFolder, relativePatientFolderHeatMap, relativepatientFolderGT, relativePatientFolderTMP, filename_test):
+def predictImagesFromParametricMaps(nn, subfolder, p_id, relativePatientFolder, relativePatientFolderHeatMap, relativepatientFolderGT, relativePatientFolderTMP, filename_test):
     """
     Generate ALL the images for the patient using the PMs and save it.
 
@@ -229,7 +232,7 @@ def predictImagesFromParametricMaps(nn, subfolder, p_id, patientFolder, relative
             test_df = test_df[test_df.data_aug_idx == 0]
             test_df = test_df[test_df.sliceIndex == idx]
 
-            imagePredicted, categoricalImage = generateImageFromParametricMaps(nn, test_df, checkImageProcessed, idx)
+            imagePredicted, categoricalImage = generateImageFromParametricMaps(nn, test_df)
             s2 = time.time()
 
             # save the image
@@ -245,7 +248,7 @@ def saveImage(nn, relativePatientFolder, idx, imagePredicted, categoricalImage, 
               relativepatientFolderGT, relativePatientFolderTMP, checkImageProcessed):
 
     if nn.save_images:
-        s1 = time.time()
+        # s1 = time.time()
         # TODO: rotate the predictions for the ISLES2018 dataset
         # if "ISLES2018" in nn.datasetFolder: imagePredicted = np.rot90(imagePredicted,-1)
         # save the image predicted in the specific folder
@@ -254,38 +257,45 @@ def saveImage(nn, relativePatientFolder, idx, imagePredicted, categoricalImage, 
         if nn.to_categ:
             p_idx, c_idx = 2,3
             if constants.N_CLASSES==3: p_idx, c_idx = 1,2
-            heatmap_img_p = cv2.convertScaleAbs(categoricalImage[:,:,p_idx]*255)
-            heatmap_img_c = cv2.convertScaleAbs(categoricalImage[:,:,c_idx]*255)
-            heatmap_img_p = cv2.applyColorMap(heatmap_img_p, cv2.COLORMAP_JET)
-            checkImageProcessed_rgb = cv2.cvtColor(checkImageProcessed, cv2.COLOR_GRAY2RGB)
-            blend_p = cv2.addWeighted(checkImageProcessed_rgb, 0.5, heatmap_img_p, 0.5, 0.0)
-            heatmap_img_c = cv2.applyColorMap(heatmap_img_c, cv2.COLORMAP_JET)
-            blend_c = cv2.addWeighted(checkImageProcessed_rgb, 0.5, heatmap_img_c, 0.5, 0.0)
+            # heatmap_img_p = cv2.convertScaleAbs(categoricalImage[:,:,p_idx]*255)
+            # heatmap_img_c = cv2.convertScaleAbs(categoricalImage[:,:,c_idx]*255)
+            # heatmap_img_p = cv2.applyColorMap(heatmap_img_p, cv2.COLORMAP_JET)
+            # checkImageProcessed_rgb = cv2.cvtColor(checkImageProcessed, cv2.COLOR_GRAY2RGB)
+            # blend_p = cv2.addWeighted(checkImageProcessed_rgb, 0.5, heatmap_img_p, 1, 0.0)
+            # heatmap_img_c = cv2.applyColorMap(heatmap_img_c, cv2.COLORMAP_JET)
+            # blend_c = cv2.addWeighted(checkImageProcessed_rgb, 0.5, heatmap_img_c, 1, 0.0)
+            # cv2.imwrite(nn.saveImagesFolder+relativePatientFolderHeatMap+idx+"_heatmap_penumbra.png", blend_p)
+            # cv2.imwrite(nn.saveImagesFolder+relativePatientFolderHeatMap+idx+"_heatmap_core.png", blend_c)
 
-            cv2.imwrite(nn.saveImagesFolder+relativePatientFolderHeatMap+idx+"_heatmap_penumbra.png", blend_p)
-            cv2.imwrite(nn.saveImagesFolder+relativePatientFolderHeatMap+idx+"_heatmap_core.png", blend_c)
+            sns.heatmap(categoricalImage[:,:,p_idx], cmap="jet", yticklabels=False, xticklabels=False, square=True, cbar=False)
+            plt.savefig(nn.saveImagesFolder+relativePatientFolderHeatMap+idx+"_heatmap_penumbra.png", transparent=True, bbox_inches='tight')
+            sns.heatmap(categoricalImage[:,:,c_idx], cmap="jet", yticklabels=False, xticklabels=False, square=True, cbar=False)
+            plt.savefig(nn.saveImagesFolder+relativePatientFolderHeatMap+idx+"_heatmap_core.png", transparent=True, bbox_inches='tight')
 
         # Save the ground truth and the contours
         if constants.get3DFlag()=="":
             # save the GT
             cv2.imwrite(nn.saveImagesFolder+relativepatientFolderGT+idx+constants.SUFFIX_IMG, checkImageProcessed)
 
-            _, penumbra_mask = cv2.threshold(imagePredicted, 85, constants.PIXELVALUES[-2], cv2.THRESH_BINARY)
-            penumbra_cnt, _ = cv2.findContours(penumbra_mask.astype('uint8'), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-            checkImageProcessed = cv2.drawContours(checkImageProcessed, penumbra_cnt, -1, (255,0,0), 2)
-            _, core_mask = cv2.threshold(imagePredicted, constants.PIXELVALUES[-2], constants.PIXELVALUES[-1], cv2.THRESH_BINARY)
+            imagePredicted = cv2.cvtColor(np.uint8(imagePredicted),cv2.COLOR_GRAY2RGB)  # back to rgb
+            _, penumbra_mask = cv2.threshold(checkImageProcessed, 85, constants.PIXELVALUES[-2], cv2.THRESH_BINARY)
+            penumbra_cnt, _ = cv2.findContours(penumbra_mask.astype('uint8'),cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)
+            imagePredicted = cv2.drawContours(imagePredicted, penumbra_cnt, -1, (255,0,0), 2)
+            _, core_mask = cv2.threshold(checkImageProcessed, constants.PIXELVALUES[-2], constants.PIXELVALUES[-1], cv2.THRESH_BINARY)
             core_cnt, _ = cv2.findContours(core_mask.astype('uint8'), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-            checkImageProcessed = cv2.drawContours(checkImageProcessed, core_cnt, -1, (0,255,0), 2)
+            imagePredicted = cv2.drawContours(imagePredicted, core_cnt, -1, (0,0,255), 2)
             # save the GT image with predicted contours
-            cv2.imwrite(nn.saveImagesFolder + relativePatientFolderTMP + idx + constants.SUFFIX_IMG, checkImageProcessed)
+            # checkImageProcessed = cv2.addWeighted(checkImageProcessed, 1, penumbra_area, 0.5, 0.0)
+            # checkImageProcessed = cv2.addWeighted(checkImageProcessed, 1, core_area, 0.5, 0.0)
+            cv2.imwrite(nn.saveImagesFolder+relativePatientFolderTMP+idx+".png",imagePredicted)
 
-        s2 = time.time()
+        # s2 = time.time()
         # if constants.getVerbose(): print("save time: {}".format(round(s2-s1, 3)))
 
 
 ################################################################################
 # Helpful function that return the 2D image from the pixel and the starting coordinates
-def generate2DImage(nn, pixels, startingXY, imagePredicted, categoricalImage, checkImageProcessed, binary_mask,
+def generate2DImage(nn, pixels, startingXY, imagePredicted, categoricalImage, binary_mask,
                     slicingWindowPredicted=None):
     """
     Generate a 2D image from the test_df
@@ -365,7 +375,7 @@ def generateTimeImagesAndConsensus(nn, test_df, relativePatientFolderTMP, idx):
 
 ################################################################################
 # Function to predict an image starting from the parametric maps
-def generateImageFromParametricMaps(nn, test_df, checkImageProcessed, idx):
+def generateImageFromParametricMaps(nn, test_df):
     """
     Generate a 2D image from the test_df using the parametric maps
 
@@ -395,14 +405,14 @@ def generateImageFromParametricMaps(nn, test_df, checkImageProcessed, idx):
                 pm = cv2.imread(filename, cv2.COLOR_BGR2RGB)
 
                 pms[pm_name] = general_utils.getSlicingWindow(pm, startX, startY, removeColorBar=True)
-                # add the mask of the pixels that are > 0
-                binary_mask += (cv2.cvtColor(pms[pm_name], cv2.COLOR_RGB2GRAY) > 0)
+                # add the mask of the pixels that are > 0 only if it's the MIP image
+                if pm_name=="MIP": binary_mask += (cv2.cvtColor(pms[pm_name], cv2.COLOR_RGB2GRAY) > 0)
                 pms[pm_name] = np.array(pms[pm_name])
                 pms[pm_name] = pms[pm_name].reshape((1,) + pms[pm_name].shape)
 
             # the final binary mask is a consensus among the all parametric maps
-            binary_mask = (binary_mask >= len(constants.getList_PMS())/2)
-            binary_mask = ndimage.binary_fill_holes(binary_mask).astype(int)
+            # binary_mask = (binary_mask >= len(constants.getList_PMS())/2)
+            # binary_mask = ndimage.binary_fill_holes(binary_mask).astype(int)
 
             X = [pms["CBF"], pms["CBV"], pms["TTP"], pms["TMAX"]]
 
@@ -411,9 +421,8 @@ def generateImageFromParametricMaps(nn, test_df, checkImageProcessed, idx):
             if "age" in nn.moreinfo.keys() and nn.moreinfo["age"] == 1: X.append(np.array([int(row_to_analyze["age"].iloc[0])]))
             if "gender" in nn.moreinfo.keys() and nn.moreinfo["gender"] == 1: X.append(np.array([int(row_to_analyze["gender"].iloc[0])]))
 
-            checkImageProcessed_slice = general_utils.getSlicingWindow(checkImageProcessed, startX, startY)
             # slicingWindowPredicted contain only the prediction for the last step
-            imagePredicted, categoricalImage = generate2DImage(nn, X, (startX,startY), imagePredicted, categoricalImage, checkImageProcessed_slice, binary_mask)
+            imagePredicted, categoricalImage = generate2DImage(nn, X, (startX,startY), imagePredicted, categoricalImage, binary_mask)
 
         # if we reach the end of the image, break the while loop.
         if startX>=constants.IMAGE_WIDTH-constants.getM() and startY>=constants.IMAGE_HEIGHT-constants.getN(): break
@@ -485,19 +494,18 @@ def evaluateModel(nn, p_id, isAlreadySaved):
             use_multiprocessing=nn.mp
         )
 
-    if not nn.train_on_batch:
-        general_utils.printSeparation("-",50)
+    general_utils.printSeparation("-",50)
+    if not isAlreadySaved:
+        for metric_name in nn.train.history:
+            print("TRAIN %s: %.2f%%" % (metric_name, round(float(nn.train.history[metric_name][-1]), 6)*100))
+    for index, val in enumerate(testing):
+        print("TEST %s: %.2f%%" % (nn.model.metrics_names[index], round(val,6)*100))
+    general_utils.printSeparation("-",50)
+
+    with open(general_utils.getFullDirectoryPath(nn.saveTextFolder)+nn.getNNID(p_id)+suffix+".txt", "a+") as text_file:
         if not isAlreadySaved:
             for metric_name in nn.train.history:
-                print("TRAIN %s: %.2f%%" % (metric_name, round(float(nn.train.history[metric_name][-1]), 6)*100))
+                text_file.write("TRAIN %s: %.2f%% \n" % (metric_name, round(float(nn.train.history[metric_name][-1]), 6)*100))
         for index, val in enumerate(testing):
-            print("TEST %s: %.2f%%" % (nn.model.metrics_names[index], round(val,6)*100))
-        general_utils.printSeparation("-",50)
-
-        with open(general_utils.getFullDirectoryPath(nn.saveTextFolder)+nn.getNNID(p_id)+suffix+".txt", "a+") as text_file:
-            if not isAlreadySaved:
-                for metric_name in nn.train.history:
-                    text_file.write("TRAIN %s: %.2f%% \n" % (metric_name, round(float(nn.train.history[metric_name][-1]), 6)*100))
-            for index, val in enumerate(testing):
-                text_file.write("TEST %s: %.2f%% \n" % (nn.model.metrics_names[index], round(val,6)*100))
-            text_file.write("----------------------------------------------------- \n")
+            text_file.write("TEST %s: %.2f%% \n" % (nn.model.metrics_names[index], round(val,6)*100))
+        text_file.write("----------------------------------------------------- \n")

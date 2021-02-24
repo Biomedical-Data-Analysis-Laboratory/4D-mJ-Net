@@ -1,8 +1,9 @@
 #!/usr/bin/python
 
 import os
+import pickle
 from Utils import general_utils, dataset_utils
-import constants
+import constants, training
 from NeuralNetworkClass import NeuralNetwork
 
 import warnings
@@ -20,6 +21,9 @@ def main():
     networks = list()
     train_df = None
 
+    # Add the current PID to the watchdog list
+    general_utils.addPIDToWatchdog()
+
     # Get the command line arguments
     args = general_utils.getCommandLineArguments()
 
@@ -35,6 +39,7 @@ def main():
     for info in setting["models"]: networks.append(NeuralNetwork(info, setting))
 
     for nn in networks:
+        val_list = []
         isAlreadySaved = False
         listOfPatientsToTrainVal = setting["PATIENTS_TO_TRAINVAL"]
         listOfPatientsToTest = list() if "PATIENTS_TO_TEST" not in setting.keys() else setting["PATIENTS_TO_TEST"]
@@ -99,20 +104,26 @@ def main():
                 if nn.use_sequence:
                     # if we are doing a sequence train (for memory issue)
                     nn.prepareSequenceClass()
-                    nn.runTrainSequence(p_id, n_gpu)
+                    nn.initializeTraining(p_id, n_gpu)
+                    if not args.jump: nn.runTrainSequence()
+                    nn.gradualFineTuningSolution(p_id)
+                    # plot the loss and accuracy of the training
+                    training.plotLossAndAccuracy(nn, p_id)
                 else:
                     # # PREPARE DATASET (=divide in train/val/test)
                     nn.prepareDataset(p_id)
                     # # SET THE CALLBACKS, RUN TRAINING & SAVE THE MODELS WEIGHTS
-                    if nn.train_on_batch: nn.runTrainingOnBatch(p_id, n_gpu)
-                    else: nn.runTraining(p_id, n_gpu)
+                    nn.runTraining(p_id, n_gpu)
 
             nn.saveModelAndWeight(p_id)
 
         # VALIDATION SET: predict the images for decision on the model
         nn.predictAndSaveImages(val_list, isAlreadySaved)
         # PERFORM TESTING: predict and save the images
-        stats = nn.predictAndSaveImages(listOfPatientsToTest, isAlreadySaved)
+        nn.predictAndSaveImages(listOfPatientsToTest, isAlreadySaved)
+
+    general_utils.stopPIDToWatchdog()
+
 
 
 ################################################################################

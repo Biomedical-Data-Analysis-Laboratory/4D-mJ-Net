@@ -5,7 +5,7 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 import constants
 from Utils import metrics, losses
 
-import sys, argparse, os, json, time
+import sys, argparse, os, json, time, pickle
 import numpy as np
 import pandas as pd
 import tensorflow as tf
@@ -30,6 +30,7 @@ def getCommandLineArguments():
     parser.add_argument("-c", "--classes", help="Set the # of classes involved (default = 4)", default=4, type=int, choices=[2,3,4])
     parser.add_argument("-w", "--weights", help="Set the weights for the categorical losses", type=float, nargs='+')
     parser.add_argument("-e", "--exp", help="Set the number of the experiment", type=float)
+    parser.add_argument("-j", "--jump", help="Jump the training and go directly on the gradual fine-tuning function", action="store_true")
     parser.add_argument("gpu", help="Give the id of gpu (or a list of the gpus) to use")
     parser.add_argument("sname", help="Select the setting filename")
     args = parser.parse_args()
@@ -279,3 +280,53 @@ def convertExperimentNumberToString(expnum):
 # Print the shape of the layer if we are in debug mode
 def print_int_shape(layer):
     if constants.getVerbose(): print(K.int_shape(layer))
+
+
+################################################################################
+def addPIDToWatchdog():
+    # Add PID to watchdog list
+    if constants.ENABLE_WATCHDOG is True:
+        if os.path.isfile(constants.PID_WATCHDOG_PICKLE_PATH):
+            PID_list_for_watchdog = pickle_load(constants.PID_WATCHDOG_PICKLE_PATH)
+            PID_list_for_watchdog.append(dict(pid=os.getpid()))
+        else:
+            PID_list_for_watchdog = [dict(pid=os.getpid())]
+
+        # Save list
+        pickle_save(PID_list_for_watchdog, constants.PID_WATCHDOG_PICKLE_PATH)
+
+        # Create a empty list for saving to when the model finishes
+        if not os.path.isfile(constants.PID_WATCHDOG_FINISHED_PICKLE_PATH):
+            PID_list_finished_for_watchdog = []
+            pickle_save(PID_list_finished_for_watchdog, constants.PID_WATCHDOG_FINISHED_PICKLE_PATH)
+    else:
+        print('Warning: WATCHDOG IS DISABLED!')
+
+
+################################################################################
+def stopPIDToWatchdog():
+    if constants.ENABLE_WATCHDOG is True:
+        # Add PID to finished-watchdog-list
+        if os.path.isfile(constants.PID_WATCHDOG_FINISHED_PICKLE_PATH):
+            PID_list_finished_for_watchdog = pickle_load(constants.PID_WATCHDOG_FINISHED_PICKLE_PATH)
+            PID_list_finished_for_watchdog.append(dict(pid=os.getpid()))
+            pickle_save(PID_list_finished_for_watchdog, constants.PID_WATCHDOG_FINISHED_PICKLE_PATH)
+
+        # Remove PID from watchdog list
+        if os.path.isfile(constants.PID_WATCHDOG_PICKLE_PATH):
+            PID_list_for_watchdog = pickle_load(constants.PID_WATCHDOG_PICKLE_PATH)
+            PID_list_for_watchdog.remove(dict(pid=os.getpid()))
+            pickle_save(PID_list_for_watchdog, constants.PID_WATCHDOG_PICKLE_PATH)
+
+################################################################################
+def pickle_save(variable_to_save, path):
+    with open(path, 'wb') as handle:
+        pickle.dump(variable_to_save, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+
+################################################################################
+def pickle_load(path):
+    with open(path, 'rb') as handle:
+        output = pickle.load(handle)
+    return output
+

@@ -90,7 +90,7 @@ def splitDataset(nn, p_id, listOfPatientsToTrainVal, listOfPatientsToTest):
                 if len(listOfPatientsToTest) > 0:  # if we already set the patient list in the setting file
                     test_list = listOfPatientsToTest
                 else:
-                    random.seed(43) #61 (69 for combined ds) 631 - 2 // 43 for val_perc == 10% random.seed(43)  # use ALWAYS the same random indices
+                    random.seed(2) #61 (69 for combined ds) 631 - 2 // 43 for val_perc == 10% random.seed(43)  # use ALWAYS the same random indices
                     test_list = random.sample(listOfPatientsToTrainVal, nn.val["number_patients_for_testing"])
                 # remove the test_list elements from the list
                 listOfPatientsToTrainVal = list(set(listOfPatientsToTrainVal).difference(test_list))
@@ -102,7 +102,7 @@ def splitDataset(nn, p_id, listOfPatientsToTrainVal, listOfPatientsToTest):
         # We have set a number of validation patient(s)
         if nn.val["number_patients_for_validation"] > 0:
             listOfPatientsToTrainVal.sort(reverse=False)  # sort the list and then...
-            random.seed(43) #61 (69 for combined ds) 631 - 2 // 43 for val_perc == 10% random.seed(43)  # use ALWAYS the same random indices
+            random.seed(2) #61 (69 for combined ds) 631 - 2 // 43 for val_perc == 10% random.seed(43)  # use ALWAYS the same random indices
             random.shuffle(listOfPatientsToTrainVal)  # shuffle it
             validation_list = random.sample(listOfPatientsToTrainVal, nn.val["number_patients_for_validation"])
             if constants.getVerbose():
@@ -141,9 +141,8 @@ def splitDataset(nn, p_id, listOfPatientsToTrainVal, listOfPatientsToTest):
 # Prepare the dataset (NOT for the sequence class)
 def prepareDataset(nn, p_id):
     start = time.time()
-    # set the train data only if we have NOT set the train_on_batch flag
-    if not nn.train_on_batch:
-        nn.dataset["train"]["data"] = getDataFromIndex(nn.train_df,nn.dataset["train"]["indices"],"train",nn.mp)
+    # set the train data
+    nn.dataset["train"]["data"] = getDataFromIndex(nn.train_df,nn.dataset["train"]["indices"],"train",nn.mp)
     # the validation data is None if validation_perc and number_patients_for_validation are BOTH equal to 0
     nn.dataset["val"]["data"] = None if nn.val["validation_perc"] == 0 and nn.val[
         "number_patients_for_validation"] == 0 else getDataFromIndex(nn.train_df, nn.dataset["val"]["indices"], "val",

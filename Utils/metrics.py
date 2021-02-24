@@ -11,7 +11,7 @@ from sklearn.metrics import roc_auc_score, average_precision_score, auc, multila
 
 
 ################################################################################
-# Function that calculates the DICE coefficient. Important when calculates the different of two images
+# Function that calculates the SOFT DICE coefficient. Important when calculates the different of two images
 def _squared_dice_coef(y_true, y_pred, class_weights):
     """
     Compute weighted squared Dice loss.
@@ -54,7 +54,7 @@ def sdc_c(y_true, y_pred):
 
 
 ################################################################################
-# REAL Dice coefficient = (2*|X & Y|)/ (|X|+ |Y|)
+# Dice coefficient = (2*|X & Y|)/ (|X|+ |Y|)
 # Calculate the real value for the Dice coefficient,
 # but it returns lower values than the other dice_coef + lower specificity and precision
 # == to F1 score for boolean values

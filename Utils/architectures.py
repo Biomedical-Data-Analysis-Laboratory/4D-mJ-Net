@@ -1,5 +1,5 @@
-import constants
-from Models import arch_mJNet, arch_PMs_segm, arch_autoencoder, arch_van_De_Leemput, arch_UNet, arch_VNet
+from Model import constants
+from Architectures import arch_mJNet, arch_PMs_segm, arch_autoencoder, arch_van_De_Leemput, arch_UNet, arch_VNet
 from Utils import general_utils, spatial_pyramid
 
 

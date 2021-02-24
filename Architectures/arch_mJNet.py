@@ -1,4 +1,4 @@
-import constants
+from Model import constants
 from Utils import general_utils, spatial_pyramid
 
 from tensorflow.keras import layers, models, regularizers, initializers
@@ -91,7 +91,7 @@ def mJNet(params, to_categ, batch=True, drop=False, longJ=False, v2=False):
         if drop: pool_drop_1 = Dropout(params["dropout"]["long.1"])(pool_drop_1)
     else:
         # conv_1 = Conv3D(channels[6], kernel_size=(constants.NUMBER_OF_IMAGE_PER_SECTION,3,3), activation=activ_func, padding='same', kernel_regularizer=l1_l2_reg)(input_x)
-        conv_1 = Conv3D(channels[6], kernel_size=(3,3,constants.NUMBER_OF_IMAGE_PER_SECTION), activation=activ_func,
+        conv_1 = Conv3D(channels[6], kernel_size=(3, 3, constants.NUMBER_OF_IMAGE_PER_SECTION), activation=activ_func,
                         padding='same', kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init,
                         kernel_constraint=kernel_constraint, bias_constraint=bias_constraint)(input_x)
         if v2: conv_1 = layers.LeakyReLU(alpha=0.33)(conv_1)
@@ -99,7 +99,7 @@ def mJNet(params, to_categ, batch=True, drop=False, longJ=False, v2=False):
         general_utils.print_int_shape(conv_1)  # (None, 30, M, N, 128)
         # TODO: make this dynamic based on the original flag
         # pool_drop_1 = layers.AveragePooling3D((constants.NUMBER_OF_IMAGE_PER_SECTION,1,1))(conv_1)
-        pool_drop_1 = layers.AveragePooling3D((1,1,constants.NUMBER_OF_IMAGE_PER_SECTION))(conv_1)
+        pool_drop_1 = layers.AveragePooling3D((1, 1, constants.NUMBER_OF_IMAGE_PER_SECTION))(conv_1)
         # pool_drop_1 = spatial_pyramid.SPP3D([1,2,4], input_shape=(channels[6],None,None,None))(conv_1)
         general_utils.print_int_shape(pool_drop_1)  # (None, 1, M, N, 128)
         if drop: pool_drop_1 = Dropout(params["dropout"]["1"])(pool_drop_1)
@@ -267,13 +267,13 @@ def mJNet(params, to_categ, batch=True, drop=False, longJ=False, v2=False):
 
     act_name = "sigmoid"
     n_chann = 1
-    shape_output = (constants.getM(),constants.getN())
+    shape_output = (constants.getM(), constants.getN())
 
     # set the softmax activation function if the flag is set
     if to_categ:
         act_name = "softmax"
         n_chann = len(constants.LABELS)
-        shape_output = (constants.getM(),constants.getN(),n_chann)
+        shape_output = (constants.getM(), constants.getN(), n_chann)
 
     # last convolutional layer; plus reshape from (1,M,N) to (M,N)
     conv_7 = Conv3D(n_chann, (1,1,1), activation=act_name, padding='same',

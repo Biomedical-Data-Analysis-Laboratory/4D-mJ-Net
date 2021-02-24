@@ -1,4 +1,4 @@
-import constants
+from Model import constants
 from Utils import general_utils
 
 import os, glob, json
@@ -33,10 +33,10 @@ class CollectBatchStats(callbacks.Callback):
         with open(self.textFolderPath+self.modelName+"_logs.txt", "a+") as loss_file:
             loss_file.write(textToSave)
 
-        tmpSavedModels = glob.glob(self.savedModelName+constants.suffix_partial_weights+"*.h5")
+        tmpSavedModels = glob.glob(self.savedModelName + constants.suffix_partial_weights + "*.h5")
         if len(tmpSavedModels) > 1:  # just to be sure and not delete everything
             for file in tmpSavedModels:
-                if self.savedModelName+constants.suffix_partial_weights in file:
+                if self.savedModelName+ constants.suffix_partial_weights in file:
                     tmpEpoch = general_utils.getEpochFromPartialWeightFilename(file)
                     if tmpEpoch < epoch: os.remove(file)  # Remove the old saved weights
 
@@ -90,7 +90,7 @@ class RocCallback(callbacks.Callback):
 # Save the best model every "period" number of epochs
 def modelCheckpoint(filename, monitor, mode, period):
     return callbacks.ModelCheckpoint(
-            filename+constants.suffix_partial_weights+"{epoch:02d}.h5",
+        filename + constants.suffix_partial_weights + "{epoch:02d}.h5",
             monitor=monitor,
             verbose=constants.getVerbose(),
             save_best_only=True,

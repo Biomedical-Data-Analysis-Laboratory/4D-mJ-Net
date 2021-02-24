@@ -1,4 +1,4 @@
-import constants
+from Model import constants
 from Utils import general_utils, spatial_pyramid
 
 from keras import layers, models, regularizers, initializers
@@ -127,11 +127,12 @@ def van_De_Leemput(params, to_categ):
         addconv_14 = layers.concatenate([addconv_14, addconv_14])
     add_7 = layers.add([conc_3, addconv_14])
 
-    conv_15 = layers.Conv3D(len(constants.LABELS), (1,1,constants.NUMBER_OF_IMAGE_PER_SECTION), activation="softmax", padding='same', strides=(1,1,constants.NUMBER_OF_IMAGE_PER_SECTION),  kernel_regularizer=l1_l2_reg, kernel_initializer=hu_init)(add_7)
+    conv_15 = layers.Conv3D(len(constants.LABELS), (1, 1, constants.NUMBER_OF_IMAGE_PER_SECTION), activation="softmax", padding='same', strides=(1, 1,
+                                                                                                                                                 constants.NUMBER_OF_IMAGE_PER_SECTION), kernel_regularizer=l1_l2_reg, kernel_initializer=hu_init)(add_7)
     general_utils.print_int_shape(conv_15) # (None, M, N, 4)
 
     # pool_last = layers.MaxPooling3D((constants.NUMBER_OF_IMAGE_PER_SECTION,1,1))(conv_15)
-    y = layers.Reshape((constants.getM(),constants.getN(),len(constants.LABELS)))(conv_15)
+    y = layers.Reshape((constants.getM(), constants.getN(), len(constants.LABELS)))(conv_15)
     general_utils.print_int_shape(y) # (None, M, N, 4)
     model = models.Model(inputs=input_x, outputs=y)
 

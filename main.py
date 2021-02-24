@@ -3,8 +3,8 @@
 import os
 import pickle
 from Utils import general_utils, dataset_utils
-import constants, training
-from NeuralNetworkClass import NeuralNetwork
+from Model import training, constants
+from Model.NeuralNetworkClass import NeuralNetwork
 
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)

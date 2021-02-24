@@ -2,7 +2,7 @@
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
-import constants
+from Model import constants
 from Utils import metrics, losses
 
 import sys, argparse, os, json, time, pickle
@@ -134,9 +134,9 @@ def getSlicingWindow(img, startX, startY, isgt=False, removeColorBar=False):
 
     # Remove the colorbar! starting coordinate: (129,435)
     if removeColorBar:
-        if M==constants.IMAGE_WIDTH and N==constants.IMAGE_HEIGHT: sliceWindow[:,constants.colorbar_coord[1]:] = 0
+        if M== constants.IMAGE_WIDTH and N== constants.IMAGE_HEIGHT:sliceWindow[:, constants.colorbar_coord[1]:] = 0
         # if the tile is smaller than the entire image
-        elif startY+N>=constants.colorbar_coord[1]: sliceWindow[:,constants.colorbar_coord[1]-startY:] = 0
+        elif startY+N>= constants.colorbar_coord[1]:sliceWindow[:, constants.colorbar_coord[1] - startY:] = 0
 
     sliceWindow = np.cast["float32"](sliceWindow)  # cast the window into a float
 
@@ -158,7 +158,7 @@ def performDataAugmentationOnTheImage(img, data_aug_idx):
 ################################################################################
 # Get the epoch number from the partial weight filename
 def getEpochFromPartialWeightFilename(partialWeightsPath):
-    return int(partialWeightsPath[partialWeightsPath.index(constants.suffix_partial_weights)+
+    return int(partialWeightsPath[partialWeightsPath.index(constants.suffix_partial_weights) +
                                   len(constants.suffix_partial_weights):partialWeightsPath.index(".h5")])
 
 
@@ -214,10 +214,10 @@ def getMetricFunctions(listStats):
 # Return a flag to check if the filename (partial) is inside the list of patients
 def isFilenameInListOfPatient(filename, patients):
     ret = False
-    start_index = filename.rfind("/")+len(constants.DATASET_PREFIX)+1
+    start_index = filename.rfind("/") + len(constants.DATASET_PREFIX) + 1
     patient_id = filename[start_index:start_index+len(str(patients[-1]))]
     # don't load the dataframe if patient_id NOT in the list of patients
-    if constants.PREFIX_IMAGES=="PA": patient_id = int(patient_id)
+    if constants.PREFIX_IMAGES== "PA": patient_id = int(patient_id)
     if patient_id in patients: ret = True
 
     return ret
@@ -243,15 +243,15 @@ def getStringFromIndex(index):
 ################################################################################
 # return the suffix for the model and the patient dataset
 def getSuffix():
-    return "_"+str(constants.SLICING_PIXELS)+\
-           "_"+str(constants.getM())+"x"+str(constants.getN())+\
-           constants.get3DFlag()+constants.getONETIMEPOINT()
+    return "_" + str(constants.SLICING_PIXELS) +\
+           "_" + str(constants.getM()) + "x" + str(constants.getN()) + \
+           constants.get3DFlag() + constants.getONETIMEPOINT()
 
 
 ################################################################################
 # get the full directory path, given a relative path
 def getFullDirectoryPath(path):
-    return constants.getRootPath()+path
+    return constants.getRootPath() + path
 
 
 ################################################################################

@@ -2,7 +2,7 @@ import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 from Utils import metrics
-import constants
+from Model import constants
 import tensorflow.keras.backend as K
 
 

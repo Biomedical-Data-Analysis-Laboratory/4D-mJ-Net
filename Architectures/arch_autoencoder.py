@@ -1,4 +1,4 @@
-import constants
+from Model import constants
 from Utils import general_utils
 
 

@@ -10,7 +10,7 @@ import tensorflow as tf
 from tensorflow.keras.utils import Sequence
 from tensorflow.keras.preprocessing.image import load_img, img_to_array
 
-import constants
+from Model import constants
 from Utils import general_utils, dataset_utils
 
 
@@ -60,8 +60,8 @@ class datasetSequence(Sequence):
         self.index_batch = current_batch.index
 
         # empty initialization
-        X = np.empty((len(current_batch),constants.getM(),constants.getN(),constants.NUMBER_OF_IMAGE_PER_SECTION,1))
-        Y = np.empty((len(current_batch),constants.getM(),constants.getN()))
+        X = np.empty((len(current_batch), constants.getM(), constants.getN(), constants.NUMBER_OF_IMAGE_PER_SECTION, 1))
+        Y = np.empty((len(current_batch), constants.getM(), constants.getN()))
         weights = np.empty((len(current_batch),))
 
         if constants.getUSE_PM(): X = np.empty((len(current_batch), constants.getM(), constants.getN()))
@@ -71,7 +71,7 @@ class datasetSequence(Sequence):
 
         # path to the folder containing the NUMBER_OF_IMAGE_PER_SECTION time point images
         if self.x_label=="pixels":  X, weights = self.getX_pixels(X,current_batch,weights,batch_index_list)
-        elif self.x_label==constants.getList_PMS(): X, weights = self.getX_PM(weights,current_batch,batch_index_list)
+        elif self.x_label== constants.getList_PMS():X, weights = self.getX_PM(weights, current_batch, batch_index_list)
 
         # path to the ground truth image
         if self.y_label=="ground_truth": Y, weights = self.getY(current_batch,weights)
@@ -151,9 +151,9 @@ class datasetSequence(Sequence):
                 img = general_utils.getSlicingWindow(img, coord[0], coord[1], isgt=True)
 
                 # remove the brain from the image ==> it becomes background
-                if constants.N_CLASSES<=3: img[img==85] = constants.PIXELVALUES[0]
+                if constants.N_CLASSES<=3: img[img == 85] = constants.PIXELVALUES[0]
                 # remove the penumbra ==> it becomes core
-                if constants.N_CLASSES==2: img[img==170] = constants.PIXELVALUES[1]
+                if constants.N_CLASSES==2: img[img == 170] = constants.PIXELVALUES[1]
 
                 # Override the weights based on the pixel values
                 if constants.N_CLASSES>2:
@@ -167,8 +167,8 @@ class datasetSequence(Sequence):
                         core_weight *= 6
                         penumbra_weight *= 6
 
-                    f = lambda x: np.sum(np.where(np.array(x)==core_value, core_weight,
-                                                  np.where(np.array(x)==penumbra_value, penumbra_weight, constants.HOT_ONE_WEIGHTS[0][0])))
+                    f = lambda x: np.sum(np.where(np.array(x) == core_value, core_weight,
+                                                  np.where(np.array(x) == penumbra_value, penumbra_weight, constants.HOT_ONE_WEIGHTS[0][0])))
                     weights[index] = f(img) / (constants.getM() * constants.getN())
 
                 # convert the label in [0, 1] values,

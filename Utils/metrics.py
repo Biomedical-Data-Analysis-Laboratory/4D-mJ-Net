@@ -1,7 +1,7 @@
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
-import constants
+from Model import constants
 
 import numpy as np
 import tensorflow as tf
@@ -160,7 +160,7 @@ def weighted_categorical_cross_entropy(y_true, y_pred):
 # first proposed here: https://openaccess.thecvf.com/content_ICCV_2017/papers/Lin_Focal_Loss_for_ICCV_2017_paper.pdf
 def _focal_loss(y_true, y_pred, alpha):
     """ Compute focal loss. """
-    gamma = tf.constant(constants.GAMMA,dtype=y_pred.dtype)
+    gamma = tf.constant(constants.GAMMA, dtype=y_pred.dtype)
     axis_to_reduce = list(range(1, K.ndim(y_pred)))
     # Clip the prediction value to prevent NaN's and Inf's
     y_pred = K.clip(y_pred, K.epsilon(), 1. - K.epsilon())

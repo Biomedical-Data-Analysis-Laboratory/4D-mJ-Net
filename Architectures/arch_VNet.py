@@ -1,7 +1,7 @@
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
-import constants
+from Model import constants
 from Utils import general_utils
 
 from keras import layers, models, initializers
@@ -18,7 +18,7 @@ def VNet_Milletari(params, to_categ):
     kernel_init = initializers.VarianceScaling(scale=(9 / 5), mode='fan_in', distribution='normal', seed=None)
     kernel_constraint, bias_constraint = max_norm(2.), max_norm(2.)
 
-    input_x = layers.Input(shape=(constants.getM(),constants.getN(),constants.NUMBER_OF_IMAGE_PER_SECTION,1),sparse=False)
+    input_x = layers.Input(shape=(constants.getM(), constants.getN(), constants.NUMBER_OF_IMAGE_PER_SECTION, 1), sparse=False)
     general_utils.print_int_shape(input_x)  # (None, M, N, 30, 16)
 
     # Stage 1
@@ -169,10 +169,10 @@ def VNet_Milletari(params, to_categ):
         activation_func = "softmax"
         shape_output = (constants.getM(), constants.getN(), last_channels)
 
-    last_conv = layers.Conv3D(last_channels, kernel_size=(5,5,constants.NUMBER_OF_IMAGE_PER_SECTION),
-                           activation=activation_func, padding='same', kernel_initializer=kernel_init,
-                           strides=(1,1,constants.NUMBER_OF_IMAGE_PER_SECTION),
-                           kernel_constraint=kernel_constraint, bias_constraint=bias_constraint)(last_conv)
+    last_conv = layers.Conv3D(last_channels, kernel_size=(5, 5, constants.NUMBER_OF_IMAGE_PER_SECTION),
+                              activation=activation_func, padding='same', kernel_initializer=kernel_init,
+                              strides=(1, 1, constants.NUMBER_OF_IMAGE_PER_SECTION),
+                              kernel_constraint=kernel_constraint, bias_constraint=bias_constraint)(last_conv)
 
     output = layers.Reshape(shape_output)(last_conv)
     general_utils.print_int_shape(output)  # (None, M, N, 4)
@@ -189,7 +189,7 @@ def VNet_Light(params, to_categ):
     kernel_init = initializers.VarianceScaling(scale=(9 / 5), mode='fan_in', distribution='normal', seed=None)
     kernel_constraint, bias_constraint = max_norm(2.), max_norm(2.)
 
-    input_x = layers.Input(shape=(constants.getM(),constants.getN(),constants.NUMBER_OF_IMAGE_PER_SECTION,1),sparse=False)
+    input_x = layers.Input(shape=(constants.getM(), constants.getN(), constants.NUMBER_OF_IMAGE_PER_SECTION, 1), sparse=False)
     general_utils.print_int_shape(input_x)  # (None, M, N, 30, 16)
 
     l0 = ThreeD_Light_Module(input_x, params["g"], 16, params["g"], kernel_init, kernel_constraint, bias_constraint)
@@ -249,9 +249,9 @@ def VNet_Light(params, to_categ):
         activation_func = "softmax"
         shape_output = (constants.getM(), constants.getN(), last_channels)
 
-    last_conv = layers.Conv3D(last_channels, kernel_size=(3,3,constants.NUMBER_OF_IMAGE_PER_SECTION),
+    last_conv = layers.Conv3D(last_channels, kernel_size=(3, 3, constants.NUMBER_OF_IMAGE_PER_SECTION),
                               activation=activation_func, padding='same', kernel_initializer=kernel_init,
-                              strides=(1,1,constants.NUMBER_OF_IMAGE_PER_SECTION),
+                              strides=(1, 1, constants.NUMBER_OF_IMAGE_PER_SECTION),
                               kernel_constraint=kernel_constraint, bias_constraint=bias_constraint)(last_conv)
     last_conv = InstanceNormalization()(last_conv)
 

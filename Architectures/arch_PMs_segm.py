@@ -1,4 +1,4 @@
-import constants
+from Model import constants
 from Utils import general_utils, spatial_pyramid
 
 from tensorflow.keras import layers, models, regularizers, initializers

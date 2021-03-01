@@ -2,7 +2,7 @@ import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 from Utils import general_utils, dataset_utils, sequence_utils, architectures, losses
-import training, testing, constants
+from Model import training, testing, constants
 
 import os, glob, math
 import numpy as np
@@ -339,7 +339,7 @@ class NeuralNetwork(object):
                 # Perform fine tuning twice: first on the bottom half, then on the totality
                 # Make the bottom half of the VGG-16 layers trainable
                 for ind in layer_indexes[len(layer_indexes) // 2:]: self.model.layers[ind].trainable = True
-                if getVerbose(): print("Fine-tuning setting these {} layers trainable".format(layer_indexes[len(layer_indexes) // 2:]))
+                if getVerbose(): print("Fine-tuning setting: {} layers trainable".format(layer_indexes[len(layer_indexes) // 2:]))
                 if self.arePartialWeightsSaved(p_id):
                     self.model.load_weights(self.partialWeightsPath)
                     self.initial_epoch = general_utils.getEpochFromPartialWeightFilename(self.partialWeightsPath) + previousEarlyStoppingPatience
@@ -356,7 +356,7 @@ class NeuralNetwork(object):
             if self.params["gradual_finetuning_solution"]["type"] == "full" or finished_first_half:
                 # Make ALL the VGG-16 layers trainable
                 for ind in layer_indexes: self.model.layers[ind].trainable = True
-                if getVerbose(): print("Fine-tuning setting these {} layers trainable".format(layer_indexes))
+                if getVerbose(): print("Fine-tuning setting: {} layers trainable".format(layer_indexes))
                 if self.arePartialWeightsSaved(p_id):
                     self.model.load_weights(self.partialWeightsPath)
                     self.initial_epoch = general_utils.getEpochFromPartialWeightFilename(self.partialWeightsPath) + previousEarlyStoppingPatience

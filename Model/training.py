@@ -3,7 +3,7 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 
 import cv2, matplotlib, glob
 
-import constants
+from Model import constants
 from Utils import callback, general_utils
 
 matplotlib.use('Agg')

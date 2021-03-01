@@ -3,7 +3,7 @@ import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 from Utils import general_utils, dataset_utils, sequence_utils, metrics
-import constants, training
+from Model import constants, training
 
 import os, time, cv2, glob
 import seaborn as sns
@@ -60,7 +60,6 @@ def predictAndSaveImages(nn, p_id):
         else: predictImage(nn, subfolder, p_id, patientFolder, subpatientFolder, patientFolderHeatMap, patientFolderGT, patientFolderTMP, filename_test)
 
     end = time.time()
-
 
 
 ################################################################################
@@ -258,20 +257,23 @@ def saveImage(nn, relativePatientFolder, idx, imagePredicted, categoricalImage, 
         if nn.to_categ:
             p_idx, c_idx = 2,3
             if constants.N_CLASSES==3: p_idx, c_idx = 1, 2
-            # heatmap_img_p = cv2.convertScaleAbs(categoricalImage[:,:,p_idx]*255)
-            # heatmap_img_c = cv2.convertScaleAbs(categoricalImage[:,:,c_idx]*255)
-            # heatmap_img_p = cv2.applyColorMap(heatmap_img_p, cv2.COLORMAP_JET)
-            # checkImageProcessed_rgb = cv2.cvtColor(checkImageProcessed, cv2.COLOR_GRAY2RGB)
-            # blend_p = cv2.addWeighted(checkImageProcessed_rgb, 0.5, heatmap_img_p, 1, 0.0)
-            # heatmap_img_c = cv2.applyColorMap(heatmap_img_c, cv2.COLORMAP_JET)
-            # blend_c = cv2.addWeighted(checkImageProcessed_rgb, 0.5, heatmap_img_c, 1, 0.0)
-            # cv2.imwrite(nn.saveImagesFolder+relativePatientFolderHeatMap+idx+"_heatmap_penumbra.png", blend_p)
-            # cv2.imwrite(nn.saveImagesFolder+relativePatientFolderHeatMap+idx+"_heatmap_core.png", blend_c)
+            heatmap_img_p = cv2.convertScaleAbs(categoricalImage[:, :, p_idx] * 255)
+            heatmap_img_c = cv2.convertScaleAbs(categoricalImage[:, :, c_idx] * 255)
+            heatmap_img_p = cv2.applyColorMap(heatmap_img_p, cv2.COLORMAP_JET)
+            checkImageProcessed_rgb = cv2.cvtColor(checkImageProcessed, cv2.COLOR_GRAY2RGB)
+            blend_p = cv2.addWeighted(checkImageProcessed_rgb, 0.5, heatmap_img_p, 0.5, 0.0)
+            heatmap_img_c = cv2.applyColorMap(heatmap_img_c, cv2.COLORMAP_JET)
+            blend_c = cv2.addWeighted(checkImageProcessed_rgb, 0.5, heatmap_img_c, 0.5, 0.0)
 
-            sns.heatmap(categoricalImage[:,:,p_idx], cmap="jet", yticklabels=False, xticklabels=False, square=True, cbar=False)
-            plt.savefig(nn.saveImagesFolder+relativePatientFolderHeatMap+idx+"_heatmap_penumbra.png", transparent=True, bbox_inches='tight')
-            sns.heatmap(categoricalImage[:,:,c_idx], cmap="jet", yticklabels=False, xticklabels=False, square=True, cbar=False)
-            plt.savefig(nn.saveImagesFolder+relativePatientFolderHeatMap+idx+"_heatmap_core.png", transparent=True, bbox_inches='tight')
+            cv2.imwrite(nn.saveImagesFolder + relativePatientFolderHeatMap + idx + "_heatmap_penumbra.png", blend_p)
+            cv2.imwrite(nn.saveImagesFolder + relativePatientFolderHeatMap + idx + "_heatmap_core.png", blend_c)
+            # sns.heatmap(categoricalImage[:,:,p_idx], cmap="jet", yticklabels=False, xticklabels=False, square=True, cbar=False)
+            # plt.savefig(nn.saveImagesFolder+relativePatientFolderHeatMap+idx+"_heatmap_penumbra.png", transparent=True, bbox_inches='tight')
+            # sns.heatmap(categoricalImage[:,:,c_idx], cmap="jet", yticklabels=False, xticklabels=False, square=True, cbar=False)
+            # plt.savefig(nn.saveImagesFolder+relativePatientFolderHeatMap+idx+"_heatmap_core.png", transparent=True, bbox_inches='tight')
+
+            # f = open(nn.saveImagesFolder+relativePatientFolderHeatMap+idx+".pkl", 'wb')
+            # pkl.dump(categoricalImage, f)
 
         # Save the ground truth and the contours
         if constants.get3DFlag()== "":
@@ -314,10 +316,11 @@ def generate2DImage(nn, pixels, startingXY, imagePredicted, categoricalImage, bi
     startingX, startingY = startingXY
     # slicingWindowPredicted_orig contain only the prediction for the last step
     slicingWindowPredicted_orig = predictFromModel(nn, pixels)[nn.test_steps-1]
+    if nn.save_images and nn.to_categ: categoricalImage[startingX:startingX + constants.getM(),
+                                       startingY:startingY + constants.getN()] = slicingWindowPredicted_orig
 
     # convert the categorical into a single array using a threshold (0.6) for removing some uncertain predictions
-    if nn.to_categ: slicingWindowPredicted = K.eval((K.argmax(slicingWindowPredicted_orig)*255) / (
-                constants.N_CLASSES - 1))
+    if nn.to_categ: slicingWindowPredicted = K.eval((K.argmax(slicingWindowPredicted_orig)*255)/(constants.N_CLASSES-1))
     else: slicingWindowPredicted *= 255
 
     # save the predicted images
@@ -329,7 +332,6 @@ def generate2DImage(nn, pixels, startingXY, imagePredicted, categoricalImage, bi
         binary_mask *= 85.  # multiply the binary mask for the brain pixel value
         slicingWindowPredicted += (binary_mask-overlapping_pred)  # add the brain to the prediction window
         imagePredicted[startingX:startingX + constants.getM(), startingY:startingY + constants.getN()] = slicingWindowPredicted
-        if nn.to_categ: categoricalImage[startingX:startingX + constants.getM(), startingY:startingY + constants.getN()] = slicingWindowPredicted_orig
     return imagePredicted, categoricalImage
 
 

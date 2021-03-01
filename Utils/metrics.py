@@ -27,7 +27,7 @@ def _squared_dice_coef(y_true, y_pred, class_weights):
 
     denominator = (K.square(y_true) + K.square(y_pred)) * class_weights  # Broadcasting
     denominator = K.sum(denominator, axis=axis_to_reduce)
-    return numerator / denominator
+    return numerator / (denominator+K.epsilon())
 
 
 def squared_dice_coef(y_true, y_pred):
@@ -68,7 +68,7 @@ def dice_coef(y_true, y_pred):
 
     denominator = (y_true + y_pred) * class_weights  # Broadcasting
     denominator = K.sum(denominator, axis=axis_to_reduce)
-    return numerator / denominator
+    return numerator / (denominator+K.epsilon())
 
 
 ################################################################################
@@ -125,11 +125,6 @@ def jaccard_distance(y_true, y_pred):
     sum_ = K.sum(K.abs(y_true) + K.abs(y_pred), axis=-1)
     jac = intersection / (sum_ - intersection + K.epsilon())
     return jac
-
-
-def jaccard_index(tn, fn, fp, tp):
-    f = f1(tn, fn, fp, tp)
-    return f/(2-f+1e-07)
 
 
 ################################################################################
@@ -231,9 +226,9 @@ def prec_c(y_true, y_pred):
 
 def _precision(y_true, y_pred, class_weights):
     axis_to_reduce = list(range(1, K.ndim(y_pred)))  # All axis but first (batch)
-    numerator = y_true * y_pred * class_weights
+    numerator = y_true * tf.math.rint(y_pred) * class_weights
     numerator = K.sum(numerator, axis=axis_to_reduce)
-    denominator = K.sum(y_pred * class_weights, axis=axis_to_reduce)
+    denominator = K.sum(tf.math.rint(y_pred) * class_weights, axis=axis_to_reduce)
     return numerator / (denominator + K.epsilon())
 
 
@@ -253,7 +248,7 @@ def rec_c(y_true, y_pred):
 
 def _recall(y_true, y_pred, class_weights):
     axis_to_reduce = list(range(1, K.ndim(y_pred)))  # All axis but first (batch)
-    numerator = y_true * y_pred * class_weights
+    numerator = y_true * tf.math.rint(y_pred) * class_weights
     numerator = K.sum(numerator, axis=axis_to_reduce)
     denominator = y_true * class_weights
     denominator = K.sum(denominator, axis=axis_to_reduce)

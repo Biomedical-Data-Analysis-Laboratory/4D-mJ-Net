@@ -3,114 +3,16 @@
 
 ################################################################################
 # ### Import libraries
-import cv2, time, glob, os, operator, random, math
+import cv2, time, glob, os, operator, random, math, argparse, json
 import numpy as np
 import pandas as pd
 import pickle as pkl
 import hickle as hkl
 from scipy import ndimage
 
-################################################################################
-################################################################################
-################################################################################
-################################################################################
-# CONSTANTS
-
-################################################################################
-# ISLES2018 Setting
-################################################################################
-# DATASET_NAME ="ISLES2018/"
-# ROOT_PATH = "/home/stud/lucat/PhD_Project/Stroke_segmentation/PATIENTS/"+DATASET_NAME +"NEW_TRAINING_TIFF/"
-# SCRIPT_PATH = "/local/home/lucat/DATASET/"+DATASET_NAME +"Two_classes/" # Four_classes
-#
-# SAVE_REGISTERED_FOLDER = ROOT_PATH + "FINAL_TIFF/"
-# LABELED_IMAGES_FOLDER_LOCATION = ROOT_PATH + "Binary_Ground_Truth/"
-# IMAGE_PREFIX = "PA"
-# IMAGE_SUFFIX = ".tiff" # ".png"
-# NUMBER_OF_IMAGE_PER_SECTION = 30 # number of image (divided by time) for each section of the brain
-# IMAGE_WIDTH, IMAGE_HEIGHT = 512, 512
-#
-# # background:255, brain:0, penumbra:~76, core:~150
-# BINARY_CLASSIFICATION = True # to extract only two classes
-# LABELS = ["background", "core"] # ["background", "brain", "penumbra", "core"]
-# LABELS_THRESHOLDS = [0, 235] #[234, 0, 60, 135] # [250, 0 , 30, 100]
-# LABELS_REALVALUES = [0, 255] # [255, 0, 76, 150]
-# TILE_DIVISION = 16
-
-################################################################################
-# Master2019 Setting
-################################################################################
-# DATASET_NAME = "Master2019/"
-# ROOT_PATH = "/home/stud/lucat/PhD_Project/Stroke_segmentation/PATIENTS/"+DATASET_NAME+"Training/"
-# SCRIPT_PATH = "/local/home/lucat/DATASET/"+DATASET_NAME
-#
-# SAVE_REGISTERED_FOLDER = ROOT_PATH + "Patients/"
-# LABELED_IMAGES_FOLDER_LOCATION = ROOT_PATH + "Manual_annotations/"
-# IMAGE_PREFIX = "PA"
-# NUMBER_OF_IMAGE_PER_SECTION = 30 # number of image (divided by time) for each section of the brain
-# NUMBER_OF_SLICE_PER_PATIENT = 32 # forced number of slices for each patient
-# IMAGE_WIDTH, IMAGE_HEIGHT = 512, 512
-# # background:255, brain:0, penumbra:~76, core:~150
-# BINARY_CLASSIFICATION = False # to extract only two classes
-# LABELS = ["background", "brain", "penumbra", "core"]
-# LABELS_THRESHOLDS = [234, 0, 60, 135] # [250, 0 , 30, 100]
-# LABELS_REALVALUES = [255, 0, 76, 150]
-# TILE_DIVISION = 1
-
-################################################################################
-# SUS2020_TIFF Setting
-################################################################################
-DATASET_NAME = "SUS2020_TIFF_HU_COMBINED/"
-ROOT_PATH = "/home/prosjekt/PerfusionCT/StrokeSUS/"
-SCRIPT_PATH = "/local/home/lucat/DATASET/"+DATASET_NAME
-# SCRIPT_PATH = "/home/stud/lucat/PhD_Project/"+DATASET_NAME
-
-SAVE_REGISTERED_FOLDER = ROOT_PATH + "COMBINED/FINAL_TIFF_HU_v1/" #"FINAL_TIFF_HU_v1/"
-PM_FOLDER = ROOT_PATH + "COMBINED/Parametric_Maps/"
-LABELED_IMAGES_FOLDER_LOCATION = ROOT_PATH + "COMBINED/GT_TIFF/"
-MASKS_IMAGES_FOLDER_LOCATION = ROOT_PATH + "COMBINED/MASKS_HU/"
-IMAGE_PREFIX = "CTP_"
-IMAGE_SUFFIX = ".tiff"  # ".png"
-NUMBER_OF_IMAGE_PER_SECTION = 30  # number of image (divided by time) for each section of the brain
-NUMBER_OF_SLICE_PER_PATIENT = 32  # forced number of slices for each patient
-IMAGE_WIDTH, IMAGE_HEIGHT = 512, 512
-# background:255, brain:0, penumbra:~76, core:~150
-BINARY_CLASSIFICATION = False  # to extract only two classes
-LABELS = ["background", "brain", "penumbra", "core"]
-LABELS_THRESHOLDS = [234, 0, 60, 135]  # [250, 0 , 30, 100]
-LABELS_REALVALUES = [255, 0, 76, 150]
-TILE_DIVISION = 1  # set to >1 if the tile are NOT the entire image
-
-################################################################################
-################################################################################
-################################################################################
-################################################################################
-
-# create a dataset compatible with the Keras Sequence class https://keras.io/api/utils/python_utils/
-SEQUENCE_DATASET = True
-NEW_GROUNDTRUTH_VALUES = True  # flag to use the new GT values
-SKIP_TILES = False  # skip the tiles?
-
-ORIGINAL_SHAPE = False  # the one from the master thesis
-DATA_AUGMENTATION = True  # use data augmentation?
-THREE_D = False  # get just the 3D version of the raw images
-FOUR_D = False  # TODO: ??
-ONE_TIME_POINT = -1  # -1 if you don't want to use it
-VERBOSE = 0
 dataset, listPatientsDataset, trainDatasetList = {}, {}, list()
-COLUMNS = ['patient_id', 'label', 'pixels', 'CBF', 'CBV', 'TTP', 'TMAX', 'MIP', 'NIHSS', 'ground_truth', "mask",
-           'label_code', 'x_y', 'data_aug_idx', 'timeIndex', 'sliceIndex', "severity", "age", "gender"]
-
-################################################################################
-M, N = int(IMAGE_WIDTH/TILE_DIVISION), int(IMAGE_HEIGHT/TILE_DIVISION)
-SLICING_PIXELS = int(M/4)  # USE ALWAYS M/4
-
-if NEW_GROUNDTRUTH_VALUES:
-    LABELS_THRESHOLDS = [0, 70, 155, 230]  # [250, 0 , 30, 100]
-    LABELS_REALVALUES = [0, 85, 170, 255]
 
 
-################################################################################
 # Util functions
 ################################################################################
 def initializeLabels(patientIndex):
@@ -316,20 +218,27 @@ def fillDatasetOverTime(relativePath, patientIndex, timeFolder, infor_file):
                 # if we are processing for the sequence dataset, save the path for the ground truth
                 if SEQUENCE_DATASET:
                     otherInforList[data_aug_idx][str(startingX)][str(startingY)]["ground_truth"] = LABELED_IMAGES_FOLDER_LOCATION+IMAGE_PREFIX+patientIndex+"/"+sliceIndex+IMAGE_SUFFIX
-                    otherInforList[data_aug_idx][str(startingX)][str(startingY)]["mask"] = MASKS_IMAGES_FOLDER_LOCATION + IMAGE_PREFIX + patientIndex + "/" + sliceIndex + IMAGE_SUFFIX
+                    if HASDAYFOLDER: otherInforList[data_aug_idx][str(startingX)][str(startingY)]["mask"] = MASKS_IMAGES_FOLDER_LOCATION + IMAGE_PREFIX + patientIndex + "/" + sliceIndex + IMAGE_SUFFIX
                     otherInforList[data_aug_idx][str(startingX)][str(startingY)]["pixels"] = timeFolder
 
-                    for dayfolder in np.sort(glob.glob(PM_FOLDER + IMAGE_PREFIX + patientIndex +"/*/")):
-                        # if the folder contains the correct number of subfolders
-                        n_fold = 7
-                        if "20_" in patientIndex or "21_" in patientIndex or "22_" in patientIndex or "23_" in patientIndex: n_fold=5
+                    if HASDAYFOLDER:  # SUS2020 dataset
+                        for dayfolder in np.sort(glob.glob(PM_FOLDER + IMAGE_PREFIX + patientIndex +"/*/")):
+                            # if the folder contains the correct number of subfolders
+                            n_fold = 7
+                            if "20_" in patientIndex or "21_" in patientIndex or "22_" in patientIndex or "23_" in patientIndex: n_fold=5
 
-                        if len(glob.glob(dayfolder+"*/"))>=n_fold:
-                            pmlist = ["CBF", "CBV", "TTP", "TMAX", "MIP"]
+                            if len(glob.glob(dayfolder+"*/"))>=n_fold:
+                                pmlist = ["CBF", "CBV", "TTP", "TMAX", "MIP"]
 
-                            for subdayfolder in glob.glob(dayfolder+"*/"):
+                                for subdayfolder in glob.glob(dayfolder+"*/"):
+                                    for pm in pmlist:
+                                        if pm in subdayfolder: otherInforList[data_aug_idx][str(startingX)][str(startingY)][pm] = subdayfolder+sliceIndex+".png"
+                    else:  # ISLES2018 dataset
+                        if len(glob.glob(PM_FOLDER + IMAGE_PREFIX + patientIndex +"/*/")) >= 6:
+                            pmlist = ["CBF", "CBV", "MTT", "Tmax"]
+                            for listpms in glob.glob(PM_FOLDER + IMAGE_PREFIX + patientIndex + "/*/"):
                                 for pm in pmlist:
-                                    if pm in subdayfolder: otherInforList[data_aug_idx][str(startingX)][str(startingY)][pm] = subdayfolder+sliceIndex+".png"
+                                    if pm in listpms: otherInforList[data_aug_idx][str(startingX)][str(startingY)][pm.upper()] = listpms+sliceIndex+".png"
 
                 else: otherInforList[data_aug_idx][str(startingX)][str(startingY)]["ground_truth"] = realLabelledWindowToAdd
 
@@ -338,7 +247,7 @@ def fillDatasetOverTime(relativePath, patientIndex, timeFolder, infor_file):
                 otherInforList[data_aug_idx][str(startingX)][str(startingY)]["data_aug_idx"] = data_aug_idx
                 otherInforList[data_aug_idx][str(startingX)][str(startingY)]["timeIndex"] = imagename.replace(timeFolder, '').replace(IMAGE_SUFFIX,"")
                 otherInforList[data_aug_idx][str(startingX)][str(startingY)]["sliceIndex"] = sliceIndex
-                otherInforList[data_aug_idx][str(startingX)][str(startingY)]["severity"] = patientIndex.split("_")[0]
+                if HASDAYFOLDER: otherInforList[data_aug_idx][str(startingX)][str(startingY)]["severity"] = patientIndex.split("_")[0]
 
         # if we reach the end of the image, break the while loop.
         if startingX >= IMAGE_WIDTH - M and startingY >= IMAGE_HEIGHT - N: break
@@ -370,11 +279,17 @@ def fillDatasetOverTime(relativePath, patientIndex, timeFolder, infor_file):
 
                 if SEQUENCE_DATASET:
                     pixels_zoom = otherInforList[d][x][y]["pixels"]
-                    cbf = otherInforList[d][x][y]["CBF"]
-                    cbv = otherInforList[d][x][y]["CBV"]
-                    ttp = otherInforList[d][x][y]["TTP"]
-                    tmax = otherInforList[d][x][y]["TMAX"]
-                    mip = otherInforList[d][x][y]["MIP"]
+                    if HASDAYFOLDER:
+                        cbf = otherInforList[d][x][y]["CBF"]
+                        cbv = otherInforList[d][x][y]["CBV"]
+                        ttp = otherInforList[d][x][y]["TTP"]
+                        tmax = otherInforList[d][x][y]["TMAX"]
+                        mip = otherInforList[d][x][y]["MIP"]
+                    else:
+                        cbf = otherInforList[d][x][y]["CBF"]
+                        cbv = otherInforList[d][x][y]["CBV"]
+                        mtt = otherInforList[d][x][y]["MTT"]
+                        tmax = otherInforList[d][x][y]["TMAX"]
 
                 else:
                     if ORIGINAL_SHAPE: totalVol = np.empty((1,M,N))
@@ -409,21 +324,26 @@ def fillDatasetOverTime(relativePath, patientIndex, timeFolder, infor_file):
 
                 label = otherInforList[d][x][y]["label_class"]
                 gt = otherInforList[d][x][y]["ground_truth"]
-                mask = otherInforList[d][x][y]["mask"]
+                if HASDAYFOLDER: mask = otherInforList[d][x][y]["mask"]
                 x_y = otherInforList[d][x][y]["x_y"]
                 data_aug_idx = otherInforList[d][x][y]["data_aug_idx"]
                 timeIndex = otherInforList[d][x][y]["timeIndex"]
-                severity = otherInforList[d][x][y]["severity"]
+                if HASDAYFOLDER: severity = otherInforList[d][x][y]["severity"]
 
                 tmp_COLUMNS = list(filter(lambda col:col != 'label_code', COLUMNS))
 
-                nihss = infor_file.nihss[IMAGE_PREFIX+patientIndex]
-                age = int(infor_file.age[IMAGE_PREFIX+patientIndex][:-1])
-                gender = 0 if infor_file.gender[IMAGE_PREFIX+patientIndex] == "M" else 1
+                if HASDAYFOLDER:
+                    nihss = infor_file.nihss[IMAGE_PREFIX+patientIndex]
+                    age = int(infor_file.age[IMAGE_PREFIX+patientIndex][:-1])
+                    gender = 0 if infor_file.gender[IMAGE_PREFIX+patientIndex] == "M" else 1
 
-                tmp_df = pd.DataFrame(np.array([[patientIndex, label, pixels_zoom, cbf, cbv, ttp, tmax, mip, nihss, gt, mask,
-                                                 x_y, data_aug_idx, timeIndex, sliceIndex, severity, age, gender]]),
-                                      columns=tmp_COLUMNS)
+                    tmp_df = pd.DataFrame(np.array([[patientIndex, label, pixels_zoom, cbf, cbv, ttp, tmax, mip, nihss, gt, mask,
+                                                     x_y, data_aug_idx, timeIndex, sliceIndex, severity, age, gender]]),
+                                          columns=tmp_COLUMNS)
+                else:
+                    tmp_df = pd.DataFrame(np.array([[patientIndex, label, pixels_zoom, cbf, cbv, mtt, tmax, gt,
+                                                     x_y, data_aug_idx, timeIndex, sliceIndex]]),
+                        columns=tmp_COLUMNS)
 
                 if BINARY_CLASSIFICATION: tmp_df['label_code'] = tmp_df.label.map({LABELS[0]:0, LABELS[1]:1})
                 else: tmp_df['label_code'] = tmp_df.label.map({LABELS[0]:0, LABELS[1]:1, LABELS[2]:2, LABELS[3]:3})
@@ -548,7 +468,7 @@ def fillDataset3D(relativePath, patientIndex, timeFolder, folders, infor_file):
         for index, row in enumerate(tmp_dt.itertuples()):
 
             for timeIndexFilename in range(tmp_dt.iloc[index]["pixels"].shape[2]):
-                # take the corresponding timepoint pixels
+                # take the corresponding time-point pixels
                 pixels = tmp_dt.iloc[index]["pixels"][:,:,timeIndexFilename,:]
                 corr_row = train_df[(train_df.timeIndex==timeIndexFilename) & (train_df.x_y==row["x_y"]) & (train_df.sliceIndex==sliceIndex)]
                 if len(corr_row)>0:
@@ -638,8 +558,8 @@ def initializeDataset():
         if len(timeIndex)==1: timeIndex="0"+timeIndex
         suffix_filename += ("_"+timeIndex)
 
-    nihss_name = "../nihss_score.csv"
-    infor_file = pd.read_csv(nihss_name,index_col=0,sep=";")
+    infor_file = ""
+    if HASDAYFOLDER: infor_file = pd.read_csv("../nihss_score.csv",index_col=0,sep=";")
 
     for numFold, patientFolder in enumerate(patientFolders):  # for each patient
         train_df = pd.DataFrame(columns=COLUMNS)  # reset the dataframe
@@ -658,7 +578,6 @@ def initializeDataset():
             continue
 
         subfolders = np.sort(glob.glob(patientFolder+"*/"))
-
         print("[INFO] - Analyzing {0}/{1}; patient folder: {2}...".format(numFold+1, len(patientFolders), relativePath))
         # if the manual annotation folder
         if os.path.isdir(LABELED_IMAGES_FOLDER_LOCATION+IMAGE_PREFIX+patientIndex+"/"):
@@ -736,9 +655,86 @@ def initializeDataset():
 
 
 ################################################################################
+# Get the setting file and set the variables
+def getSettingFile(filename):
+    setting = dict()
+
+    # the path of the setting file start from the current working directory
+    with open(os.path.join(os.getcwd(), filename)) as f: setting = json.load(f)
+
+    if VERBOSE: print("Load setting file: {}".format(filename))
+
+    return setting
+
+
+################################################################################
+# Set the setting from the file
+def setSettings(setting):
+    global DATASET_NAME, ROOT_PATH, SCRIPT_PATH, SAVE_REGISTERED_FOLDER, LABELED_IMAGES_FOLDER_LOCATION, IMAGE_PREFIX
+    global IMAGE_SUFFIX, NUMBER_OF_IMAGE_PER_SECTION, NUMBER_OF_SLICE_PER_PATIENT, IMAGE_WIDTH, IMAGE_HEIGHT
+    global BINARY_CLASSIFICATION, LABELS, LABELS_THRESHOLDS, LABELS_REALVALUES, TILE_DIVISION, SEQUENCE_DATASET
+    global SKIP_TILES, ORIGINAL_SHAPE, DATA_AUGMENTATION, THREE_D, FOUR_D, ONE_TIME_POINT, COLUMNS
+    global NEW_GROUNDTRUTH_VALUES, M, N, SLICING_PIXELS, MASKS_IMAGES_FOLDER_LOCATION, PM_FOLDER
+
+    DATASET_NAME = setting["DATASET_NAME"]
+    ROOT_PATH = setting["ROOT_PATH"]
+    SCRIPT_PATH = setting["SCRIPT_PATH"]
+    SAVE_REGISTERED_FOLDER = setting["SAVE_REGISTERED_FOLDER"]
+    PM_FOLDER = setting["PM_FOLDER"]
+    LABELED_IMAGES_FOLDER_LOCATION = setting["LABELED_IMAGES_FOLDER_LOCATION"]
+    MASKS_IMAGES_FOLDER_LOCATION = setting["MASKS_IMAGES_FOLDER_LOCATION"]
+    IMAGE_PREFIX = setting["IMAGE_PREFIX"]
+    IMAGE_SUFFIX = setting["IMAGE_SUFFIX"]
+    NUMBER_OF_IMAGE_PER_SECTION = setting["NUMBER_OF_IMAGE_PER_SECTION"]
+    NUMBER_OF_SLICE_PER_PATIENT = setting["NUMBER_OF_SLICE_PER_PATIENT"]
+    IMAGE_WIDTH = setting["IMAGE_WIDTH"]
+    IMAGE_HEIGHT = setting["IMAGE_HEIGHT"]
+    BINARY_CLASSIFICATION = setting["BINARY_CLASSIFICATION"]
+    LABELS = setting["LABELS"]
+    LABELS_THRESHOLDS = setting["LABELS_THRESHOLDS"]
+    LABELS_REALVALUES = setting["LABELS_REALVALUES"]
+    TILE_DIVISION = setting["TILE_DIVISION"]
+    # create a dataset compatible with the Keras Sequence class https://keras.io/api/utils/python_utils/
+    SEQUENCE_DATASET = setting["SEQUENCE_DATASET"]
+    SKIP_TILES = setting["SKIP_TILES"]  # skip the tiles?
+    ORIGINAL_SHAPE = setting["ORIGINAL_SHAPE"]  # the one from the master thesis
+    DATA_AUGMENTATION = setting["DATA_AUGMENTATION"]  # use data augmentation?
+    THREE_D = setting["THREE_D"]  # get just the 3D version of the raw images
+    FOUR_D = setting["FOUR_D"]  # TODO: ??
+    ONE_TIME_POINT = setting["ONE_TIME_POINT"]  # -1 if you don't want to use it
+    COLUMNS = setting["COLUMNS"]
+    NEW_GROUNDTRUTH_VALUES = setting["NEW_GROUNDTRUTH_VALUES"]  # flag to use the new GT values
+
+    ################################################################################
+    M, N = int(IMAGE_WIDTH / TILE_DIVISION), int(IMAGE_HEIGHT / TILE_DIVISION)
+    SLICING_PIXELS = int(M / 4)  # USE ALWAYS M/4
+
+    if NEW_GROUNDTRUTH_VALUES:
+        LABELS_THRESHOLDS = [0, 70, 155, 230]  # [250, 0 , 30, 100]
+        LABELS_REALVALUES = [0, 85, 170, 255]
+
+
+################################################################################
 # ## Main
 ################################################################################
 if __name__ == '__main__':
+    global DATASET_NAME, ROOT_PATH, SCRIPT_PATH, SAVE_REGISTERED_FOLDER, LABELED_IMAGES_FOLDER_LOCATION, IMAGE_PREFIX
+    global IMAGE_SUFFIX, NUMBER_OF_IMAGE_PER_SECTION, NUMBER_OF_SLICE_PER_PATIENT, IMAGE_WIDTH, IMAGE_HEIGHT
+    global BINARY_CLASSIFICATION, LABELS, LABELS_THRESHOLDS, LABELS_REALVALUES, TILE_DIVISION, SEQUENCE_DATASET
+    global SKIP_TILES, ORIGINAL_SHAPE, DATA_AUGMENTATION, THREE_D, FOUR_D, ONE_TIME_POINT, COLUMNS, PM_FOLDER
+    global NEW_GROUNDTRUTH_VALUES, M, N, SLICING_PIXELS, MASKS_IMAGES_FOLDER_LOCATION
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-v", "--verbose", help="Increase output verbosity", action="store_true")
+    parser.add_argument("sname", help="Select the setting filename")
+    parser.add_argument("-d", "--dayfold", help="Flag for having a dayfolder in the parametric maps folder", action="store_true")
+    args = parser.parse_args()
+
+    VERBOSE = args.verbose
+    HASDAYFOLDER = args.dayfold
+    setting = getSettingFile(args.sname)
+    setSettings(setting)
+
     start = time.time()
     print("Initializing dataset...")
     initializeDataset()

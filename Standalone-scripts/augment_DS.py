@@ -22,9 +22,9 @@ def readAndMirrorImages():
 
         #readAndMirrorGT(relativePatientPath)
 
-        readAndMirrorPM(relativePatientPath)
+        #readAndMirrorPM(relativePatientPath)
 
-        #readAndMirror4DCTP(relativePatientPath,patientFolder)
+        readAndMirror4DCTP(relativePatientPath,patientFolder)
 
         if MASK_NAME!="": readAndMirrorMask(relativePatientPath)
 
@@ -137,7 +137,8 @@ if __name__ == '__main__':
     """
     Example usage for SUS2020 DS (& ISLES2018): 
     
-    python augment_DS.py /home/prosjekt/PerfusionCT/StrokeSUS/ FINAL_TIFF_HU_v1/ Parametric_Maps/ GT_TIFF/ MASKS_HU/  -d -c
+    python augment_DS.py /home/prosjekt/PerfusionCT/StrokeSUS/ORIGINAL/ FINAL_Najm_v1/ Parametric_Maps/ GT_TIFF/ MASKS_HU_Najm/  -d -c
+    
     python augment_DS.py /home/stud/lucat/PhD_Project/Stroke_segmentation/PATIENTS/ISLES2018/Processed_TRAINING/ FINAL/ Parametric_Maps/ Binary_Ground_Truth/ "" -f 1
 
     """
@@ -159,21 +160,24 @@ if __name__ == '__main__':
     GT_NAME = args.gt_name
     MASK_NAME = args.mask_name
     ORIGINAL_FOLDER = ROOT_PATH + DS_NAME
-    MIRRORED_REGISTERED_FOLDER = ROOT_PATH + "MIRRORED/MIRRORED_" + DS_NAME
+
+    ROOT_PATH = ROOT_PATH.replace("ORIGINAL","MIRRORED")
+    if not os.path.isdir(ROOT_PATH): os.mkdir(ROOT_PATH)
+
+    MIRRORED_REGISTERED_FOLDER = ROOT_PATH + "MIRRORED_" + DS_NAME
     PM_FOLDER = ROOT_PATH + PM_NAME
-    MIRRORED_PM_FOLDER = ROOT_PATH + "MIRRORED/MIRRORED_" + PM_NAME
+    MIRRORED_PM_FOLDER = ROOT_PATH + "MIRRORED_" + PM_NAME
     GT_FOLDER = ROOT_PATH + GT_NAME
-    MIRRORED_GT_FOLDER = ROOT_PATH + "MIRRORED/MIRRORED_" + GT_NAME
+    MIRRORED_GT_FOLDER = ROOT_PATH + "MIRRORED_" + GT_NAME
     if MASK_NAME!="":
         MASK_FOLDER = ROOT_PATH + MASK_NAME
-        MIRRORED_MASK_FOLDER = ROOT_PATH + "MIRRORED/MIRRORED_" + MASK_NAME
+        MIRRORED_MASK_FOLDER = ROOT_PATH + "MIRRORED_" + MASK_NAME
 
     FLIP = args.flip
     HASDAYFOLDER = args.dayfold
     HASCOLORBAR = args.colorbar
 
     start = time.time()
-    if not os.path.isdir(ROOT_PATH+"MIRRORED/"): os.mkdir(ROOT_PATH+"MIRRORED/")
     if not os.path.isdir(MIRRORED_REGISTERED_FOLDER): os.mkdir(MIRRORED_REGISTERED_FOLDER)
     if not os.path.isdir(MIRRORED_PM_FOLDER): os.mkdir(MIRRORED_PM_FOLDER)
     if not os.path.isdir(MIRRORED_GT_FOLDER): os.mkdir(MIRRORED_GT_FOLDER)

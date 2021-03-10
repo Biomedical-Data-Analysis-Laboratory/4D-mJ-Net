@@ -151,7 +151,7 @@ def fit_generator(model, train_sequence, val_sequence, steps_per_epoch, validati
 def saveIntermediateLayers(model, intermediate_activation_path):
     count = 0
     pixels = np.zeros(shape=(constants.getM(), constants.getN(), constants.NUMBER_OF_IMAGE_PER_SECTION))
-    path = "/home/prosjekt/PerfusionCT/StrokeSUS/FINAL_TIFF_HU_v1/CTP_01_010/10/*."
+    path = "/home/prosjekt/PerfusionCT/StrokeSUS/ORIGINAL/FINAL_TIFF_HU_v1/CTP_01_010/10/*."
     for imagename in np.sort(glob.glob(path + constants.SUFFIX_IMG)):
         img = cv2.imread(imagename, cv2.IMREAD_GRAYSCALE)
         pixels[:, :, count] = general_utils.getSlicingWindow(img, 320, 320)

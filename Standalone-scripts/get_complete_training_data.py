@@ -158,7 +158,7 @@ def fillDatasetOverTime(relativePath, patientIndex, timeFolder, infor_file):
             image = cv2.imread(imagename, cv2.IMREAD_GRAYSCALE)
             imagesDict[filename] = image
 
-    for rep in range(numRep):
+    for _ in range(numRep):
         pixelsList.append(dict())
         otherInforList.append(dict())
 
@@ -238,7 +238,7 @@ def fillDatasetOverTime(relativePath, patientIndex, timeFolder, infor_file):
                             pmlist = ["CBF", "CBV", "MTT", "Tmax"]
                             for listpms in glob.glob(PM_FOLDER + IMAGE_PREFIX + patientIndex + "/*/"):
                                 for pm in pmlist:
-                                    if pm in listpms: otherInforList[data_aug_idx][str(startingX)][str(startingY)][pm.upper()] = listpms+sliceIndex+".png"
+                                    if pm in listpms: otherInforList[data_aug_idx][str(startingX)][str(startingY)][pm.upper()] = listpms+sliceIndex+".tiff"
 
                 else: otherInforList[data_aug_idx][str(startingX)][str(startingY)]["ground_truth"] = realLabelledWindowToAdd
 
@@ -247,7 +247,7 @@ def fillDatasetOverTime(relativePath, patientIndex, timeFolder, infor_file):
                 otherInforList[data_aug_idx][str(startingX)][str(startingY)]["data_aug_idx"] = data_aug_idx
                 otherInforList[data_aug_idx][str(startingX)][str(startingY)]["timeIndex"] = imagename.replace(timeFolder, '').replace(IMAGE_SUFFIX,"")
                 otherInforList[data_aug_idx][str(startingX)][str(startingY)]["sliceIndex"] = sliceIndex
-                if HASDAYFOLDER: otherInforList[data_aug_idx][str(startingX)][str(startingY)]["severity"] = patientIndex.split("_")[0]
+                if HASDAYFOLDER: otherInforList[data_aug_idx][str(startingX)][str(startingY)]["severity"] = patientIndex.split("_")[0].replace("20", "00").replace("21", "01").replace("22", "02").replace("23", "03")
 
         # if we reach the end of the image, break the while loop.
         if startingX >= IMAGE_WIDTH - M and startingY >= IMAGE_HEIGHT - N: break

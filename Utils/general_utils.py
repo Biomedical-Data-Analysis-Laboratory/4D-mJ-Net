@@ -22,6 +22,7 @@ import tensorflow.keras.backend as K
 def getCommandLineArguments():
     parser = argparse.ArgumentParser()
     parser.add_argument("-v", "--verbose", help="Increase output verbosity", action="store_true")
+    parser.add_argument("--isles2018", help="Flag to use the ISLES2018 dataset", action="store_true")
     parser.add_argument("-d", "--debug", help="DEBUG mode", action="store_true")
     parser.add_argument("-o", "--original", help="ORIGINAL_SHAPE flag", action="store_true")
     parser.add_argument("-pm", "--pm", help="Use parametric maps", action="store_true")
@@ -38,6 +39,7 @@ def getCommandLineArguments():
     constants.setVerbose(args.verbose)
     constants.setDEBUG(args.debug)
     constants.setOriginalShape(args.original)
+    constants.setISLES2018(args.isles2018)
     constants.setUSE_PM(args.pm)
     constants.setTileDimension(args.tile)
     constants.setImageDimension(args.dimension)
@@ -133,7 +135,7 @@ def getSlicingWindow(img, startX, startY, isgt=False, removeColorBar=False):
             ), pxval, sliceWindow)
 
     # Remove the colorbar! starting coordinate: (129,435)
-    if removeColorBar:
+    if removeColorBar and not constants.getIsISLES2018():
         if M== constants.IMAGE_WIDTH and N== constants.IMAGE_HEIGHT:sliceWindow[:, constants.colorbar_coord[1]:] = 0
         # if the tile is smaller than the entire image
         elif startY+N>= constants.colorbar_coord[1]:sliceWindow[:, constants.colorbar_coord[1] - startY:] = 0
@@ -317,6 +319,7 @@ def stopPIDToWatchdog():
             PID_list_for_watchdog = pickle_load(constants.PID_WATCHDOG_PICKLE_PATH)
             PID_list_for_watchdog.remove(dict(pid=os.getpid()))
             pickle_save(PID_list_for_watchdog, constants.PID_WATCHDOG_PICKLE_PATH)
+
 
 ################################################################################
 def pickle_save(variable_to_save, path):

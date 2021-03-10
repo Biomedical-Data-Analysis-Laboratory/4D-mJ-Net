@@ -38,18 +38,21 @@ def squared_dice_coef(y_true, y_pred):
 def sdc_rest(y_true, y_pred):
     class_weights = tf.constant([[1,1,0,0]], dtype=tf.float32)
     if constants.N_CLASSES == 3: class_weights = tf.constant([[1, 0, 0]], dtype=tf.float32)
+    elif constants.N_CLASSES == 2: class_weights = tf.constant([[1, 0]], dtype=tf.float32)
     return _squared_dice_coef(y_true, y_pred, class_weights)
 
 
 def sdc_p(y_true, y_pred):
     class_weights = tf.constant([[0,0,1,0]], dtype=tf.float32)
     if constants.N_CLASSES == 3: class_weights = tf.constant([[0, 1, 0]], dtype=tf.float32)
+    elif constants.N_CLASSES == 2: class_weights = tf.constant([[0, 1]], dtype=tf.float32)
     return _squared_dice_coef(y_true, y_pred, class_weights)
 
 
 def sdc_c(y_true, y_pred):
     class_weights = tf.constant([[0, 0, 0, 1]], dtype=tf.float32)
     if constants.N_CLASSES == 3: class_weights = tf.constant([[0, 0, 1]], dtype=tf.float32)
+    elif constants.N_CLASSES == 2: class_weights = tf.constant([[0, 1]], dtype=tf.float32)
     return _squared_dice_coef(y_true, y_pred, class_weights)
 
 
@@ -96,18 +99,21 @@ def tversky_coef(y_true, y_pred):
 def tversky_rest(y_true, y_pred):
     class_weights = tf.constant([[1,1,0,0]], dtype=tf.float32)
     if constants.N_CLASSES == 3: class_weights = tf.constant([[1, 0, 0]], dtype=tf.float32)
+    elif constants.N_CLASSES == 2: class_weights = tf.constant([[1, 0]], dtype=tf.float32)
     return _tversky_coef(y_true, y_pred, class_weights)
 
 
 def tversky_p(y_true, y_pred):
     class_weights = tf.constant([[0,0,1,0]], dtype=tf.float32)
     if constants.N_CLASSES == 3: class_weights = tf.constant([[0, 1, 0]], dtype=tf.float32)
+    elif constants.N_CLASSES == 2: class_weights = tf.constant([[0, 1]], dtype=tf.float32)
     return _tversky_coef(y_true, y_pred, class_weights)
 
 
 def tversky_c(y_true, y_pred):
     class_weights = tf.constant([[0, 0, 0, 1]], dtype=tf.float32)
     if constants.N_CLASSES == 3: class_weights = tf.constant([[0, 0, 1]], dtype=tf.float32)
+    elif constants.N_CLASSES == 2: class_weights = tf.constant([[0, 1]], dtype=tf.float32)
     return _tversky_coef(y_true, y_pred, class_weights)
 
 
@@ -176,18 +182,21 @@ def focal_loss(y_true, y_pred):
 def focal_rest(y_true, y_pred):
     alpha = tf.constant(constants.ALPHA, dtype=y_pred.dtype)
     if constants.N_CLASSES == 3: alpha = tf.constant([[0.25, 0, 0]], dtype=tf.float32)
+    elif constants.N_CLASSES == 2: alpha = tf.constant([[0.25, 0]], dtype=tf.float32)
     return _focal_loss(y_true, y_pred, alpha)
 
 
 def focal_p(y_true, y_pred):
     alpha = tf.constant(constants.ALPHA, dtype=y_pred.dtype)
     if constants.N_CLASSES == 3: alpha = tf.constant([[0, 0.25, 0]], dtype=tf.float32)
+    elif constants.N_CLASSES == 2: alpha = tf.constant([[0, 0.25]], dtype=tf.float32)
     return _focal_loss(y_true, y_pred, alpha)
 
 
 def focal_c(y_true, y_pred):
     alpha = tf.constant(constants.ALPHA, dtype=y_pred.dtype)
     if constants.N_CLASSES == 3: alpha = tf.constant([[0, 0, 0.25]], dtype=tf.float32)
+    elif constants.N_CLASSES == 2: alpha = tf.constant([[0, 0.25]], dtype=tf.float32)
     return _focal_loss(y_true, y_pred, alpha)
 
 
@@ -215,12 +224,14 @@ def tanimoto(y_true, y_pred):
 def prec_p(y_true, y_pred):
     class_weights = tf.constant([[0, 0, 1, 0]], dtype=tf.float32)
     if constants.N_CLASSES == 3: class_weights = tf.constant([[0, 1, 0]], dtype=tf.float32)
+    elif constants.N_CLASSES == 2: class_weights = tf.constant([[0, 1]], dtype=tf.float32)
     return _precision(y_true, y_pred, class_weights)
 
 
 def prec_c(y_true, y_pred):
     class_weights = tf.constant([[0, 0, 0, 1]], dtype=tf.float32)
     if constants.N_CLASSES == 3: class_weights = tf.constant([[0, 0, 1]], dtype=tf.float32)
+    elif constants.N_CLASSES == 2: class_weights = tf.constant([[0, 1]], dtype=tf.float32)
     return _precision(y_true, y_pred, class_weights)
 
 
@@ -237,12 +248,14 @@ def _precision(y_true, y_pred, class_weights):
 def rec_p(y_true, y_pred):
     class_weights = tf.constant([[0, 0, 1, 0]], dtype=tf.float32)
     if constants.N_CLASSES == 3: class_weights = tf.constant([[0, 1, 0]], dtype=tf.float32)
+    elif constants.N_CLASSES == 2: class_weights = tf.constant([[0, 1]], dtype=tf.float32)
     return _recall(y_true, y_pred, class_weights)
 
 
 def rec_c(y_true, y_pred):
     class_weights = tf.constant([[0, 0, 0, 1]], dtype=tf.float32)
     if constants.N_CLASSES == 3: class_weights = tf.constant([[0, 0, 1]], dtype=tf.float32)
+    elif constants.N_CLASSES == 2: class_weights = tf.constant([[0, 1]], dtype=tf.float32)
     return _recall(y_true, y_pred, class_weights)
 
 

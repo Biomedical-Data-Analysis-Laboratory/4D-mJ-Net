@@ -5,12 +5,10 @@ import pickle
 from Utils import general_utils, dataset_utils
 from Model import training, constants
 from Model.NeuralNetworkClass import NeuralNetwork
-
-import warnings
-warnings.simplefilter(action='ignore', category=FutureWarning)
-
 # to remove *SOME OF* the warning from tensorflow (regarding deprecation) <-- to remove when update tensorflow!
 from tensorflow.python.util import deprecation
+import warnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
 
 deprecation._PRINT_DEPRECATION_WARNINGS = False
 
@@ -31,7 +29,6 @@ def main():
     setting = general_utils.getSettingFile(args.sname)
     if args.exp: setting["EXPERIMENT"] = args.exp
 
-
     # set up the environment for GPUs
     n_gpu = general_utils.setupEnvironment(args, setting)
 
@@ -45,21 +42,20 @@ def main():
         listOfPatientsToTest = list() if "PATIENTS_TO_TEST" not in setting.keys() else setting["PATIENTS_TO_TEST"]
         listOfPatientsToExclude = list() if "PATIENTS_TO_EXCLUDE" not in setting.keys() else setting["PATIENTS_TO_EXCLUDE"]
 
-        # flag that states: run the test on all the patients in the "patient" folder
+        # flag that states: run the train on all the patients in the "patient" folder
         if "ALL" == listOfPatientsToTrainVal[0]:
             # check if we want to get the dataset JUST based on the severity
             severity = listOfPatientsToTrainVal[0].split("_")[1] + "_" if "_" in listOfPatientsToTrainVal[0] else ""
-
             # different for SUS2020_v2 dataset since the dataset is not complete and the prefix is different
             if "SUS2020" in nn.datasetFolder:
                 listOfPatientsToTrainVal = [d[len(constants.getPrefixImages()):] for d in
-                                            os.listdir(nn.labeledImagesFolder) if
-                                            os.path.isdir(os.path.join(nn.labeledImagesFolder, d)) and
+                                            os.listdir(nn.patientsFolder) if
+                                            os.path.isdir(os.path.join(nn.patientsFolder, d)) and
                                             severity in d]
             else:
                 listOfPatientsToTrainVal = [int(d[len(constants.getPrefixImages()):]) for d in
-                                            os.listdir(nn.labeledImagesFolder) if
-                                            os.path.isdir(os.path.join(nn.labeledImagesFolder, d)) and
+                                            os.listdir(nn.patientsFolder) if
+                                            os.path.isdir(os.path.join(nn.patientsFolder, d)) and
                                             severity in d]
 
         # if DEBUG mode: use only 5 patients in the list
@@ -117,13 +113,14 @@ def main():
 
             nn.saveModelAndWeight(p_id)
 
+        # TRAIN SET: only for ISLES2018 dataset
+        if constants.getIsISLES2018(): nn.predictAndSaveImages([general_utils.getStringFromIndex(x) for x in listOfPatientsToTrainVal if x <1000], isAlreadySaved)
         # VALIDATION SET: predict the images for decision on the model
-        nn.predictAndSaveImages(val_list, isAlreadySaved)
+        else: nn.predictAndSaveImages(val_list, isAlreadySaved)
         # PERFORM TESTING: predict and save the images
         nn.predictAndSaveImages(listOfPatientsToTest, isAlreadySaved)
 
     general_utils.stopPIDToWatchdog()
-
 
 
 ################################################################################
@@ -131,7 +128,7 @@ def main():
 if __name__ == '__main__':
     """
     Usage: python main.py gpu sname
-                [-h] [-v] [-d] [-o] [-s SETTING_FILENAME] [-t TILE] [-dim DIMENSION] [-c {2,3,4}]
+                [-h] [-v] [-d] [-o] [-pm] [-t TILE] [-dim DIMENSION] [-c {2,3,4}] [-w ...] [-e EXP] [-j]
 
     positional arguments:
       gpu                   Give the id of gpu (or a list of the gpus) to use
@@ -150,5 +147,7 @@ if __name__ == '__main__':
       -c {2,3,4}, --classes {2,3,4}
                             Set the # of classes involved (default = 4)
       -w, --weights         Set the weights for the categorical losses
+      -e, --exp             Set the number of the experiment
+      -j, --jump            Jump the training and go directly on the gradual fine-tuning function
     """
     main()

@@ -4,6 +4,7 @@ verbose = False
 USE_PM = False
 DEBUG = False
 ORIGINAL_SHAPE = False
+isISLES = False
 
 root_path = ""
 
@@ -83,6 +84,9 @@ def getList_PMS():
     return list_PMS
 
 
+def getIsISLES2018():
+    return isISLES
+
 ################################################################################
 ################################################################################
 # Functions used to set the various GLOBAl variables
@@ -129,16 +133,15 @@ def setImagePerSection(num):
 
 def setNumberOfClasses(c):
     global N_CLASSES, LABELS, PIXELVALUES, HOT_ONE_WEIGHTS, GAMMA, ALPHA
+    N_CLASSES = c
 
     if c == 2:
-        N_CLASSES = c
         LABELS = ["background", "core"]
         PIXELVALUES = [0, 255]
-        HOT_ONE_WEIGHTS = [[0.1, 1]]
+        HOT_ONE_WEIGHTS = [[0.1, 10]]
         GAMMA = [[2., 2.]]
         ALPHA = [[.25,.25]]
     elif c == 3:
-        N_CLASSES = c
         LABELS = ["background", "penumbra", "core"]
         PIXELVALUES = [0, 170, 255]
         HOT_ONE_WEIGHTS = [[0.1, 50, 440]]
@@ -164,7 +167,9 @@ def setPrefixImagesSUS2020_v2():
 def setUSE_PM(pm):
     global USE_PM, list_PMS
     USE_PM = pm
-    if USE_PM: list_PMS = ["CBF", "CBV", "TTP", "TMAX", "MIP"]
+    if USE_PM:
+        list_PMS = ["CBF", "CBV", "TTP", "TMAX", "MIP"]
+        if getIsISLES2018(): list_PMS = ["CBF", "CBV", "MTT", "TMAX"]
 
 
 def setFocal_Tversky(hyperparameters):
@@ -176,3 +181,9 @@ def setWeights(weights):
     global HOT_ONE_WEIGHTS
     if weights is not None: HOT_ONE_WEIGHTS = [weights]
 
+
+def setISLES2018(isles):
+    global isISLES, dataFrameColumns
+    isISLES = isles
+    dataFrameColumns = ['patient_id', 'label', 'pixels', 'CBF', 'CBV', 'MTT', 'TMAX', 'ground_truth', 'x_y',
+                        'data_aug_idx', 'timeIndex', 'sliceIndex']

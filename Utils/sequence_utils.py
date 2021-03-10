@@ -11,26 +11,27 @@ from tensorflow.keras.utils import Sequence
 from tensorflow.keras.preprocessing.image import load_img, img_to_array
 
 from Model import constants
-from Utils import general_utils, dataset_utils
+from Utils import general_utils, dataset_utils, model_utils
 
 
 ################################################################################
 # https://faroit.com/keras-docs/2.1.3/models/sequential/#fit_generator
 class datasetSequence(Sequence):
-    def __init__(self, dataframe, indices, sample_weights, x_label, y_label, moreinfo,
-                 to_categ, batch_size, back_perc, flagtype="train", loss=None):
+    def __init__(self, dataframe, indices, sample_weights, x_label, y_label, multiInput, to_categ, batch_size,
+                 back_perc, is4D, flagtype="train", loss=None):
         self.indices = indices
         self.dataframe = dataframe.iloc[self.indices]
 
         self.sample_weights = sample_weights
         self.x_label = x_label
         self.y_label = y_label
-        self.moreinfo = moreinfo
+        self.multiInput = multiInput
         self.batch_size = batch_size
         self.to_categ = to_categ
         self.back_perc = back_perc
         self.flagtype = flagtype
         self.loss = loss
+        self.is4D = is4D
 
         if self.flagtype != "test":
             # get ALL the rows with label != from background
@@ -55,7 +56,7 @@ class datasetSequence(Sequence):
         start = idx*self.batch_size
         end = (idx+1)*self.batch_size
 
-        batch_index_list = list(range(start,end))
+        # batch_index_list = list(range(start,end))
         current_batch = self.dataframe[start:end]
         self.index_batch = current_batch.index
 
@@ -70,8 +71,8 @@ class datasetSequence(Sequence):
         self.index_pd_DA: Dict[str, Set[Any]] = {"0": set(),"1": set(),"2": set(),"3": set(),"4": set(),"5": set()}
 
         # path to the folder containing the NUMBER_OF_IMAGE_PER_SECTION time point images
-        if self.x_label=="pixels":  X, weights = self.getX_pixels(X,current_batch,weights,batch_index_list)
-        elif self.x_label== constants.getList_PMS():X, weights = self.getX_PM(weights, current_batch, batch_index_list)
+        if self.x_label=="pixels": X, weights = self.getX_pixels(X,current_batch,weights)
+        elif self.x_label== constants.getList_PMS(): X, weights = self.getX_PM(weights, current_batch)
 
         # path to the ground truth image
         if self.y_label=="ground_truth": Y, weights = self.getY(current_batch,weights)
@@ -83,58 +84,78 @@ class datasetSequence(Sequence):
 
     ################################################################################
     # return the X set and the relative weights based on the pixels column
-    def getX_pixels(self, X, current_batch, weights, batch_index_list):
+    def getX_pixels(self, X, current_batch, weights):
+        nihss, age, gender = [], [], []
+
         for index, (_, row) in enumerate(current_batch.iterrows()):
-            # weights[index] = self.sample_weights[batch_index_list[index]]
-            folder = row[self.x_label]
+            current_folder = row[self.x_label]
             coord = row["x_y"]
             data_aug_idx = row["data_aug_idx"]
+            if "nihss" in self.multiInput.keys() and self.multiInput["nihss"]==1: nihss.append(int(row["NIHSS"]) if row["NIHSS"]!="-" else 0)
+            if "age" in self.multiInput.keys() and self.multiInput["age"]==1: age.append(int(row["age"]))
+            if "gender" in self.multiInput.keys() and self.multiInput["gender"]==1: gender.append(int(row["gender"]))
             # add the index into the correct set
             self.index_pd_DA[str(data_aug_idx)].add(index)
 
-            for timeIndex, filename in enumerate(np.sort(glob.glob(folder + "*" + constants.SUFFIX_IMG))):
-                # TODO: for ISLES2018 (to change in the future) --> if the number of time-points per slice
-                #  is > constants.NUMBER_OF_IMAGE_PER_SECTION
-                if timeIndex >= constants.NUMBER_OF_IMAGE_PER_SECTION: break
+            folders = [current_folder]
+            if self.is4D: folders = model_utils.getPrevNextFolder(current_folder, row["sliceIndex"])
 
-                sliceW = general_utils.getSlicingWindow(cv2.imread(filename,cv2.IMREAD_GRAYSCALE),coord[0],coord[1])
-                sliceW = general_utils.performDataAugmentationOnTheImage(sliceW, data_aug_idx)
+            if len(folders) > 1: X = []
+            for folder in folders:
+                tmpX = np.empty((len(current_batch), constants.getM(), constants.getN(), constants.NUMBER_OF_IMAGE_PER_SECTION, 1))
+                for timeIndex, filename in enumerate(np.sort(glob.glob(folder + "*" + constants.SUFFIX_IMG))):
+                    # TODO: for ISLES2018 (to change in the future) --> if the number of time-points per slice
+                    #  is > constants.NUMBER_OF_IMAGE_PER_SECTION
+                    if timeIndex >= constants.NUMBER_OF_IMAGE_PER_SECTION: break
 
-                # reshape it for the correct input in the model
-                X[index, :, :, timeIndex, :] = sliceW.reshape(sliceW.shape + (1,))
+                    sliceW = general_utils.getSlicingWindow(cv2.imread(filename,cv2.IMREAD_GRAYSCALE),coord[0],coord[1])
+                    sliceW = general_utils.performDataAugmentationOnTheImage(sliceW, data_aug_idx)
+
+                    # reshape it for the correct input in the model
+                    if len(folders) > 1: tmpX[index, :, :, timeIndex, :] = sliceW.reshape(sliceW.shape + (1,))
+                    else: X[index, :, :, timeIndex, :] = sliceW.reshape(sliceW.shape + (1,))
+                if len(folders) > 1: X.append(tmpX)
+
+        if "nihss" in self.multiInput.keys() and self.multiInput["nihss"]==1: X.append(np.array(nihss))
+        if "age" in self.multiInput.keys() and self.multiInput["age"]==1: X.append(np.array(age))
+        if "gender" in self.multiInput.keys() and self.multiInput["gender"]==1: X.append(np.array(gender))
 
         return X, weights
 
     ################################################################################
     # Return the X set and relative weights based on the parametric maps columns
-    def getX_PM(self, weights, current_batch, batch_index_list):
+    def getX_PM(self, weights, current_batch):
         pms = dict()
         nihss, age, gender = [], [], []
 
         for index, (_, row) in enumerate(current_batch.iterrows()):
-            # weights[index] = self.sample_weights[batch_index_list[index]]
             coord = row["x_y"]
             data_aug_idx = row["data_aug_idx"]
-            if "nihss" in self.moreinfo.keys() and self.moreinfo["nihss"]==1: nihss.append(int(row["NIHSS"]) if row["NIHSS"]!="-" else 0)
-            if "age" in self.moreinfo.keys() and self.moreinfo["age"]==1: age.append(int(row["age"]))
-            if "gender" in self.moreinfo.keys() and self.moreinfo["gender"]==1: gender.append(int(row["gender"]))
+            if "nihss" in self.multiInput.keys() and self.multiInput["nihss"]==1: nihss.append(int(row["NIHSS"]) if row["NIHSS"]!="-" else 0)
+            if "age" in self.multiInput.keys() and self.multiInput["age"]==1: age.append(int(row["age"]))
+            if "gender" in self.multiInput.keys() and self.multiInput["gender"]==1: gender.append(int(row["gender"]))
             # add the index into the correct set
             self.index_pd_DA[str(data_aug_idx)].add(index)
 
             for pm in self.x_label:
                 if pm not in pms.keys(): pms[pm] = []
                 totimg = cv2.imread(row[pm])
-
+                if np.isnan(totimg).any(): print(totimg.shape, np.isnan(totimg).any())
                 if totimg is not None:
                     img = general_utils.getSlicingWindow(totimg, coord[0], coord[1], removeColorBar=True)
                     img = general_utils.performDataAugmentationOnTheImage(img, data_aug_idx)
                     pms[pm].append(img)
 
-        X = [np.array(pms["CBF"]), np.array(pms["CBV"]), np.array(pms["TTP"]), np.array(pms["TMAX"])]
-        if "mip" in self.moreinfo.keys() and self.moreinfo["mip"]==1: X.append(np.array(pms["MIP"]))
-        if "nihss" in self.moreinfo.keys() and self.moreinfo["nihss"]==1: X.append(np.array(nihss))
-        if "age" in self.moreinfo.keys() and self.moreinfo["age"]==1: X.append(np.array(age))
-        if "gender" in self.moreinfo.keys() and self.moreinfo["gender"]==1: X.append(np.array(gender))
+        X = []
+        if "cbf" in self.multiInput.keys() and self.multiInput["cbf"]==1: X.append(np.array(pms["CBF"]))
+        if "cbv" in self.multiInput.keys() and self.multiInput["cbv"]==1: X.append(np.array(pms["CBV"]))
+        if "ttp" in self.multiInput.keys() and self.multiInput["ttp"]==1: X.append(np.array(pms["TTP"]))
+        if "mtt" in self.multiInput.keys() and self.multiInput["mtt"]==1: X.append(np.array(pms["MTT"]))
+        if "tmax" in self.multiInput.keys() and self.multiInput["tmax"]==1: X.append(np.array(pms["TMAX"]))
+        if "mip" in self.multiInput.keys() and self.multiInput["mip"]==1: X.append(np.array(pms["MIP"]))
+        if "nihss" in self.multiInput.keys() and self.multiInput["nihss"]==1: X.append(np.array(nihss))
+        if "age" in self.multiInput.keys() and self.multiInput["age"]==1: X.append(np.array(age))
+        if "gender" in self.multiInput.keys() and self.multiInput["gender"]==1: X.append(np.array(gender))
 
         return X, weights
 
@@ -148,6 +169,7 @@ class datasetSequence(Sequence):
                 filename = current_batch.loc[row_index][self.y_label]
                 coord = current_batch.loc[row_index]["x_y"]  # coordinates of the slice window
                 img = cv2.imread(filename,cv2.IMREAD_GRAYSCALE)
+                if np.isnan(img).any(): print(img.shape, np.isnan(img).any())
                 img = general_utils.getSlicingWindow(img, coord[0], coord[1], isgt=True)
 
                 # remove the brain from the image ==> it becomes background
@@ -162,13 +184,17 @@ class datasetSequence(Sequence):
                     core_value, core_weight = constants.PIXELVALUES[core_idx], constants.HOT_ONE_WEIGHTS[0][core_idx]
                     penumbra_value, penumbra_weight = constants.PIXELVALUES[penumbra_idx], constants.HOT_ONE_WEIGHTS[0][penumbra_idx]
 
-                    # focus on the SVO core only during training!
+                    # focus on the SVO core only during training (only for SUS2020 dataset)!
                     if self.flagtype=="train" and current_batch.loc[row_index]["severity"]=="02":
                         core_weight *= 6
                         penumbra_weight *= 6
 
                     f = lambda x: np.sum(np.where(np.array(x) == core_value, core_weight,
                                                   np.where(np.array(x) == penumbra_value, penumbra_weight, constants.HOT_ONE_WEIGHTS[0][0])))
+                    weights[index] = f(img) / (constants.getM() * constants.getN())
+                elif constants.N_CLASSES == 2:
+                    core_value, core_weight = constants.PIXELVALUES[1], constants.HOT_ONE_WEIGHTS[0][1]
+                    f = lambda x: np.sum(np.where(np.array(x) == core_value, core_weight, constants.HOT_ONE_WEIGHTS[0][0]))
                     weights[index] = f(img) / (constants.getM() * constants.getN())
 
                 # convert the label in [0, 1] values,

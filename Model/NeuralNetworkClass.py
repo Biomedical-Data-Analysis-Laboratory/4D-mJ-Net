@@ -54,7 +54,7 @@ class NeuralNetwork(object):
         self.metricFuncs = general_utils.getMetricFunctions(modelInfo["metrics"])
 
         # FLAGS for the model
-        self.moreinfo = modelInfo["moreinfo"] if "moreinfo" in modelInfo.keys() else dict()
+        self.multiInput = self.params["multiInput"] if "multiInput" in self.params.keys() else dict()
         self.to_categ = True if modelInfo["to_categ"]==1 else False
         self.save_images = True if modelInfo["save_images"]==1 else False
         self.da = True if modelInfo["data_augmentation"]==1 else False
@@ -63,11 +63,12 @@ class NeuralNetwork(object):
         self.supervised = True if modelInfo["supervised"]==1 else False
         self.save_activation_filter = True if modelInfo["save_activation_filter"]==1 else False
         self.use_hickle = True if "use_hickle" in modelInfo.keys() and modelInfo["use_hickle"]==1 else False
+        self.is4DModel = True if "4D" in self.name else False
 
         # paths
         self.rootPath = setting["root_path"]
         self.datasetFolder = setting["dataset_path"]
-        self.labeledImagesFolder = setting["relative_paths"]["labeled_images"]
+        self.labeledImagesFolder = setting["relative_paths"]["labeled_images"] if "labeled_images" in setting["relative_paths"].keys() else ""
         self.patientsFolder = setting["relative_paths"]["patients"]
         self.experimentID = "EXP"+general_utils.convertExperimentNumberToString(setting["EXPERIMENT"])
         self.experimentFolder = "SAVE/" + self.experimentID + "/"
@@ -203,12 +204,11 @@ class NeuralNetwork(object):
             print("[INFO] - Getting model {0} with {1} optimizer...".format(self.name, self.optimizerInfo["name"]))
 
         # Based on the number of GPUs available, call the function called self.name in architectures.py
-        if n_gpu==1:
-            self.model = getattr(architectures, self.name)(params=self.params, to_categ=self.to_categ, moreinfo=self.moreinfo)
+        if n_gpu==1:   self.model = getattr(architectures, self.name)(params=self.params, to_categ=self.to_categ, multiInput=self.multiInput)
         else:
             # TODO: problems during the load of the model with multiple GPUs...
             with tf.device('/cpu:0'):
-                self.model = getattr(architectures, self.name)(params=self.params, to_categ=self.to_categ, moreinfo=self.moreinfo)
+                self.model = getattr(architectures, self.name)(params=self.params, to_categ=self.to_categ, multiInput=self.multiInput)
             self.model = multi_gpu_model(self.model, gpus=n_gpu)
 
         if self.summaryFlag==0:
@@ -272,12 +272,12 @@ class NeuralNetwork(object):
             sample_weights=self.getSampleWeights("train"),
             x_label="pixels" if not constants.getUSE_PM() else constants.getList_PMS(),
             y_label="ground_truth",
-            moreinfo=self.moreinfo,
+            multiInput=self.multiInput,
             to_categ=self.to_categ,
             batch_size=self.batch_size,
-            back_perc=2 if not constants.getUSE_PM() or (constants.getM() != constants.IMAGE_WIDTH
-                                                         and constants.getN() != constants.IMAGE_HEIGHT) else 100,
-            loss=self.loss["name"]
+            back_perc=2 if not constants.getUSE_PM() or (constants.getM() != constants.IMAGE_WIDTH and constants.getN() != constants.IMAGE_HEIGHT) else 100,
+            loss=self.loss["name"],
+            is4D=self.is4DModel
         )
 
         # validation data sequence
@@ -287,13 +287,13 @@ class NeuralNetwork(object):
             sample_weights=self.getSampleWeights("val"),
             x_label="pixels" if not constants.getUSE_PM() else constants.getList_PMS(),
             y_label="ground_truth",
-            moreinfo=self.moreinfo,
+            multiInput=self.multiInput,
             to_categ=self.to_categ,
             batch_size=self.batch_size,
-            back_perc=2 if not constants.getUSE_PM() or (constants.getM() != constants.IMAGE_WIDTH
-                                                         and constants.getN() != constants.IMAGE_HEIGHT) else 100,
+            back_perc=2 if not constants.getUSE_PM() or (constants.getM() != constants.IMAGE_WIDTH and constants.getN() != constants.IMAGE_HEIGHT) else 100,
             flagtype="val",
-            loss=self.loss["name"]
+            loss=self.loss["name"],
+            is4D=self.is4DModel
         )
 
     ################################################################################
@@ -339,7 +339,7 @@ class NeuralNetwork(object):
                 # Perform fine tuning twice: first on the bottom half, then on the totality
                 # Make the bottom half of the VGG-16 layers trainable
                 for ind in layer_indexes[len(layer_indexes) // 2:]: self.model.layers[ind].trainable = True
-                if getVerbose(): print("Fine-tuning setting: {} layers trainable".format(layer_indexes[len(layer_indexes) // 2:]))
+                if getVerbose():  print("Fine-tuning setting: {} layers trainable".format(layer_indexes[len(layer_indexes) // 2:]))
                 if self.arePartialWeightsSaved(p_id):
                     self.model.load_weights(self.partialWeightsPath)
                     self.initial_epoch = general_utils.getEpochFromPartialWeightFilename(self.partialWeightsPath) + previousEarlyStoppingPatience
@@ -355,7 +355,7 @@ class NeuralNetwork(object):
 
             if self.params["gradual_finetuning_solution"]["type"] == "full" or finished_first_half:
                 # Make ALL the VGG-16 layers trainable
-                for ind in layer_indexes: self.model.layers[ind].trainable = True
+                for ind in layer_indexes:  self.model.layers[ind].trainable = True
                 if getVerbose(): print("Fine-tuning setting: {} layers trainable".format(layer_indexes))
                 if self.arePartialWeightsSaved(p_id):
                     self.model.load_weights(self.partialWeightsPath)

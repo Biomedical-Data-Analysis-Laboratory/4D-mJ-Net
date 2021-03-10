@@ -38,7 +38,7 @@ def predictAndSaveImages(nn, p_id):
     relativePatientFolderTMP = relativePatientFolder + "TMP/"
     patientFolder = nn.patientsFolder+relativePatientFolder
 
-    filename_saveImageFolder = nn.saveImagesFolder+nn.experimentID+"__"+nn.getNNID(p_id)+suffix
+    filename_saveImageFolder = nn.saveImagesFolder+nn.experimentID+"__"+nn.getNNID()+suffix
     # create the related folders
     general_utils.createDir(filename_saveImageFolder)
     for subpath in [relativePatientFolder,relativePatientFolderHeatMap,relativePatientFolderGT,relativePatientFolderTMP]:
@@ -49,7 +49,7 @@ def predictAndSaveImages(nn, p_id):
 
     # for all the slice folders in patientFolder
     for subfolder in glob.glob(patientFolder+add):
-        prefix = nn.experimentID + constants.suffix_partial_weights + nn.getNNID(p_id) + suffix + "/"
+        prefix = nn.experimentID + constants.suffix_partial_weights + nn.getNNID() + suffix + "/"
         subpatientFolder = prefix+relativePatientFolder
         patientFolderHeatMap = prefix+relativePatientFolderHeatMap
         patientFolderGT = prefix+relativePatientFolderGT
@@ -515,7 +515,7 @@ def evaluateModel(nn, p_id, isAlreadySaved):
         print("TEST %s: %.2f%%" % (nn.model.metrics_names[index], round(val,6)*100))
     general_utils.printSeparation("-",50)
 
-    with open(general_utils.getFullDirectoryPath(nn.saveTextFolder)+nn.getNNID(p_id)+suffix+".txt", "a+") as text_file:
+    with open(general_utils.getFullDirectoryPath(nn.saveTextFolder)+nn.getNNID()+suffix+".txt", "a+") as text_file:
         if not isAlreadySaved:
             for metric_name in nn.train.history:
                 text_file.write("TRAIN %s: %.2f%% \n" % (metric_name, round(float(nn.train.history[metric_name][-1]), 6)*100))

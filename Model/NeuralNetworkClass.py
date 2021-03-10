@@ -46,6 +46,8 @@ class NeuralNetwork(object):
         }
         self.test_steps = modelInfo["test_steps"]
 
+        self.cross_validation = modelInfo["cross_validation"]
+
         self.dataset = {"train": {},"val": {},"test": {}}
 
         # get parameter for the model
@@ -60,7 +62,6 @@ class NeuralNetwork(object):
         self.save_images = True if modelInfo["save_images"]==1 else False
         self.da = True if modelInfo["data_augmentation"]==1 else False
         self.train_again = True if modelInfo["train_again"]==1 else False
-        self.cross_validation = True if modelInfo["cross_validation"]==1 else False
         self.supervised = True if modelInfo["supervised"]==1 else False
         self.save_activation_filter = True if modelInfo["save_activation_filter"]==1 else False
         self.use_hickle = True if "use_hickle" in modelInfo.keys() and modelInfo["use_hickle"]==1 else False
@@ -84,6 +85,7 @@ class NeuralNetwork(object):
 
         # empty variables initialization
         self.model = None
+        self.model_split = None
         self.testing_score = []
         self.partialWeightsPath = ""
         self.callbacks = None
@@ -100,8 +102,13 @@ class NeuralNetwork(object):
         if "SUS2020" in self.datasetFolder: constants.setPrefixImagesSUS2020_v2()
 
     ################################################################################
+    # Set model ID
+    def setModelSplit(self, model_split):
+        self.model_split = model_split
+
+    ################################################################################
     # Initialize the callbacks
-    def setCallbacks(self, p_id, sample_weights=None, add_for_finetuning=""):
+    def setCallbacks(self, sample_weights=None, add_for_finetuning=""):
         if getVerbose():
             general_utils.printSeparation("-", 50)
             print("[INFO] - Setting callbacks...")
@@ -109,27 +116,27 @@ class NeuralNetwork(object):
         self.callbacks = training.getCallbacks(
             root_path=self.rootPath,
             info=self.infoCallbacks,
-            filename=self.getSavedInformation(p_id, path=self.savePartialModelFolder),
+            filename=self.getSavedInformation(path=self.savePartialModelFolder),
             textFolderPath=self.saveTextFolder,
             dataset=self.dataset,
             sample_weights=sample_weights, # only for ROC callback (NOT working)
-            nn_id=self.getNNID(p_id),
+            nn_id=self.getNNID(),
             add_for_finetuning=add_for_finetuning
         )
 
     ################################################################################
     # return a Boolean to control if the model was already saved
-    def isModelSaved(self, p_id):
-        saved_modelname = self.getSavedModel(p_id)
-        saved_weightname = self.getSavedWeight(p_id)
+    def isModelSaved(self):
+        saved_modelname = self.getSavedModel()
+        saved_weightname = self.getSavedWeight()
 
         return os.path.isfile(saved_modelname) and os.path.isfile(saved_weightname)
 
     ################################################################################
     # load json and create model
-    def loadSavedModel(self, p_id):
-        saved_modelname = self.getSavedModel(p_id)
-        saved_weightname = self.getSavedWeight(p_id)
+    def loadSavedModel(self):
+        saved_modelname = self.getSavedModel()
+        saved_weightname = self.getSavedWeight()
         json_file = open(saved_modelname, 'r')
         loaded_model_json = json_file.read()
         json_file.close()
@@ -144,9 +151,9 @@ class NeuralNetwork(object):
 
     ################################################################################
     # Check if there are saved partial weights
-    def arePartialWeightsSaved(self, p_id):
+    def arePartialWeightsSaved(self):
         # path ==> weight name plus a suffix ":" <-- constants.suffix_partial_weights
-        path = self.getSavedInformation(p_id, path=self.savePartialModelFolder) + constants.suffix_partial_weights
+        path = self.getSavedInformation(path=self.savePartialModelFolder) + constants.suffix_partial_weights
         for file in glob.glob(self.savePartialModelFolder+"*.h5"):
             if path in self.rootPath+file:  # we have a match
                 self.partialWeightsPath = file
@@ -168,11 +175,11 @@ class NeuralNetwork(object):
 
     ################################################################################
     # Function to divide the dataframe in train and test based on the patient id;
-    def splitDataset(self, train_df, p_id, listOfPatientsToTrainVal, listOfPatientsToTest):
+    def splitDataset(self, train_df, listOfPatientsToTrainVal, listOfPatientsToTest):
         # set the dataset inside the class
         self.train_df = train_df
         # split the dataset (return in dataset just the indices and labels)
-        self.dataset, self.val_list, self.test_list = dataset_utils.splitDataset(self, p_id, listOfPatientsToTrainVal, listOfPatientsToTest)
+        self.dataset, self.val_list, self.test_list = dataset_utils.splitDataset(self, listOfPatientsToTrainVal, listOfPatientsToTest)
         # get the number of element per class in the dataset
         self.N_BACKGROUND, self.N_BRAIN, self.N_PENUMBRA, self.N_CORE, self.N_TOT = dataset_utils.getNumberOfElements(self.train_df)
 
@@ -180,9 +187,9 @@ class NeuralNetwork(object):
 
     ################################################################################
     # Function to reshape the pixel array and initialize the model.
-    def prepareDataset(self, p_id):
+    def prepareDataset(self):
         # split the dataset (set the data key inside dataset [NOT for the sequence generator])
-        self.dataset = dataset_utils.prepareDataset(self, p_id)
+        self.dataset = dataset_utils.prepareDataset(self)
 
     ################################################################################
     # compile the model, callable also from outside
@@ -198,7 +205,7 @@ class NeuralNetwork(object):
 
     ################################################################################
     # Function that initialize the training, print the model summary and set the weights
-    def initializeTraining(self, p_id, n_gpu):
+    def initializeTraining(self, n_gpu):
         if getVerbose():
             general_utils.printSeparation("*", 50)
             print("[INFO] - Start runTraining function.")
@@ -217,26 +224,26 @@ class NeuralNetwork(object):
             for rankdir in ["LR", "TB"]:
                 plot_model(
                     self.model,
-                    to_file=general_utils.getFullDirectoryPath(self.savedModelFolder)+self.getNNID("model")+"_"+rankdir+".png",
+                    to_file=general_utils.getFullDirectoryPath(self.savedModelFolder)+self.getNNID()+"_"+rankdir+".png",
                     show_shapes=True,
                     rankdir=rankdir
                 )
             self.summaryFlag+=1
 
         # Check if the model has some saved weights to load...
-        if self.arePartialWeightsSaved(p_id):  self.loadModelFromPartialWeights()
+        if self.arePartialWeightsSaved(): self.loadModelFromPartialWeights()
 
         # Compile the model with optimizer, loss function and metrics
         self.compileModel()
         # Get the sample weights
         self.sample_weights = self.getSampleWeights("train")
         # Set the callbacks
-        self.setCallbacks(p_id, self.sample_weights)
+        self.setCallbacks(self.sample_weights)
 
     ################################################################################
     # Run the training over the dataset based on the model
-    def runTraining(self, p_id, n_gpu):
-        self.initializeTraining(p_id, n_gpu)
+    def runTraining(self, n_gpu):
+        self.initializeTraining(n_gpu)
 
         self.dataset["train"]["labels"] = dataset_utils.getLabelsFromIndex(train_df=self.train_df, dataset=self.dataset["train"], modelname=self.name, to_categ=self.to_categ, flag="train")
         self.dataset["val"]["labels"] = None if self.val["validation_perc"]==0 else dataset_utils.getLabelsFromIndex(train_df=self.train_df, dataset=self.dataset["val"], modelname=self.name, to_categ=self.to_categ, flag="val")
@@ -256,7 +263,7 @@ class NeuralNetwork(object):
             use_multiprocessing=self.mp)
 
         # plot the loss and accuracy of the training
-        training.plotLossAndAccuracy(self, p_id)
+        training.plotLossAndAccuracy(self)
 
         # deallocate memory
         for flag in ["train", "val", "test"]:
@@ -318,7 +325,7 @@ class NeuralNetwork(object):
 
     ################################################################################
     # Check if we need to perform the hybrid solution or not
-    def gradualFineTuningSolution(self, p_id):
+    def gradualFineTuningSolution(self):
         # Hybrid solution to fine-tuning the model unfreezing the layers in the VGG-16 architectures
         if "gradual_finetuning_solution" in self.params.keys() and self.params["trainable"] == 0:
             finished_first_half = False
@@ -341,7 +348,7 @@ class NeuralNetwork(object):
                 # Make the bottom half of the VGG-16 layers trainable
                 for ind in layer_indexes[len(layer_indexes) // 2:]: self.model.layers[ind].trainable = True
                 if getVerbose():  print("Fine-tuning setting: {} layers trainable".format(layer_indexes[len(layer_indexes) // 2:]))
-                if self.arePartialWeightsSaved(p_id):
+                if self.arePartialWeightsSaved():
                     self.model.load_weights(self.partialWeightsPath)
                     self.initial_epoch = general_utils.getEpochFromPartialWeightFilename(self.partialWeightsPath) + previousEarlyStoppingPatience
                 # Compile the model again
@@ -349,7 +356,7 @@ class NeuralNetwork(object):
                 # Get the sample weights
                 self.sample_weights = self.getSampleWeights("train")
                 # Set the callbacks
-                self.setCallbacks(p_id, self.sample_weights, "_half")
+                self.setCallbacks(self.sample_weights, "_half")
                 # Train the model again
                 self.runTrainSequence()
                 finished_first_half = True
@@ -358,7 +365,7 @@ class NeuralNetwork(object):
                 # Make ALL the VGG-16 layers trainable
                 for ind in layer_indexes:  self.model.layers[ind].trainable = True
                 if getVerbose(): print("Fine-tuning setting: {} layers trainable".format(layer_indexes))
-                if self.arePartialWeightsSaved(p_id):
+                if self.arePartialWeightsSaved():
                     self.model.load_weights(self.partialWeightsPath)
                     self.initial_epoch = general_utils.getEpochFromPartialWeightFilename(self.partialWeightsPath) + previousEarlyStoppingPatience
                 # Compile the model again
@@ -366,7 +373,7 @@ class NeuralNetwork(object):
                 # Get the sample weights
                 self.sample_weights = self.getSampleWeights("train")
                 # Set the callbacks
-                self.setCallbacks(p_id, self.sample_weights, "_full")
+                self.setCallbacks(self.sample_weights, "_full")
                 # Train the model again
                 self.runTrainSequence(clear=False)
 
@@ -432,12 +439,19 @@ class NeuralNetwork(object):
         return np.array(sample_weights.values[self.dataset[flagDataset]["indices"]])
 
     ################################################################################
-    # Save the trained model and its relative weights
-    def saveModelAndWeight(self, p_id):
-        saved_modelname = self.getSavedModel(p_id)
-        saved_weightname = self.getSavedWeight(p_id)
+    # Set the debug set
+    def setDebugDataset(self):
+        self.val["validation_perc"] = 1
+        self.val["number_patients_for_validation"] = 1
+        self.val["number_patients_for_testing"] = 0
+        self.val["random_validation_selection"] = 0
 
-        p_id = general_utils.getStringFromIndex(p_id)
+    ################################################################################
+    # Save the trained model and its relative weights
+    def saveModelAndWeight(self):
+        saved_modelname = self.getSavedModel()
+        saved_weightname = self.getSavedWeight()
+
         # serialize model to JSON
         model_json = self.model.to_json()
         with open(saved_modelname, "w") as json_file:
@@ -481,25 +495,25 @@ class NeuralNetwork(object):
 
     ################################################################################
     # return the saved model or weight (based on the suffix)
-    def getSavedInformation(self, p_id, path, other_info="", suffix=""):
+    def getSavedInformation(self, path, other_info="", suffix=""):
         # mJ-Net_DA_ADAM_4_16x16.json <-- example weights name
         # mJ-Net_DA_ADAM_4_16x16.h5 <-- example model name
-        path = general_utils.getFullDirectoryPath(path)+self.getNNID(p_id)+other_info+general_utils.getSuffix()
+        path = general_utils.getFullDirectoryPath(path)+self.getNNID()+other_info+general_utils.getSuffix()
         return path+suffix
 
     ################################################################################
     # return the saved model
-    def getSavedModel(self, p_id):
-        return self.getSavedInformation(p_id, path=self.savedModelFolder, suffix=".json")
+    def getSavedModel(self):
+        return self.getSavedInformation(path=self.savedModelFolder, suffix=".json")
 
     ################################################################################
     # return the saved weight
-    def getSavedWeight(self, p_id):
-        return self.getSavedInformation(p_id, path=self.savedModelFolder, suffix=".h5")
+    def getSavedWeight(self):
+        return self.getSavedInformation(path=self.savedModelFolder, suffix=".h5")
 
     ################################################################################
     # return NeuralNetwork ID
-    def getNNID(self, p_id):
+    def getNNID(self):
         # CAREFUL WITH THIS
         # needs to override the model id to use a different model to test various patients
         if self.OVERRIDE_MODELS_ID_PATH: ret_id = self.OVERRIDE_MODELS_ID_PATH
@@ -513,7 +527,7 @@ class NeuralNetwork(object):
 
             if self.to_categ: ret_id += "_SOFTMAX"  # differentiate between softmax and sigmoid last activation layer
 
-            # if there is cross validation, add the PATIENT_ID to differentiate the models
-            if self.cross_validation: ret_id += ("_" + p_id)
+            # if there is cross validation, add the SPLIT ID to differentiate the models
+            if self.cross_validation["use"]: ret_id += ("_" + self.model_split)
 
         return ret_id

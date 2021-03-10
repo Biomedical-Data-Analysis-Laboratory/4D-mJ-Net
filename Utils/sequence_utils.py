@@ -140,8 +140,8 @@ class datasetSequence(Sequence):
             for pm in self.x_label:
                 if pm not in pms.keys(): pms[pm] = []
                 totimg = cv2.imread(row[pm])
-                if np.isnan(totimg).any(): print(totimg.shape, np.isnan(totimg).any())
                 if totimg is not None:
+                    if np.isnan(totimg).any(): print(totimg.shape, np.isnan(totimg).any())
                     img = general_utils.getSlicingWindow(totimg, coord[0], coord[1], removeColorBar=True)
                     img = general_utils.performDataAugmentationOnTheImage(img, data_aug_idx)
                     pms[pm].append(img)

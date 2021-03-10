@@ -189,7 +189,7 @@ def visualizeLayer(model, pixels, layer_name, intermediate_activation_path, save
 
 ################################################################################
 # For plotting the loss and accuracy of the trained model
-def plotLossAndAccuracy(nn, p_id):
+def plotLossAndAccuracy(nn):
     for key in nn.train.history.keys():
         fig, ax = plt.subplots(nrows=1, ncols=1)  # create figure & 1 axis
         ax.plot(nn.train.history[key], 'r', linewidth=3.0)
@@ -198,23 +198,5 @@ def plotLossAndAccuracy(nn, p_id):
         ax.set_ylabel(key, fontsize=16)
         ax.set_title(key + 'Curves', fontsize=16)
 
-        fig.savefig(nn.savePlotFolder + nn.getNNID(p_id) + "_" + key + "_" + str(constants.SLICING_PIXELS) + "_" + str(
-            constants.getM()) + "x" + str(constants.getN()) + ".png")
-        plt.close(fig)
-
-
-################################################################################
-# For plotting the loss and accuracy of the trained model
-def plotMetrics(nn, p_id, list_metrics):
-    for metric in list_metrics:
-        key = metric["name"]
-        fig, ax = plt.subplots(nrows=1, ncols=1)  # create figure & 1 axis
-        ax.plot(metric["val"], 'r', linewidth=3.0)
-        ax.legend([key], fontsize=10)
-        ax.set_xlabel('Batch ', fontsize=16)
-        ax.set_ylabel(key, fontsize=16)
-        ax.set_title(key + 'Curves', fontsize=16)
-
-        fig.savefig(nn.savePlotFolder + nn.getNNID(p_id) + "_" + key + "_" + str(constants.SLICING_PIXELS) + "_" + str(
-            constants.getM()) + "x" + str(constants.getN()) + ".png")
+        fig.savefig(nn.savePlotFolder + nn.getNNID() + "_" + key + "_" + str(constants.SLICING_PIXELS) + "_" + str(constants.getM()) + "x" + str(constants.getN()) + ".png")
         plt.close(fig)

@@ -1,7 +1,7 @@
 from Model import constants
 from Utils import general_utils, spatial_pyramid, model_utils
 
-from tensorflow.keras import layers, models, regularizers, initializers
+from tensorflow.keras import layers, models, initializers
 from tensorflow.keras.constraints import max_norm
 from tensorflow.keras.layers import Conv3D, Conv3DTranspose, Dropout, Concatenate
 import tensorflow.keras.backend as K
@@ -41,7 +41,7 @@ class PM_obj(object):
 # mJ-Net model version for the parametric maps as input
 def PMs_segmentation(params, to_categ, multiInput, batch=True):
     activ_func = 'relu'
-    l1_l2_reg = regularizers.l1_l2(l1=1e-6, l2=1e-5)
+    l1_l2_reg = None if "regularizer" not in params.keys() else model_utils.getRegularizer(params["regularizer"])
     kernel_init = "glorot_uniform"  # Xavier uniform initializer.
     kernel_constraint, bias_constraint = max_norm(2.), max_norm(2.)
     layersAfterTransferLearning, inputs, block5_conv3, block4_conv3, block3_conv3, block2_conv2, block1_conv2 = [], [], [], [], [], [], []

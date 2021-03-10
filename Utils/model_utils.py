@@ -8,11 +8,11 @@ from Utils import general_utils
 
 ################################################################################
 # Get the correct regularizer
-def getRegularizer(flag):
+def getRegularizer(reg_obj):
     regularizer = None
-    if flag=="l1": regularizer = regularizers.l1(l1=0.01)
-    elif flag=="l2": regularizer = regularizers.l2(l2=0.01)
-    elif flag=="l1_l2": regularizer = regularizers.l1_l2(l1=0.01, l2=0.01)  # (l1=1e-6, l2=1e-5)
+    if reg_obj["type"]=="l1": regularizer = regularizers.l1(l=reg_obj["l1"])
+    elif reg_obj["type"]=="l2": regularizer = regularizers.l2(l=reg_obj["l2"])
+    elif reg_obj["type"]=="l1_l2": regularizer = regularizers.l1_l2(l1=reg_obj["l1"], l2=reg_obj["l2"])  # (l1=1e-6, l2=1e-5)
     return regularizer
 
 

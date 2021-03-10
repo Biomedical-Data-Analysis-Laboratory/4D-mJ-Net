@@ -414,7 +414,7 @@ def generateImageFromParametricMaps(nn, test_df):
             pms = dict()
             for pm_name in constants.getList_PMS():
                 filename = row_to_analyze[pm_name].iloc[0]
-                pm = cv2.imread(filename)  #, cv2.COLOR_BGR2RGB)
+                pm = cv2.imread(filename)  # , cv2.COLOR_BGR2RGB)
 
                 pms[pm_name] = general_utils.getSlicingWindow(pm, startX, startY, removeColorBar=True)
                 # add the mask of the pixels that are > 0 only if it's the MIP image

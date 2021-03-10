@@ -41,7 +41,8 @@ class NeuralNetwork(object):
             "validation_perc": modelInfo["val"]["validation_perc"],
             "random_validation_selection": modelInfo["val"]["random_validation_selection"],
             "number_patients_for_validation": modelInfo["val"]["number_patients_for_validation"] if "number_patients_for_validation" in modelInfo["val"].keys() else 0,
-            "number_patients_for_testing": modelInfo["val"]["number_patients_for_testing"] if "number_patients_for_testing" in modelInfo["val"].keys() else 0
+            "number_patients_for_testing": modelInfo["val"]["number_patients_for_testing"] if "number_patients_for_testing" in modelInfo["val"].keys() else 0,
+            "seed": modelInfo["val"]["seed"]
         }
         self.test_steps = modelInfo["test_steps"]
 
@@ -463,7 +464,6 @@ class NeuralNetwork(object):
             testing.predictAndSaveImages(self, p_id)
 
         return stats
-
 
     ################################################################################
     # Test the model with the selected patient (if the number of patient to test is > 0)

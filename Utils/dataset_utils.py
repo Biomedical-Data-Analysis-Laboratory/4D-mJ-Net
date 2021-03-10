@@ -87,10 +87,10 @@ def splitDataset(nn, p_id, listOfPatientsToTrainVal, listOfPatientsToTest):
         if nn.supervised:
             if nn.val["number_patients_for_testing"] > 0 or len(listOfPatientsToTest) > 0:
                 test_list = list()
-                if len(listOfPatientsToTest) > 0:  # if we already set the patient list in the setting file
-                    test_list = listOfPatientsToTest
+                # if we already set the patient list in the setting file
+                if len(listOfPatientsToTest) > 0: test_list = listOfPatientsToTest
                 else:
-                    random.seed(69) #61 (69 for combined ds) 631 - 2 // 43 for val_perc == 10% random.seed(43)  # use ALWAYS the same random indices
+                    random.seed(nn.val["seed"]) #61 (69 for combined ds) 631 - 2 // 43 for val_perc == 10% random.seed(43)  # use ALWAYS the same random indices
                     test_list = random.sample(listOfPatientsToTrainVal, nn.val["number_patients_for_testing"])
                 # remove the test_list elements from the list
                 listOfPatientsToTrainVal = list(set(listOfPatientsToTrainVal).difference(test_list))
@@ -102,7 +102,7 @@ def splitDataset(nn, p_id, listOfPatientsToTrainVal, listOfPatientsToTest):
         # We have set a number of validation patient(s)
         if nn.val["number_patients_for_validation"] > 0:
             listOfPatientsToTrainVal.sort(reverse=False)  # sort the list and then...
-            random.seed(69) #61 (69 for combined ds) 631 - 2 // 43 for val_perc == 10% random.seed(43)  # use ALWAYS the same random indices
+            random.seed(nn.val["seed"]) #61 (69 for combined ds) 631 - 2 // 43 for val_perc == 10% random.seed(43)  # use ALWAYS the same random indices
             random.shuffle(listOfPatientsToTrainVal)  # shuffle it
             validation_list = random.sample(listOfPatientsToTrainVal, nn.val["number_patients_for_validation"])
             if constants.getVerbose():

@@ -131,8 +131,7 @@ def reduceLROnPlateau(monitor, factor, patience, min_delta, cooldown, min_lr):
 # Reduce the learning rate every decay_step of a certain decay_rate
 def LearningRateScheduler(decay_step, decay_rate):
     def lr_scheduler(epoch, lr):
-        if epoch % decay_step == 0 and epoch:
-            return lr * decay_rate
+        if epoch % decay_step == 0 and epoch: return lr * decay_rate
         return lr
     return callbacks.LearningRateScheduler(lr_scheduler, verbose=constants.getVerbose())
 

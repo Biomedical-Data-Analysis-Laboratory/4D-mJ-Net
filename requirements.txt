@@ -12,3 +12,4 @@ seaborn
 scikit-learn~=0.22.1
 opencv-python~=4.2.0.34
 scipy~=1.4.1
+hickle

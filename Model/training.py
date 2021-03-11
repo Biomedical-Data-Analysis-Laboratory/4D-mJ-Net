@@ -31,7 +31,6 @@ def getOptimizer(optInfo):
     elif optInfo["name"].lower() == "sgd":
         optimizer = optimizers.SGD(
             learning_rate=optInfo["learning_rate"],
-            decay=optInfo["decay"],
             momentum=optInfo["momentum"],
             nesterov=True if optInfo["nesterov"] == "True" else False,
             clipvalue=0.5
@@ -151,10 +150,10 @@ def fit_generator(model, train_sequence, val_sequence, steps_per_epoch, validati
 def saveIntermediateLayers(model, intermediate_activation_path):
     count = 0
     pixels = np.zeros(shape=(constants.getM(), constants.getN(), constants.NUMBER_OF_IMAGE_PER_SECTION))
-    path = "/home/prosjekt/PerfusionCT/StrokeSUS/ORIGINAL/FINAL_TIFF_HU_v1/CTP_01_010/10/*."
+    path = "/home/prosjekt/PerfusionCT/StrokeSUS/ORIGINAL/FINAL_Najm_v1/CTP_01_010/10/*."
     for imagename in np.sort(glob.glob(path + constants.SUFFIX_IMG)):
         img = cv2.imread(imagename, cv2.IMREAD_GRAYSCALE)
-        pixels[:, :, count] = general_utils.getSlicingWindow(img, 320, 320)
+        pixels[:, :, count] = general_utils.getSlicingWindow(img, 0, 0)
         count += 1
 
     pixels = pixels.reshape(1, constants.getM(), constants.getN(), constants.NUMBER_OF_IMAGE_PER_SECTION, 1)

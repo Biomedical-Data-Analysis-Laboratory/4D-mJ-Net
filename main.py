@@ -116,8 +116,7 @@ def main():
 
             # TRAIN SET: only for ISLES2018 dataset
             if constants.getIsISLES2018(): nn.predictAndSaveImages([general_utils.getStringFromIndex(x) for x in listOfPatientsToTrainVal if x <1000], isAlreadySaved)
-            # VALIDATION SET: predict the images for decision on the model
-            else: nn.predictAndSaveImages(val_list, isAlreadySaved)
+            else: nn.predictAndSaveImages(val_list, isAlreadySaved)  # VALIDATION SET: predict the images for decision on the model
             # PERFORM TESTING: predict and save the images
             nn.predictAndSaveImages(listOfPatientsToTest, isAlreadySaved)
 

@@ -8,7 +8,7 @@ import os, glob, math
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras.models import model_from_json
-from tensorflow.keras.utils import multi_gpu_model, plot_model
+from tensorflow.keras.utils import plot_model  # multi_gpu_model
 
 
 ################################################################################
@@ -214,13 +214,14 @@ class NeuralNetwork(object):
         # Based on the number of GPUs available, call the function called self.name in architectures.py
         if n_gpu==1:   self.model = getattr(architectures, self.name)(params=self.params, to_categ=self.to_categ, multiInput=self.multiInput)
         else:
-            # TODO: problems during the load of the model with multiple GPUs...
-            with tf.device('/cpu:0'):
-                self.model = getattr(architectures, self.name)(params=self.params, to_categ=self.to_categ, multiInput=self.multiInput)
-            self.model = multi_gpu_model(self.model, gpus=n_gpu)
+            print("PROBLEMS!")
+            # # TODO: problems during the load of the model with multiple GPUs...
+            # with tf.device('/cpu:0'):
+            #     self.model = getattr(architectures, self.name)(params=self.params, to_categ=self.to_categ, multiInput=self.multiInput)
+            # self.model = multi_gpu_model(self.model, gpus=n_gpu)
 
         if self.summaryFlag==0:
-            if getVerbose(): print(self.model.summary())
+            #if getVerbose(): print(self.model.summary())
             for rankdir in ["LR", "TB"]:
                 plot_model(
                     self.model,

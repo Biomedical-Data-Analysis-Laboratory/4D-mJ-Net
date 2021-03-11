@@ -10,8 +10,8 @@ from Utils import general_utils
 # Get the correct regularizer
 def getRegularizer(reg_obj):
     regularizer = None
-    if reg_obj["type"]=="l1": regularizer = regularizers.l1(l=reg_obj["l1"])
-    elif reg_obj["type"]=="l2": regularizer = regularizers.l2(l=reg_obj["l2"])
+    if reg_obj["type"]=="l1": regularizer = regularizers.l1(l=reg_obj["l"])
+    elif reg_obj["type"]=="l2": regularizer = regularizers.l2(l=reg_obj["l"])
     elif reg_obj["type"]=="l1_l2": regularizer = regularizers.l1_l2(l1=reg_obj["l1"], l2=reg_obj["l2"])  # (l1=1e-6, l2=1e-5)
     return regularizer
 

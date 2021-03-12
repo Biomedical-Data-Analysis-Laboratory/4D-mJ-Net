@@ -3,8 +3,9 @@ from Utils import general_utils, spatial_pyramid, model_utils
 
 from tensorflow.keras import layers, models, initializers
 from tensorflow.keras.constraints import max_norm
-from tensorflow.keras.layers import Conv3D, Conv3DTranspose, Dropout, Concatenate
+from tensorflow.keras.layers import Conv3D, Conv2DTranspose, Conv3DTranspose, Dropout, Concatenate
 import tensorflow.keras.backend as K
+from tensorflow.keras.applications import VGG16
 
 
 ################################################################################
@@ -174,7 +175,8 @@ def mJNet(params, to_categ, batch=True, drop=False, longJ=False, v2=False):
         # conc_1 = layers.concatenate([up_01, conv_4], axis=-1)
         # general_utils.print_int_shape(conc_1)  # (None, 1, M/4, N/4, 1024)
 
-        attGate_1 = model_utils.attentionGateBlock(x=conv_4, g=conv_5_1, inter_shape=128)
+        attGate_1 = model_utils.attentionGateBlock(x=conv_4, g=conv_5_1, inter_shape=128, l1_l2_reg=l1_l2_reg, kernel_init=kernel_init,
+                                 kernel_constraint=kernel_constraint, bias_constraint=bias_constraint)
         up_0 = layers.concatenate([layers.UpSampling3D(size=size_two)(conv_5_1), attGate_1], axis=-1)
 
         conv_6_1 = Conv3D(channels[15], (3,3,3), activation=activ_func, padding='same',
@@ -195,7 +197,8 @@ def mJNet(params, to_categ, batch=True, drop=False, longJ=False, v2=False):
         # general_utils.print_int_shape(up_02)  # (None, 1, M/2, N/2, 1024)
         # up_1 = layers.concatenate([up_02, conv_3])
 
-        attGate_2 = model_utils.attentionGateBlock(x=conv_3, g=conv_7_1, inter_shape=128)
+        attGate_2 = model_utils.attentionGateBlock(x=conv_3, g=conv_7_1, inter_shape=128, l1_l2_reg=l1_l2_reg, kernel_init=kernel_init,
+                                 kernel_constraint=kernel_constraint, bias_constraint=bias_constraint)
         up_1 = layers.concatenate([layers.UpSampling3D(size=size_two)(conv_7_1), attGate_2], axis=-1)
     else:
         # first UP-convolutional layer: from (1,M/4,N/4) to (2M/2,N/2)
@@ -220,7 +223,8 @@ def mJNet(params, to_categ, batch=True, drop=False, longJ=False, v2=False):
     general_utils.print_int_shape(conv_5)  # (None, 1, M/2, N/2, 256)
 
     if v2:
-        attGate_3 = model_utils.attentionGateBlock(x=conv_2, g=conv_5, inter_shape=128)
+        attGate_3 = model_utils.attentionGateBlock(x=conv_2, g=conv_5, inter_shape=128, l1_l2_reg=l1_l2_reg, kernel_init=kernel_init,
+                                 kernel_constraint=kernel_constraint, bias_constraint=bias_constraint)
         up_2 = layers.concatenate([layers.UpSampling3D(size=size_two)(conv_5), attGate_3], axis=-1)
 
 
@@ -291,194 +295,129 @@ def mJNet(params, to_categ, batch=True, drop=False, longJ=False, v2=False):
 
 ################################################################################
 # mJ-Net model version 3D ?
-def mJNet_v3D(params, to_categ):
-    kernel_size = (3,3,3)
-    size_two = (2,2,1)
+def mJNet_2D_with_VGG16(params, to_categ, multiInput, batch=True, drop=True, leaky=True, attentiongate=True):
+    kernel_size, size_two = (3,3), (2,2)
     input_shape = (constants.getM(), constants.getN(), constants.NUMBER_OF_IMAGE_PER_SECTION, 1)
     l1_l2_reg = None if "regularizer" not in params.keys() else model_utils.getRegularizer(params["regularizer"])
-    activ_func = None
-    kernel_constraint, bias_constraint = max_norm(2.), None
-    # Hu initializer
-    kernel_init = initializers.VarianceScaling(scale=(9/5), mode='fan_in', distribution='normal', seed=None)
+    activ_func = None if leaky else 'relu'
+    kernel_constraint, bias_constraint = max_norm(2.), max_norm(2.)
+    kernel_init = initializers.VarianceScaling(scale=(9/5), mode='fan_in', distribution='normal', seed=None)  # Hu initializer
 
     x = layers.Input(shape=input_shape, sparse=False)
     general_utils.print_int_shape(x)
 
-    conv_1 = layers.Conv3D(16, kernel_size=kernel_size, activation=activ_func, kernel_regularizer=l1_l2_reg,
-                           kernel_initializer=kernel_init, kernel_constraint=kernel_constraint, padding='same',
-                           bias_constraint=bias_constraint)(x)
-    conv_1 = layers.LeakyReLU(alpha=0.33)(conv_1)
-    conv_1 = layers.BatchNormalization()(conv_1)
+    conv_1 = layers.Conv3D(32, kernel_size=(5,5,constants.NUMBER_OF_IMAGE_PER_SECTION), activation=activ_func,
+                           kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init, padding='same',
+                           kernel_constraint=kernel_constraint, bias_constraint=bias_constraint)(x)
+    if leaky: conv_1 = layers.LeakyReLU(alpha=0.33)(conv_1)
+    if batch: conv_1 = layers.BatchNormalization()(conv_1)
     general_utils.print_int_shape(conv_1)
 
-    conv_1 = layers.Conv3D(16, kernel_size=kernel_size, activation=activ_func, kernel_regularizer=l1_l2_reg,
-                           kernel_initializer=kernel_init, kernel_constraint=kernel_constraint, padding='same',
+    conv_1 = layers.Conv3D(32, kernel_size=(5,5,constants.NUMBER_OF_IMAGE_PER_SECTION), activation=activ_func,
+                           kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init, padding='same',
+                           bias_constraint=bias_constraint, strides=(1,1,params["strides"]["conv.1"]),
+                           kernel_constraint=kernel_constraint)(conv_1)
+    if leaky: conv_1 = layers.LeakyReLU(alpha=0.33)(conv_1)
+    if batch: conv_1 = layers.BatchNormalization()(conv_1)
+    general_utils.print_int_shape(conv_1)
+
+    new_z = constants.NUMBER_OF_IMAGE_PER_SECTION/params["strides"]["conv.1"]
+    conv_2 = layers.Conv3D(32, kernel_size=(5,5,int(new_z)), activation=activ_func, kernel_constraint=kernel_constraint,
+                           kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init, padding='same',
                            bias_constraint=bias_constraint)(conv_1)
-    conv_1 = layers.LeakyReLU(alpha=0.33)(conv_1)
-    conv_1 = layers.BatchNormalization()(conv_1)
-    general_utils.print_int_shape(conv_1)
-
-    pool_drop_1 = layers.MaxPooling3D((params["max_pool"]["1"],params["max_pool"]["1"],1), padding='same')(conv_1)
-    general_utils.print_int_shape(pool_drop_1)
-    pool_drop_1 = Dropout(params["dropout"]["1"])(pool_drop_1)
-
-    conv_2 = layers.Conv3D(32, kernel_size=kernel_size, activation=activ_func, kernel_regularizer=l1_l2_reg,
-                           kernel_initializer=kernel_init, kernel_constraint=kernel_constraint, padding='same',
-                           bias_constraint=bias_constraint)(pool_drop_1)
-    conv_2 = layers.LeakyReLU(alpha=0.33)(conv_2)
-    conv_2 = layers.BatchNormalization()(conv_2)
+    if leaky: conv_2 = layers.LeakyReLU(alpha=0.33)(conv_2)
+    if batch: conv_2 = layers.BatchNormalization()(conv_2)
     general_utils.print_int_shape(conv_2)
 
-    conv_2 = layers.Conv3D(32, kernel_size=kernel_size, activation=activ_func, kernel_regularizer=l1_l2_reg,
+    conv_2 = layers.Conv3D(16, kernel_size=(5,5,int(new_z)), activation=activ_func, kernel_regularizer=l1_l2_reg,
+                           kernel_initializer=kernel_init, kernel_constraint=kernel_constraint, padding='same',
+                           bias_constraint=bias_constraint, strides=(1,1,params["strides"]["conv.2"]))(conv_2)
+    if leaky: conv_2 = layers.LeakyReLU(alpha=0.33)(conv_2)
+    if batch: conv_2 = layers.BatchNormalization()(conv_2)
+    general_utils.print_int_shape(conv_2)
+
+    new_z /= params["strides"]["conv.2"]
+    conv_3 = layers.Conv3D(8, kernel_size=(5,5,int(new_z)), activation=activ_func, kernel_regularizer=l1_l2_reg,
                            kernel_initializer=kernel_init, kernel_constraint=kernel_constraint, padding='same',
                            bias_constraint=bias_constraint)(conv_2)
-    conv_2 = layers.LeakyReLU(alpha=0.33)(conv_2)
-    conv_2 = layers.BatchNormalization()(conv_2)
-    general_utils.print_int_shape(conv_2)
-
-    pool_drop_2 = layers.MaxPooling3D((params["max_pool"]["2"],params["max_pool"]["2"],1))(conv_2)
-    general_utils.print_int_shape(pool_drop_2)
-    pool_drop_2 = Dropout(params["dropout"]["2"])(pool_drop_2)
-
-    conv_3 = layers.Conv3D(64, kernel_size=kernel_size, activation=activ_func, kernel_regularizer=l1_l2_reg,
-                           kernel_initializer=kernel_init, kernel_constraint=kernel_constraint, padding='same',
-                           bias_constraint=bias_constraint)(pool_drop_2)
-    conv_3 = layers.LeakyReLU(alpha=0.33)(conv_3)
-    conv_3 = layers.BatchNormalization()(conv_3)
+    if leaky: conv_3 = layers.LeakyReLU(alpha=0.33)(conv_3)
+    if batch: conv_3 = layers.BatchNormalization()(conv_3)
     general_utils.print_int_shape(conv_3)
 
-    conv_3 = layers.Conv3D(64, kernel_size=kernel_size, activation=activ_func, kernel_regularizer=l1_l2_reg,
+    conv_3 = layers.Conv3D(1, kernel_size=(5,5,int(new_z)), activation=activ_func, kernel_regularizer=l1_l2_reg,
                            kernel_initializer=kernel_init, kernel_constraint=kernel_constraint, padding='same',
-                           bias_constraint=bias_constraint)(conv_3)
-    conv_3 = layers.LeakyReLU(alpha=0.33)(conv_3)
-    conv_3 = layers.BatchNormalization()(conv_3)
+                           bias_constraint=bias_constraint, strides=(1,1,params["strides"]["conv.3"]))(conv_3)
+    if leaky: conv_3 = layers.LeakyReLU(alpha=0.33)(conv_3)
+    if batch: conv_3 = layers.BatchNormalization()(conv_3)
     general_utils.print_int_shape(conv_3)
 
-    pool_drop_3 = layers.MaxPooling3D((params["max_pool"]["3"], params["max_pool"]["3"], 1))(conv_3)
-    general_utils.print_int_shape(pool_drop_3)
-    pool_drop_3 = Dropout(params["dropout"]["3"])(pool_drop_3)
+    conv_3 = layers.Reshape(conv_3.shape[1:-1])(conv_3)
+    general_utils.print_int_shape(conv_3)
 
-    conv_4 = layers.Conv3D(128, kernel_size=kernel_size, activation=activ_func, kernel_regularizer=l1_l2_reg,
-                           kernel_initializer=kernel_init, kernel_constraint=kernel_constraint, padding='same',
-                           bias_constraint=bias_constraint)(pool_drop_3)
-    conv_4 = layers.LeakyReLU(alpha=0.33)(conv_4)
-    conv_4 = layers.BatchNormalization()(conv_4)
-    general_utils.print_int_shape(conv_4)
+    if conv_3.shape[-1]==1: conv_3 = Concatenate(-1)([conv_3,conv_3,conv_3])
+    general_utils.print_int_shape(conv_3)
+    # Add the VGG-16 model
+    vgg16_model = VGG16(weights='imagenet', include_top=False, input_shape=conv_3.shape[1:])
+    # Freeze layers VGG-16 model
+    vgg16_model.trainable = False if params["trainable"] == 0 else True
+    # Creating dictionary that maps layer names to the layers
+    layer_dict = dict([(layer.name, layer) for layer in vgg16_model.layers])
 
-    conv_4 = layers.Conv3D(128, kernel_size=kernel_size, activation=activ_func, kernel_regularizer=l1_l2_reg,
-                           kernel_initializer=kernel_init, kernel_constraint=kernel_constraint, padding='same',
+    conv_4 = layers.Conv2D(128, kernel_size=kernel_size, padding='same',activation=activ_func, kernel_regularizer=l1_l2_reg,
+                           kernel_initializer=kernel_init, kernel_constraint=kernel_constraint,
+                           bias_constraint=bias_constraint)(vgg16_model.output)
+    if leaky: conv_4 = layers.LeakyReLU(alpha=0.33)(conv_4)
+    if batch: conv_4 = layers.BatchNormalization()(conv_4)
+    conv_4 = layers.Conv2D(128, kernel_size=kernel_size, padding='same', activation=activ_func, kernel_regularizer=l1_l2_reg,
+                           kernel_initializer=kernel_init, kernel_constraint=kernel_constraint,
                            bias_constraint=bias_constraint)(conv_4)
-    conv_4 = layers.LeakyReLU(alpha=0.33)(conv_4)
-    conv_4 = layers.BatchNormalization()(conv_4)
-    general_utils.print_int_shape(conv_4)
+    if leaky: conv_4 = layers.LeakyReLU(alpha=0.33)(conv_4)
+    if batch: conv_4 = layers.BatchNormalization()(conv_4)
+    if drop: conv_4 = Dropout(params["dropout"]["conv.4"])(conv_4)
 
-    up_1 = layers.concatenate([layers.UpSampling3D(size=(params["max_pool"]["3"], params["max_pool"]["3"], 1))(conv_4),
-                               conv_3], axis=-1)
+    inputs, conv_out = model_utils.addMoreInfo(multiInput, x, [conv_4])
+    if len(conv_out)>1: conv_out = Concatenate(-1)(conv_out)
+    elif len(conv_out)==1: conv_out = conv_out[0]
+
+    if attentiongate:
+        attGate_1 = model_utils.attentionGateBlock(x=layer_dict["block5_conv3"].output, g=conv_out, inter_shape=256, l1_l2_reg=l1_l2_reg, kernel_init=kernel_init,
+                                 kernel_constraint=kernel_constraint, bias_constraint=bias_constraint, is2D=True)
+        up_1 = layers.concatenate([layers.UpSampling2D(size=size_two)(conv_out), attGate_1], axis=-1)
+        up_2 = model_utils.upSamplingPlusAttention(up_1,layer_dict["block4_conv3"].output,[128,128,128],kernel_size,size_two,activ_func,l1_l2_reg,kernel_init,kernel_constraint,bias_constraint,leaky, is2D=True)
+        up_3 = model_utils.upSamplingPlusAttention(up_2,layer_dict["block3_conv3"].output,[64,64,64],kernel_size,size_two,activ_func,l1_l2_reg,kernel_init,kernel_constraint,bias_constraint,leaky, is2D=True)
+        up_4 = model_utils.upSamplingPlusAttention(up_3,layer_dict["block2_conv2"].output,[32,32,32],kernel_size,size_two,activ_func,l1_l2_reg,kernel_init,kernel_constraint,bias_constraint,leaky, is2D=True)
+        up_5 = model_utils.upSamplingPlusAttention(up_4,layer_dict["block1_conv2"].output,[16,16,16],kernel_size,size_two,activ_func,l1_l2_reg,kernel_init,kernel_constraint,bias_constraint,leaky, is2D=True)
+    else:
+        transp_1 = Conv2DTranspose(256, kernel_size=size_two, strides=size_two, activation=activ_func, padding='same',
+                                   kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init,
+                                   kernel_constraint=kernel_constraint, bias_constraint=bias_constraint)(conv_out)
+        if leaky: transp_1 = layers.LeakyReLU(alpha=0.33)(transp_1)
+        if batch: transp_1 = layers.BatchNormalization()(transp_1)
+        up_1 = Concatenate(-1)([transp_1, layer_dict["block5_conv3"].output])
+        # going up with the layers
+        up_2 = model_utils.upLayers(up_1, layer_dict["block4_conv3"].output, [128,128,128], kernel_size, size_two, activ_func, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint, leaky=True, is2D=True)
+        up_3 = model_utils.upLayers(up_2, layer_dict["block3_conv3"].output, [64,64,64], kernel_size, size_two, activ_func, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint, leaky=True, is2D=True)
+        up_4 = model_utils.upLayers(up_3, layer_dict["block2_conv2"].output, [32,32,32], kernel_size, size_two, activ_func, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint, leaky=True, is2D=True)
+        up_5 = model_utils.upLayers(up_4, layer_dict["block1_conv2"].output, [16,16,16], kernel_size, size_two, activ_func, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint, leaky=True, is2D=True)
+
     general_utils.print_int_shape(up_1)
-
-    conv_5 = layers.Conv3D(64, kernel_size=kernel_size, activation=activ_func, kernel_regularizer=l1_l2_reg,
-                           kernel_initializer=kernel_init, kernel_constraint=kernel_constraint, padding='same',
-                           bias_constraint=bias_constraint)(up_1)
-    conv_5 = layers.LeakyReLU(alpha=0.33)(conv_5)
-    conv_5 = layers.BatchNormalization()(conv_5)
-    general_utils.print_int_shape(conv_5)
-
-    conv_5 = layers.Conv3D(64, kernel_size=kernel_size, activation=activ_func, kernel_regularizer=l1_l2_reg,
-                           kernel_initializer=kernel_init, kernel_constraint=kernel_constraint, padding='same',
-                           bias_constraint=bias_constraint)(conv_5)
-    conv_5 = layers.LeakyReLU(alpha=0.33)(conv_5)
-    conv_5 = layers.BatchNormalization()(conv_5)
-    general_utils.print_int_shape(conv_5)
-
-    up_2 = layers.concatenate([layers.UpSampling3D(size=(params["max_pool"]["2"], params["max_pool"]["2"], 1))(conv_5),
-                               conv_2], axis=-1)
     general_utils.print_int_shape(up_2)
-
-    conv_6 = layers.Conv3D(32, kernel_size=kernel_size, activation=activ_func, kernel_regularizer=l1_l2_reg,
-                           kernel_initializer=kernel_init, kernel_constraint=kernel_constraint, padding='same',
-                           bias_constraint=bias_constraint)(up_2)
-    conv_6 = layers.LeakyReLU(alpha=0.33)(conv_6)
-    conv_6 = layers.BatchNormalization()(conv_6)
-    general_utils.print_int_shape(conv_6)
-    conv_6 = layers.Conv3D(32, kernel_size=kernel_size, activation=activ_func, kernel_regularizer=l1_l2_reg,
-                           kernel_initializer=kernel_init, kernel_constraint=kernel_constraint, padding='same',
-                           bias_constraint=bias_constraint)(conv_6)
-    conv_6 = layers.LeakyReLU(alpha=0.33)(conv_6)
-    conv_6 = layers.BatchNormalization()(conv_6)
-    general_utils.print_int_shape(conv_6)
-
-    up_3 = layers.concatenate([layers.UpSampling3D(size=(params["max_pool"]["1"], params["max_pool"]["1"], 1))(conv_6),
-                               conv_1], axis=-1)
     general_utils.print_int_shape(up_3)
+    general_utils.print_int_shape(up_4)
+    general_utils.print_int_shape(up_5)
 
-    conv_7 = layers.Conv3D(16, kernel_size=kernel_size, activation=activ_func, kernel_regularizer=l1_l2_reg,
-                           kernel_initializer=kernel_init, kernel_constraint=kernel_constraint, padding='same',
-                           bias_constraint=bias_constraint)(up_3)
-    conv_7 = layers.LeakyReLU(alpha=0.33)(conv_7)
-    conv_7 = layers.BatchNormalization()(conv_7)
-    general_utils.print_int_shape(conv_7)
-
-    conv_7 = layers.Conv3D(16, kernel_size=kernel_size, activation=activ_func, kernel_regularizer=l1_l2_reg,
-                           kernel_initializer=kernel_init, kernel_constraint=kernel_constraint, padding='same',
-                           bias_constraint=bias_constraint)(conv_7)
-    conv_7 = layers.LeakyReLU(alpha=0.33)(conv_7)
-    conv_7 = layers.BatchNormalization()(conv_7)
-    general_utils.print_int_shape(conv_7)
-
-    reduce_1 = layers.MaxPooling3D((1,1,params["max_pool"]["reduce.1"]))(conv_7)
-    general_utils.print_int_shape(reduce_1)
-    reduce_1 = Dropout(params["dropout"]["4"])(reduce_1)
-
-    conv_8 = layers.Conv3D(16, kernel_size=kernel_size, activation=activ_func, kernel_regularizer=l1_l2_reg,
-                           kernel_initializer=kernel_init, kernel_constraint=kernel_constraint, padding='same',
-                           bias_constraint=bias_constraint)(reduce_1)
-    conv_8 = layers.LeakyReLU(alpha=0.33)(conv_8)
-    conv_8 = layers.BatchNormalization()(conv_8)
-    general_utils.print_int_shape(conv_8)
-
-    conv_8 = layers.Conv3D(16, kernel_size=kernel_size, activation=activ_func, kernel_regularizer=l1_l2_reg,
-                           kernel_initializer=kernel_init, kernel_constraint=kernel_constraint, padding='same',
-                           bias_constraint=bias_constraint)(conv_8)
-    conv_8 = layers.LeakyReLU(alpha=0.33)(conv_8)
-    conv_8 = layers.BatchNormalization()(conv_8)
-    general_utils.print_int_shape(conv_8)
-
-    reduce_2 = layers.MaxPooling3D((1, 1, params["max_pool"]["reduce.2"]))(conv_8)
-    general_utils.print_int_shape(reduce_2)
-    reduce_2 = Dropout(params["dropout"]["5"])(reduce_2)
-
-    conv_9 = layers.Conv3D(16, kernel_size=kernel_size, activation=activ_func, kernel_regularizer=l1_l2_reg,
-                           kernel_initializer=kernel_init, kernel_constraint=kernel_constraint, padding='same',
-                           bias_constraint=bias_constraint)(reduce_2)
-    conv_9 = layers.LeakyReLU(alpha=0.33)(conv_9)
-    conv_9 = layers.BatchNormalization()(conv_9)
-    general_utils.print_int_shape(conv_9)
-
-    conv_9 = layers.Conv3D(16, kernel_size=kernel_size, activation=activ_func, kernel_regularizer=l1_l2_reg,
-                           kernel_initializer=kernel_init, kernel_constraint=kernel_constraint, padding='same',
-                           bias_constraint=bias_constraint)(conv_9)
-    conv_9 = layers.LeakyReLU(alpha=0.33)(conv_9)
-    conv_9 = layers.BatchNormalization()(conv_9)
-    general_utils.print_int_shape(conv_9)
-
-    reduce_3 = layers.MaxPooling3D((1, 1, params["max_pool"]["reduce.3"]))(conv_9)
-    general_utils.print_int_shape(reduce_3)
-    reduce_3 = Dropout(params["dropout"]["6"])(reduce_3)
-
-    conv_10 = layers.Conv3D(16, kernel_size=kernel_size, activation=activ_func, kernel_regularizer=l1_l2_reg,
-                            kernel_initializer=kernel_init, kernel_constraint=kernel_constraint, padding='same',
-                            bias_constraint=bias_constraint)(reduce_3)
-    conv_10 = layers.LeakyReLU(alpha=0.33)(conv_10)
-    conv_10 = layers.BatchNormalization()(conv_10)
-    general_utils.print_int_shape(conv_10)
-
-    conv_10 = layers.Conv3D(16, kernel_size=kernel_size, activation=activ_func, kernel_regularizer=l1_l2_reg,
-                            kernel_initializer=kernel_init, kernel_constraint=kernel_constraint, padding='same',
-                            bias_constraint=bias_constraint)(conv_10)
-    conv_10 = layers.LeakyReLU(alpha=0.33)(conv_10)
-    conv_10 = layers.BatchNormalization()(conv_10)
-    general_utils.print_int_shape(conv_10)
-
+    final_conv_1 = layers.Conv2D(16, kernel_size=kernel_size, padding='same', activation=activ_func,
+                                 kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init,
+                                 kernel_constraint=kernel_constraint, bias_constraint=bias_constraint)(up_5)
+    if leaky: final_conv_1 = layers.LeakyReLU(alpha=0.33)(final_conv_1)
+    if batch: final_conv_1 = layers.BatchNormalization()(final_conv_1)
+    general_utils.print_int_shape(final_conv_1)
+    final_conv_2 = layers.Conv2D(16, kernel_size=kernel_size, padding='same', activation=activ_func,
+                                 kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init,
+                                 kernel_constraint=kernel_constraint, bias_constraint=bias_constraint)(final_conv_1)
+    if leaky: final_conv_2 = layers.LeakyReLU(alpha=0.33)(final_conv_2)
+    if batch: final_conv_2 = layers.BatchNormalization()(final_conv_2)
+    general_utils.print_int_shape(final_conv_2)
     act_name = "sigmoid"
     n_chann = 1
     shape_output = (constants.getM(), constants.getN())
@@ -489,12 +428,15 @@ def mJNet_v3D(params, to_categ):
         n_chann = len(constants.LABELS)
         shape_output = (constants.getM(), constants.getN(), n_chann)
 
-    conv_last = layers.Conv3D(n_chann, (1,1,1), activation=act_name, padding='same', kernel_regularizer=l1_l2_reg,
-                              kernel_initializer=kernel_init)(conv_10)
+    conv_last = layers.Conv2D(n_chann, (1,1), activation=act_name, padding='same', kernel_regularizer=l1_l2_reg,
+                              kernel_initializer=kernel_init, kernel_constraint=kernel_constraint, bias_constraint=bias_constraint)(final_conv_2)
     general_utils.print_int_shape(conv_last)
     y = layers.Reshape(shape_output)(conv_last)
     general_utils.print_int_shape(y)
-    model = models.Model(inputs=x, outputs=y)
+
+    model_base = models.Model(vgg16_model.input, y)
+
+    model = models.Model(inputs=inputs, outputs=model_base(conv_3))
 
     return model
 
@@ -534,12 +476,14 @@ def mJNet_4D(params, to_categ, multiInput, batch=True, drop=False, leaky=True, a
 
     # check if there is a need to add more info in the input (NIHSS, gender, ...)
     inputs, conv_out = model_utils.addMoreInfo(multiInput, inputs, conv_out, is3D=True, is4D=True)
-    conc_layer = Concatenate(-1)(conv_out)
+    if len(conv_out)>1: conv_out = Concatenate(-1)(conv_out)
+    elif len(conv_out)==1: conv_out = conv_out[0]
 
     if attentiongate:
         block_6_conc = Concatenate(-1)(block_6)
-        attGate_1 = model_utils.attentionGateBlock(x=block_6_conc, g=conc_layer, inter_shape=128)
-        up_1 = layers.concatenate([layers.UpSampling3D(size=size_two)(conc_layer),attGate_1], axis=-1)
+        attGate_1 = model_utils.attentionGateBlock(x=block_6_conc, g=conv_out, inter_shape=128, l1_l2_reg=l1_l2_reg, kernel_init=kernel_init,
+                                 kernel_constraint=kernel_constraint, bias_constraint=bias_constraint)
+        up_1 = layers.concatenate([layers.UpSampling3D(size=size_two)(conv_out),attGate_1], axis=-1)
         block_5_conc = Concatenate(-1)(block_5)
         up_2 = model_utils.upSamplingPlusAttention(up_1,block_5_conc,[64,64,64],kernel_size,size_two,activ_func,l1_l2_reg,kernel_init,kernel_constraint,bias_constraint,leaky)
         block_4_conc = Concatenate(-1)(block_4)
@@ -550,15 +494,15 @@ def mJNet_4D(params, to_categ, multiInput, batch=True, drop=False, leaky=True, a
     else:
         transp_1 = Conv3DTranspose(128, kernel_size=size_two, strides=size_two, activation=activ_func,
                                    padding='same', kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init,
-                                   kernel_constraint=kernel_constraint, bias_constraint=bias_constraint)(conc_layer)
+                                   kernel_constraint=kernel_constraint, bias_constraint=bias_constraint)(conv_out)
         if leaky: transp_1 = layers.LeakyReLU(alpha=0.33)(transp_1)
 
         block_6_conc = Concatenate(-1)(block_6)
         up_1 = Concatenate(-1)([transp_1, block_6_conc])
 
-        up_2 = model_utils.upLayer3D(up_1,block_5,[64,64,64],kernel_size,size_two,activ_func,l1_l2_reg,kernel_init,kernel_constraint,bias_constraint,leaky)
-        up_3 = model_utils.upLayer3D(up_2,block_4,[32,32,32],kernel_size,size_two,activ_func,l1_l2_reg,kernel_init,kernel_constraint,bias_constraint,leaky)
-        up_4 = model_utils.upLayer3D(up_3,block_3,[16,16,16],kernel_size,size_two,activ_func,l1_l2_reg,kernel_init,kernel_constraint,bias_constraint,leaky)
+        up_2 = model_utils.upLayers(up_1,block_5,[64,64,64],kernel_size,size_two,activ_func,l1_l2_reg,kernel_init,kernel_constraint,bias_constraint,leaky)
+        up_3 = model_utils.upLayers(up_2,block_4,[32,32,32],kernel_size,size_two,activ_func,l1_l2_reg,kernel_init,kernel_constraint,bias_constraint,leaky)
+        up_4 = model_utils.upLayers(up_3,block_3,[16,16,16],kernel_size,size_two,activ_func,l1_l2_reg,kernel_init,kernel_constraint,bias_constraint,leaky)
 
     act_name = "sigmoid"
     n_chann = 1

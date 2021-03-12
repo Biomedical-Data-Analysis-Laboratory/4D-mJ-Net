@@ -36,8 +36,6 @@ def main():
     for info in setting["models"]: networks.append(NeuralNetwork(info, setting))
 
     for nn in networks:
-        val_list = []
-        isAlreadySaved = False
         listOfPatientsToTrainVal = setting["PATIENTS_TO_TRAINVAL"]
         listOfPatientsToTest = list() if "PATIENTS_TO_TEST" not in setting.keys() else setting["PATIENTS_TO_TEST"]
         listOfPatientsToExclude = list() if "PATIENTS_TO_EXCLUDE" not in setting.keys() else setting["PATIENTS_TO_EXCLUDE"]
@@ -61,10 +59,7 @@ def main():
         # if DEBUG mode: use only 5 patients in the list
         if constants.getDEBUG():
             listOfPatientsToTrainVal = listOfPatientsToTrainVal[:5]
-            nn.val["validation_perc"] = 1
-            nn.val["number_patients_for_validation"] = 1
-            nn.val["number_patients_for_testing"] = 0
-            nn.val["random_validation_selection"] = 0
+            nn.setDebugDataset()
 
         listOfPatientsToTrainVal.sort()  # sort the list
 
@@ -75,50 +70,34 @@ def main():
         # loop over all the list of patients.
         # Useful for creating a model for each patient (if cross-validation is set)
         # else, it will create a unique model
-        for trainPatient in listOfPatientsToTrainVal:
-            p_id = general_utils.getStringFromIndex(trainPatient)
+        #
+        n_rep = 1
+        if nn.cross_validation["use"]: n_rep = nn.cross_validation["split"]
+
+        for split_id in range(1,n_rep+1):
+            model_split = general_utils.getStringFromIndex(split_id)
+            nn.setModelSplit(model_split)
 
             # set the multi/single PROCESSING
             nn.setProcessingEnv(setting["init"]["MULTIPROCESSING"])
 
+            # # GET THE DATASET:
+            # - The dataset is composed of all the .pkl files in the dataset folder! (To load only once)
+            if train_df is None: train_df = dataset_utils.getDataset(nn, listOfPatientsToTrainVal)
+            val_list = nn.splitDataset(train_df, listOfPatientsToTrainVal, listOfPatientsToTest)
+
             # Check if the model was already trained and saved
-            if nn.isModelSaved(p_id):
+            if nn.isModelSaved():
                 # SET THE CALLBACKS & LOAD MODEL
-                nn.setCallbacks(p_id)
-                nn.loadSavedModel(p_id)
-                isAlreadySaved = True
-                # # GET THE DATASET for the validation list:
-                if train_df is None: train_df = dataset_utils.getDataset(nn, listOfPatientsToTrainVal)
-                val_list = nn.splitDataset(train_df, p_id, listOfPatientsToTrainVal, listOfPatientsToTest)
-                break
-            else:
-                # # GET THE DATASET:
-                # - The dataset is composed of all the .pkl files in the dataset folder! (To load only once)
-                if train_df is None: train_df = dataset_utils.getDataset(nn, listOfPatientsToTrainVal)
-                nn.splitDataset(train_df, p_id, listOfPatientsToTrainVal, listOfPatientsToTest)
+                nn.setCallbacks()
+                nn.loadSavedModel()
+            else: nn.initializeAndStartTraining(n_gpu, args.jump)
 
-                if nn.use_sequence:
-                    # if we are doing a sequence train (for memory issue)
-                    nn.prepareSequenceClass()
-                    nn.initializeTraining(p_id, n_gpu)
-                    if not args.jump: nn.runTrainSequence()
-                    nn.gradualFineTuningSolution(p_id)
-                    # plot the loss and accuracy of the training
-                    training.plotLossAndAccuracy(nn, p_id)
-                else:
-                    # # PREPARE DATASET (=divide in train/val/test)
-                    nn.prepareDataset(p_id)
-                    # # SET THE CALLBACKS, RUN TRAINING & SAVE THE MODELS WEIGHTS
-                    nn.runTraining(p_id, n_gpu)
-
-            nn.saveModelAndWeight(p_id)
-
-        # TRAIN SET: only for ISLES2018 dataset
-        if constants.getIsISLES2018(): nn.predictAndSaveImages([general_utils.getStringFromIndex(x) for x in listOfPatientsToTrainVal if x <1000], isAlreadySaved)
-        # VALIDATION SET: predict the images for decision on the model
-        else: nn.predictAndSaveImages(val_list, isAlreadySaved)
-        # PERFORM TESTING: predict and save the images
-        nn.predictAndSaveImages(listOfPatientsToTest, isAlreadySaved)
+            # TRAIN SET: only for ISLES2018 dataset
+            if constants.getIsISLES2018(): nn.predictAndSaveImages([general_utils.getStringFromIndex(x) for x in listOfPatientsToTrainVal if x <1000], nn.isModelSaved())
+            else: nn.predictAndSaveImages(val_list, nn.isModelSaved())  # VALIDATION SET: predict the images for decision on the model
+            # PERFORM TESTING: predict and save the images
+            nn.predictAndSaveImages(listOfPatientsToTest, nn.isModelSaved())
 
     general_utils.stopPIDToWatchdog()
 

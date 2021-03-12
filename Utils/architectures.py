@@ -41,8 +41,8 @@ def mJNet_v2(params, to_categ, multiInput):
 
 ################################################################################
 # mJ-Net model version 3D
-def mJNet_v3D(params, to_categ, multiInput):
-    return arch_mJNet.mJNet_v3D(params, to_categ)
+def mJNet_2D_with_VGG16(params, to_categ, multiInput):
+    return arch_mJNet.mJNet_2D_with_VGG16(params, to_categ, multiInput)
 
 
 ################################################################################

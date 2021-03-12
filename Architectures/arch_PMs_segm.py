@@ -1,7 +1,7 @@
 from Model import constants
 from Utils import general_utils, spatial_pyramid, model_utils
 
-from tensorflow.keras import layers, models, regularizers, initializers
+from tensorflow.keras import layers, models, initializers
 from tensorflow.keras.constraints import max_norm
 from tensorflow.keras.layers import Conv3D, Conv3DTranspose, Dropout, Concatenate
 import tensorflow.keras.backend as K
@@ -41,7 +41,7 @@ class PM_obj(object):
 # mJ-Net model version for the parametric maps as input
 def PMs_segmentation(params, to_categ, multiInput, batch=True):
     activ_func = 'relu'
-    l1_l2_reg = regularizers.l1_l2(l1=1e-6, l2=1e-5)
+    l1_l2_reg = None if "regularizer" not in params.keys() else model_utils.getRegularizer(params["regularizer"])
     kernel_init = "glorot_uniform"  # Xavier uniform initializer.
     kernel_constraint, bias_constraint = max_norm(2.), max_norm(2.)
     layersAfterTransferLearning, inputs, block5_conv3, block4_conv3, block3_conv3, block2_conv2, block1_conv2 = [], [], [], [], [], [], []
@@ -88,10 +88,10 @@ def PMs_segmentation(params, to_categ, multiInput, batch=True):
     up_1 = Concatenate(-1)([transp_1,block5_conv3_conc])
 
     # going up with the layers
-    up_2 = model_utils.upLayer2D(up_1, 128, block4_conv3, len(PMS), activ_func, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint)
-    up_3 = model_utils.upLayer2D(up_2, 64, block3_conv3, len(PMS), activ_func, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint)
-    up_4 = model_utils.upLayer2D(up_3, 32, block2_conv2, len(PMS), activ_func, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint)
-    up_5 = model_utils.upLayer2D(up_4, 16, block1_conv2, len(PMS), activ_func, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint)
+    up_2 = model_utils.upLayers(up_1, block4_conv3, [128*len(PMS),128*len(PMS)], (3,3), (2,2), activ_func, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint, is2D=True)
+    up_3 = model_utils.upLayers(up_2, block3_conv3, [64*len(PMS),64*len(PMS)], (3,3), (2,2), activ_func, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint, is2D=True)
+    up_4 = model_utils.upLayers(up_3, block2_conv2, [32*len(PMS),32*len(PMS)], (3,3), (2,2), activ_func, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint, is2D=True)
+    up_5 = model_utils.upLayers(up_4, block1_conv2, [16*len(PMS),16*len(PMS)], (3,3), (2,2), activ_func, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint, is2D=True)
 
     final_conv_1 = layers.Conv2D(16, kernel_size=(3, 3), padding='same',activation=activ_func,
                                  kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init,

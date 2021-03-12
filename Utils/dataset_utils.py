@@ -16,8 +16,7 @@ from Utils import general_utils
 
 ################################################################################
 # Function to load the saved dataframes based on the list of patients
-def loadTrainingDataframe(nn, patients, testing_id=None):
-    cpu_count = multiprocessing.cpu_count()
+def loadTrainingDataframe(nn, patients):
     train_df = pd.DataFrame(columns=constants.dataFrameColumns)
     # get the suffix based on the SLICING_PIXELS, the M and N
     suffix = general_utils.getSuffix()  # es == "_4_16x16"
@@ -76,21 +75,20 @@ def getDataset(nn, listOfPatientsToTrainVal):
 ################################################################################
 # Function to divide the dataframe in train and test based on the patient id;
 # plus it reshape the pixel array and initialize the model.
-def splitDataset(nn, p_id, listOfPatientsToTrainVal, listOfPatientsToTest):
+def splitDataset(nn, listOfPatientsToTrainVal, listOfPatientsToTest):
     start = time.time()
     validation_list, test_list = list(), list()
 
     for flag in ["train", "val", "test"]: nn.dataset[flag]["indices"] = list()
 
-    if not nn.cross_validation:  # here only if: NO cross-validation set
+    if nn.cross_validation["use"]==0:  # here only if: NO cross-validation set
         # We have set a number of testing patient(s) and we are inside a supervised learning
         if nn.supervised:
             if nn.val["number_patients_for_testing"] > 0 or len(listOfPatientsToTest) > 0:
-                test_list = list()
                 # if we already set the patient list in the setting file
                 if len(listOfPatientsToTest) > 0: test_list = listOfPatientsToTest
                 else:
-                    random.seed(nn.val["seed"]) #61 (69 for combined ds) 631 - 2 // 43 for val_perc == 10% random.seed(43)  # use ALWAYS the same random indices
+                    random.seed(nn.val["seed"])
                     test_list = random.sample(listOfPatientsToTrainVal, nn.val["number_patients_for_testing"])
                 # remove the test_list elements from the list
                 listOfPatientsToTrainVal = list(set(listOfPatientsToTrainVal).difference(test_list))
@@ -102,37 +100,24 @@ def splitDataset(nn, p_id, listOfPatientsToTrainVal, listOfPatientsToTest):
         # We have set a number of validation patient(s)
         if nn.val["number_patients_for_validation"] > 0:
             listOfPatientsToTrainVal.sort(reverse=False)  # sort the list and then...
-            random.seed(nn.val["seed"]) #61 (69 for combined ds) 631 - 2 // 43 for val_perc == 10% random.seed(43)  # use ALWAYS the same random indices
+            random.seed(nn.val["seed"])
             random.shuffle(listOfPatientsToTrainVal)  # shuffle it
             validation_list = random.sample(listOfPatientsToTrainVal, nn.val["number_patients_for_validation"])
-            if constants.getVerbose():
-                if constants.PREFIX_IMAGES=="CTP_":
-                    print("[INFO] - VALIDATION list LVO: {}".format([v for v in validation_list if "01_" in v or "00_" in v or "21_" in v or "20_" in v]))
-                    print("[INFO] - VALIDATION list Non-LVO: {}".format([v for v in validation_list if "02_" in v or "22_" in v]))
-                    print("[INFO] - VALIDATION list WIS: {}".format([v for v in validation_list if "03_" in v or "23_" in v]))
-                elif constants.PREFIX_IMAGES=="PA":
-                    print("[INFO] - VALIDATION list {}".format(validation_list))
-            for val_p in validation_list:
-                val_pid = general_utils.getStringFromIndex(val_p)
-                nn.dataset["val"]["indices"].extend(np.nonzero((nn.train_df.patient_id.values == val_pid))[0])
+            nn = setValList(nn, validation_list)
 
-        # Set the indices for the train dataset as the difference between all_indices,
-        # the validation indices and the test indices
-        all_indices = np.nonzero((nn.train_df.label_code.values >= 0))[0]
-        nn.dataset["train"]["indices"] = list(
-            set(all_indices) - set(nn.dataset["val"]["indices"]) - set(nn.dataset["test"]["indices"]))
-
-        # the validation list is empty, the test list contains some patient(s) and the validation_perc > 0
-        if len(validation_list) == 0 and len(test_list) > 0 and nn.val["validation_perc"] > 0:
-            train_val_dataset = nn.dataset["train"]["indices"]
-            nn.dataset["train"]["indices"] = list()  # empty the indices, it will be set inside the next function
-            nn = getRandomOrWeightedValidationSelection(nn, train_val_dataset, test_list, p_id)
+        nn = setTrainIndices(nn, validation_list, test_list)
 
     else:  # We are doing a cross-validation!
-        # train/val indices are ALL except the one == p_id
-        if constants.getVerbose(): print("[INFO] - VALIDATION patient: {}".format(p_id))
-        train_val_dataset = np.nonzero((nn.train_df.patient_id.values != p_id))[0]
-        nn = getRandomOrWeightedValidationSelection(nn, train_val_dataset, test_list, p_id)
+        # Select the list of validation patients based on the split
+        if constants.getVerbose(): print("[INFO] - VALIDATION SPLIT #: {}".format(nn.model_split))
+        # We assume that the TEST list is already set
+        listOfPatientsToTrainVal.sort(reverse=False)  # sort the list and then...
+        random.seed(nn.val["seed"])
+        random.shuffle(listOfPatientsToTrainVal)  # shuffle it
+        n_val_pat = int(np.ceil(len(listOfPatientsToTrainVal)/nn.cross_validation["split"]))
+        validation_list = listOfPatientsToTrainVal[(int(nn.model_split)-1)*n_val_pat:int(nn.model_split)*n_val_pat]
+        nn = setValList(nn, validation_list)
+        nn = setTrainIndices(nn, validation_list, test_list)
 
     end = time.time()
     if constants.getVerbose(): print("[INFO] - Total time to split the Dataset: {}s".format(round(end - start, 3)))
@@ -141,19 +126,47 @@ def splitDataset(nn, p_id, listOfPatientsToTrainVal, listOfPatientsToTest):
 
 
 ################################################################################
+# Print info regarding the validation list and set the indices in the nn dataset
+def setValList(nn, validation_list):
+    if constants.getVerbose():
+        if constants.PREFIX_IMAGES=="CTP_":
+            print("[INFO] - VALIDATION list LVO: {}".format([v for v in validation_list if "01_" in v or "00_" in v or "21_" in v or "20_" in v]))
+            print("[INFO] - VALIDATION list Non-LVO: {}".format([v for v in validation_list if "02_" in v or "22_" in v]))
+            print("[INFO] - VALIDATION list WIS: {}".format([v for v in validation_list if "03_" in v or "23_" in v]))
+        elif constants.PREFIX_IMAGES=="PA":
+            print("[INFO] - VALIDATION list {}".format(validation_list))
+    for val_p in validation_list:
+        val_pid = general_utils.getStringFromIndex(val_p)
+        nn.dataset["val"]["indices"].extend(np.nonzero((nn.train_df.patient_id.values == val_pid))[0])
+    return nn
+
+
+################################################################################
+# Set the TRAIN indices in the nn dataset
+def setTrainIndices(nn, validation_list, test_list):
+    # Set the indices for the train dataset as the difference between all_indices,
+    # the validation indices and the test indices
+    all_indices = np.nonzero((nn.train_df.label_code.values >= 0))[0]
+    nn.dataset["train"]["indices"] = list(set(all_indices) - set(nn.dataset["val"]["indices"]) - set(nn.dataset["test"]["indices"]))
+
+    # the validation list is empty, the test list contains some patient(s) and the validation_perc > 0
+    if len(validation_list) == 0 and len(test_list) > 0 and nn.val["validation_perc"] > 0:
+        train_val_dataset = nn.dataset["train"]["indices"]
+        nn.dataset["train"]["indices"] = list()  # empty the indices, it will be set inside the next function
+        nn = getRandomOrWeightedValidationSelection(nn, train_val_dataset)
+
+    return nn
+
+
+################################################################################
 # Prepare the dataset (NOT for the sequence class)
-def prepareDataset(nn, p_id):
+def prepareDataset(nn):
     start = time.time()
     # set the train data
     nn.dataset["train"]["data"] = getDataFromIndex(nn.train_df,nn.dataset["train"]["indices"],"train",nn.mp)
     # the validation data is None if validation_perc and number_patients_for_validation are BOTH equal to 0
-    nn.dataset["val"]["data"] = None if nn.val["validation_perc"] == 0 and nn.val[
-        "number_patients_for_validation"] == 0 else getDataFromIndex(nn.train_df, nn.dataset["val"]["indices"], "val",
-                                                                     nn.mp)
+    nn.dataset["val"]["data"] = None if nn.val["validation_perc"] == 0 and nn.val["number_patients_for_validation"] == 0 else getDataFromIndex(nn.train_df, nn.dataset["val"]["indices"], "val",nn.mp)
 
-    # if we are in a supervised environment and the the test_list is empty, update the test dataset
-    if nn.supervised and len(nn.test_list) == 0: nn.dataset = getTestDataset(nn.dataset, nn.train_df, p_id,
-                                                                             nn.use_sequence, nn.mp)
     # DEFINE the data for the dataset TEST
     nn.dataset["test"]["data"] = getDataFromIndex(nn.train_df, nn.dataset["test"]["indices"], "test", nn.mp)
 
@@ -166,7 +179,7 @@ def prepareDataset(nn, p_id):
 ################################################################################
 # Return the train and val indices based on a random selection (val_mod) if nn.val["random_validation_selection"]
 # or a weighted selection based on the percentage (nn.val["validation_perc"]) for each class label
-def getRandomOrWeightedValidationSelection(nn, train_val_dataset, test_list, p_id):
+def getRandomOrWeightedValidationSelection(nn, train_val_dataset):
     # perform a random selection of the validation
     if nn.val["random_validation_selection"]:
         val_mod = int(100 / nn.val["validation_perc"])

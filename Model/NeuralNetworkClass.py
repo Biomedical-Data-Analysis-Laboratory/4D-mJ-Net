@@ -240,7 +240,7 @@ class NeuralNetwork(object):
             # self.model = multi_gpu_model(self.model, gpus=n_gpu)
 
         if self.summaryFlag==0:
-            #if getVerbose(): print(self.model.summary())
+            if getVerbose(): print(self.model.summary())
             for rankdir in ["LR", "TB"]:
                 plot_model(
                     self.model,

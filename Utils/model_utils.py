@@ -1,5 +1,5 @@
 from tensorflow.keras import layers, models, regularizers
-from tensorflow.keras.layers import Conv3D, Concatenate, Conv3DTranspose
+from tensorflow.keras.layers import Conv2D, Conv3D, Concatenate, Conv2DTranspose, Conv3DTranspose
 import tensorflow.keras.backend as K
 
 import glob
@@ -17,17 +17,17 @@ def getRegularizer(reg_obj):
 
 
 ################################################################################
-# Helpful function to define up-layers based on the previous layer (for the PMs segmentation)
-def upLayer2D(prev_up, filters, block, howmanypms, activ_func, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint):
-    conv = layers.Conv2D(filters * howmanypms, kernel_size=(3, 3), padding='same',activation=activ_func,
-                         kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init,
-                         kernel_constraint=kernel_constraint, bias_constraint=bias_constraint)(prev_up)
-    conv = layers.Conv2D(filters * howmanypms, kernel_size=(3, 3), padding='same',activation=activ_func,
-                         kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init,
-                         kernel_constraint=kernel_constraint, bias_constraint=bias_constraint)(conv)
-    transp = layers.Conv2DTranspose(filters * howmanypms, kernel_size=(2, 2), strides=(2, 2), padding='same',
-                                    activation=activ_func,kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init,
-                                    kernel_constraint=kernel_constraint, bias_constraint=bias_constraint)(conv)
+# Function containing the transpose layers for the deconvolutional part
+def upLayers(input, block, channels, kernel_size, strides_size, activ_func, l1_l2_reg, kernel_init, kernel_constraint,
+             bias_constraint, leaky=False, is2D=False):
+    if is2D: transposeConv = Conv2DTranspose
+    else: transposeConv = Conv3DTranspose
+
+    conv = doubleConvolution(input, channels, kernel_size, activ_func, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint, leaky)
+    transp = transposeConv(channels[2], kernel_size=kernel_size, strides=strides_size, padding='same',
+                           activation=activ_func, kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init,
+                           kernel_constraint=kernel_constraint, bias_constraint=bias_constraint)(conv)
+    if leaky: transp = layers.LeakyReLU(alpha=0.33)(transp)
 
     block_conc = Concatenate(-1)(block)
     return Concatenate(-1)([transp, block_conc])
@@ -95,31 +95,19 @@ def blockConv3D(input, channels, kernel_size, activ_func, l1_l2_reg, kernel_init
 
 
 ################################################################################
-# Function containing the transpose layers for the deconvolutional part
-def upLayer3D(input, block, channels, kernel_size, strides_size, activ_func, l1_l2_reg, kernel_init, kernel_constraint,
-              bias_constraint, leaky):
-
-    conv = doubleConvolution(input, channels, kernel_size, activ_func, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint, leaky)
-    transp = Conv3DTranspose(channels[2], kernel_size=kernel_size, strides=strides_size, padding='same',
-                             activation=activ_func, kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init,
-                             kernel_constraint=kernel_constraint, bias_constraint=bias_constraint)(conv)
-    if leaky: transp = layers.LeakyReLU(alpha=0.33)(transp)
-
-    block_conc = Concatenate(-1)(block)
-    return Concatenate(-1)([transp, block_conc])
-
-
-################################################################################
 # Function to compute two 3D convolutional layers
 def doubleConvolution(input, channels, kernel_size, activ_func, l1_l2_reg, kernel_init, kernel_constraint,
-                      bias_constraint, leaky):
-    conv = Conv3D(channels[0], kernel_size=kernel_size, padding='same', activation=activ_func,
-                  kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init, kernel_constraint=kernel_constraint,
-                  bias_constraint=bias_constraint)(input)
+                      bias_constraint, leaky, is2D=False):
+    if is2D: convLayer = Conv2D
+    else: convLayer = Conv3D
+
+    conv = convLayer(channels[0], kernel_size=kernel_size, padding='same', activation=activ_func,
+                     kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init, kernel_constraint=kernel_constraint,
+                     bias_constraint=bias_constraint)(input)
     if leaky: conv = layers.LeakyReLU(alpha=0.33)(conv)
-    conv = Conv3D(channels[1], kernel_size=kernel_size, padding='same', activation=activ_func,
-                  kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init, kernel_constraint=kernel_constraint,
-                  bias_constraint=bias_constraint)(conv)
+    conv = convLayer(channels[1], kernel_size=kernel_size, padding='same', activation=activ_func,
+                     kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init, kernel_constraint=kernel_constraint,
+                     bias_constraint=bias_constraint)(conv)
     if leaky: conv = layers.LeakyReLU(alpha=0.33)(conv)
     return conv
 
@@ -127,11 +115,13 @@ def doubleConvolution(input, channels, kernel_size, activ_func, l1_l2_reg, kerne
 ################################################################################
 # Function to execute a double 3D convolution, followed by an attention gate, upsampling, and concatenation
 def upSamplingPlusAttention(input, block, channels, kernel_size, strides_size, activ_func, l1_l2_reg, kernel_init,
-                            kernel_constraint, bias_constraint, leaky):
-    conv = doubleConvolution(input, channels, kernel_size, activ_func, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint, leaky)
+                            kernel_constraint, bias_constraint, leaky, is2D=False):
+    conv = doubleConvolution(input, channels, kernel_size, activ_func, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint, leaky, is2D)
 
-    attGate = attentionGateBlock(x=block, g=conv, inter_shape=channels[2])
-    up = layers.concatenate([layers.UpSampling3D(size=strides_size)(conv), attGate], axis=-1)
+    attGate = attentionGateBlock(x=block, g=conv, inter_shape=channels[2], l1_l2_reg=l1_l2_reg, kernel_init=kernel_init,
+                                 kernel_constraint=kernel_constraint, bias_constraint=bias_constraint, is2D=is2D)
+    if is2D: up = layers.concatenate([layers.UpSampling2D(size=strides_size)(conv), attGate], axis=-1)
+    else: up = layers.concatenate([layers.UpSampling3D(size=strides_size)(conv), attGate], axis=-1)
     return up
 
 
@@ -158,34 +148,47 @@ def getPrevNextFolder(folder, sliceIndex):
 # Anonymous lambda function to expand the specified axis by a factor of argument, rep.
 # If tensor has shape (512,512,N), lambda will return a tensor of shape (512,512,N*rep), if specified axis=2
 def expend_as(tensor, rep):
-    return layers.Lambda(lambda x, repnum: K.repeat_elements(x, repnum, axis=4), arguments={'repnum': rep})(tensor)
+    return layers.Lambda(lambda x, repnum: K.repeat_elements(x, repnum, axis=-1), arguments={'repnum': rep})(tensor)
 
 
 ################################################################################
 # Attention gate block; from: https://arxiv.org/pdf/1804.03999.pdf
-def attentionGateBlock(x, g, inter_shape):
-    shape_x = K.int_shape(x[0])
-    shape_g = K.int_shape(g[0])
+def attentionGateBlock(x, g, inter_shape, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint, is2D=False):
+    shape_x = tuple([i for i in list(K.int_shape(x[0])) if i])
+    shape_g = tuple([i for i in list(K.int_shape(g[0])) if i])
+
+    if is2D:
+        convLayer = Conv2D
+        upsampling = layers.UpSampling2D
+        strides = (shape_x[0]//shape_g[0],shape_x[1]//shape_g[1])
+    else:
+        convLayer = Conv3D
+        upsampling = layers.UpSampling3D
+        strides = (shape_x[0]//shape_g[0],shape_x[1]//shape_g[1],shape_x[2]//shape_g[2])
 
     # Getting the gating signal to the same number of filters as the inter_shape
-    phi_g = Conv3D(filters=inter_shape, kernel_size=1, strides=1, padding='same')(g)
+    phi_g = convLayer(inter_shape, kernel_size=1, padding='same', kernel_regularizer=l1_l2_reg,
+                      kernel_initializer=kernel_init, kernel_constraint=kernel_constraint, bias_constraint=bias_constraint)(g)
     # Getting the x signal to the same shape as the gating signal
-    theta_x = Conv3D(filters=inter_shape, kernel_size=3, padding='same',
-                     strides=(shape_x[0]//shape_g[0],shape_x[1]//shape_g[1],shape_x[2]//shape_g[2]))(x)
+    theta_x = convLayer(inter_shape, kernel_size=3, padding='same', kernel_regularizer=l1_l2_reg,
+                        kernel_initializer=kernel_init, kernel_constraint=kernel_constraint,
+                        bias_constraint=bias_constraint, strides=strides)(x)
     # Element-wise addition of the gating and x signals
     add_xg = layers.Add()([phi_g, theta_x])
     add_xg = layers.Activation('relu')(add_xg)
     # 1x1x1 convolution
-    psi = Conv3D(filters=1, kernel_size=1, padding='same')(add_xg)
+    psi = convLayer(filters=1, kernel_size=1, padding='same')(add_xg)
     psi = layers.Activation('sigmoid')(psi)
-    shape_sigmoid = K.int_shape(psi)
+    shape_sigmoid = tuple([i for i in list(K.int_shape(psi)) if i])
+    if is2D: up_size = (shape_x[0]//shape_sigmoid[0],shape_x[1]//shape_sigmoid[1])
+    else: up_size = (shape_x[0]//shape_sigmoid[0],shape_x[1]//shape_sigmoid[1],shape_x[2]//shape_sigmoid[2])
     # Upsampling psi back to the original dimensions of x signal
-    upsample_sigmoid_xg = layers.UpSampling3D(size=(shape_x[0]//shape_sigmoid[1],shape_x[1]//shape_sigmoid[2],shape_x[2]//shape_sigmoid[3]))(psi)
+    upsample_sigmoid_xg = upsampling(size=up_size)(psi)
     # Expanding the filter axis to the number of filters in the original x signal
-    upsample_sigmoid_xg = expend_as(upsample_sigmoid_xg, shape_x[3])
+    upsample_sigmoid_xg = expend_as(upsample_sigmoid_xg, shape_x[-1])
     # Element-wise multiplication of attention coefficients back onto original x signal
     attn_coefficients = layers.Multiply()([upsample_sigmoid_xg, x])
     # Final 1x1x1 convolution to consolidate attention signal to original x dimensions
-    output = Conv3D(filters=shape_x[3], kernel_size=1, strides=1, padding='same')(attn_coefficients)
+    output = convLayer(filters=shape_x[-1], kernel_size=1, padding='same')(attn_coefficients)
     output = layers.BatchNormalization()(output)
     return output

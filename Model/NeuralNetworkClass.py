@@ -204,6 +204,25 @@ class NeuralNetwork(object):
         )
 
     ################################################################################
+    # Function to route the right initialization and training
+    def initializeAndStartTraining(self, n_gpu, jump):
+        if self.use_sequence:
+            # if we are doing a sequence train (for memory issue)
+            self.prepareSequenceClass()
+            self.initializeTraining(n_gpu)
+            if not jump: self.runTrainSequence()
+            self.gradualFineTuningSolution()
+            # Plot the loss and accuracy of the training
+            training.plotLossAndAccuracy(self)
+        else:
+            # # PREPARE DATASET (=divide in train/val/test)
+            self.prepareDataset()
+            # # SET THE CALLBACKS, RUN TRAINING & SAVE THE MODELS WEIGHTS
+            self.runTraining(n_gpu)
+
+        self.saveModelAndWeight()
+
+    ################################################################################
     # Function that initialize the training, print the model summary and set the weights
     def initializeTraining(self, n_gpu):
         if getVerbose():

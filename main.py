@@ -75,50 +75,29 @@ def main():
         if nn.cross_validation["use"]: n_rep = nn.cross_validation["split"]
 
         for split_id in range(1,n_rep+1):
-            val_list = []
-            isAlreadySaved = False
             model_split = general_utils.getStringFromIndex(split_id)
             nn.setModelSplit(model_split)
 
             # set the multi/single PROCESSING
             nn.setProcessingEnv(setting["init"]["MULTIPROCESSING"])
 
+            # # GET THE DATASET:
+            # - The dataset is composed of all the .pkl files in the dataset folder! (To load only once)
+            if train_df is None: train_df = dataset_utils.getDataset(nn, listOfPatientsToTrainVal)
+            val_list = nn.splitDataset(train_df, listOfPatientsToTrainVal, listOfPatientsToTest)
+
             # Check if the model was already trained and saved
             if nn.isModelSaved():
                 # SET THE CALLBACKS & LOAD MODEL
                 nn.setCallbacks()
                 nn.loadSavedModel()
-                isAlreadySaved = True
-                # # GET THE DATASET for the validation list:
-                if train_df is None: train_df = dataset_utils.getDataset(nn, listOfPatientsToTrainVal)
-                val_list = nn.splitDataset(train_df, listOfPatientsToTrainVal, listOfPatientsToTest)
-            else:
-                # # GET THE DATASET:
-                # - The dataset is composed of all the .pkl files in the dataset folder! (To load only once)
-                if train_df is None: train_df = dataset_utils.getDataset(nn, listOfPatientsToTrainVal)
-                nn.splitDataset(train_df, listOfPatientsToTrainVal, listOfPatientsToTest)
-
-                if nn.use_sequence:
-                    # if we are doing a sequence train (for memory issue)
-                    nn.prepareSequenceClass()
-                    nn.initializeTraining(n_gpu)
-                    if not args.jump: nn.runTrainSequence()
-                    nn.gradualFineTuningSolution()
-                    # plot the loss and accuracy of the training
-                    training.plotLossAndAccuracy(nn)
-                else:
-                    # # PREPARE DATASET (=divide in train/val/test)
-                    nn.prepareDataset()
-                    # # SET THE CALLBACKS, RUN TRAINING & SAVE THE MODELS WEIGHTS
-                    nn.runTraining(n_gpu)
-
-                nn.saveModelAndWeight()
+            else: nn.initializeAndStartTraining(n_gpu, args.jump)
 
             # TRAIN SET: only for ISLES2018 dataset
-            if constants.getIsISLES2018(): nn.predictAndSaveImages([general_utils.getStringFromIndex(x) for x in listOfPatientsToTrainVal if x <1000], isAlreadySaved)
-            else: nn.predictAndSaveImages(val_list, isAlreadySaved)  # VALIDATION SET: predict the images for decision on the model
+            if constants.getIsISLES2018(): nn.predictAndSaveImages([general_utils.getStringFromIndex(x) for x in listOfPatientsToTrainVal if x <1000], nn.isModelSaved())
+            else: nn.predictAndSaveImages(val_list, nn.isModelSaved())  # VALIDATION SET: predict the images for decision on the model
             # PERFORM TESTING: predict and save the images
-            nn.predictAndSaveImages(listOfPatientsToTest, isAlreadySaved)
+            nn.predictAndSaveImages(listOfPatientsToTest, nn.isModelSaved())
 
     general_utils.stopPIDToWatchdog()
 

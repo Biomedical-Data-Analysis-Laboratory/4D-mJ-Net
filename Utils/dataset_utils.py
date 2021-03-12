@@ -16,8 +16,7 @@ from Utils import general_utils
 
 ################################################################################
 # Function to load the saved dataframes based on the list of patients
-def loadTrainingDataframe(nn, patients, testing_id=None):
-    cpu_count = multiprocessing.cpu_count()
+def loadTrainingDataframe(nn, patients):
     train_df = pd.DataFrame(columns=constants.dataFrameColumns)
     # get the suffix based on the SLICING_PIXELS, the M and N
     suffix = general_utils.getSuffix()  # es == "_4_16x16"

@@ -157,7 +157,7 @@ def VNet_Milletari(params, to_categ):
 def VNet_Light(params, to_categ):
     # Hu initializer
     kernel_init = initializers.VarianceScaling(scale=(9/5), mode='fan_in', distribution='normal', seed=None)
-    kernel_constraint, bias_constraint = None, None  # max_norm(2.), max_norm(2.)
+    kernel_constraint, bias_constraint = max_norm(2.), max_norm(2.)
 
     input_x = layers.Input(shape=(constants.getM(), constants.getN(), constants.NUMBER_OF_IMAGE_PER_SECTION, 1), sparse=False)
     general_utils.print_int_shape(input_x)  # (None, M, N, 30, 16)
@@ -219,10 +219,24 @@ def VNet_Light(params, to_categ):
         activation_func = "softmax"
         shape_output = (constants.getM(), constants.getN(), last_channels)
 
-    last_conv = layers.Conv3D(last_channels, kernel_size=(3, 3, constants.NUMBER_OF_IMAGE_PER_SECTION),
+    last_conv = layers.Conv3D(32, kernel_size=(3, 3, 2), activation="relu",
+                              padding='same', kernel_initializer=kernel_init,
+                              strides=(1, 1, 2), kernel_constraint=kernel_constraint,
+                              bias_constraint=bias_constraint)(last_conv)
+    last_conv = tfa.layers.InstanceNormalization()(last_conv)
+    last_conv = layers.Conv3D(16, kernel_size=(3, 3, 3), activation="relu",
+                              padding='same', kernel_initializer=kernel_init,
+                              strides=(1, 1, 3), kernel_constraint=kernel_constraint,
+                              bias_constraint=bias_constraint)(last_conv)
+    last_conv = tfa.layers.InstanceNormalization()(last_conv)
+    last_conv = layers.Conv3D(8, kernel_size=(3, 3, 5), activation="relu",
+                              padding='same', kernel_initializer=kernel_init,
+                              strides=(1, 1, 5), kernel_constraint=kernel_constraint,
+                              bias_constraint=bias_constraint)(last_conv)
+    last_conv = tfa.layers.InstanceNormalization()(last_conv)
+    last_conv = layers.Conv3D(last_channels, kernel_size=(1, 1, 1),
                               activation=activation_func, padding='same', kernel_initializer=kernel_init,
-                              strides=(1, 1, constants.NUMBER_OF_IMAGE_PER_SECTION),
-                              kernel_constraint=kernel_constraint, bias_constraint=bias_constraint)(last_conv)
+                              strides=(1, 1, 1), kernel_constraint=kernel_constraint, bias_constraint=bias_constraint)(last_conv)
     last_conv = tfa.layers.InstanceNormalization()(last_conv)
 
     output = layers.Reshape(shape_output)(last_conv)

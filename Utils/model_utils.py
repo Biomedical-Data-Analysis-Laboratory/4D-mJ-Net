@@ -23,7 +23,7 @@ def upLayers(input, block, channels, kernel_size, strides_size, activ_func, l1_l
     if is2D: transposeConv = Conv2DTranspose
     else: transposeConv = Conv3DTranspose
 
-    conv = doubleConvolution(input, channels, kernel_size, activ_func, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint, leaky)
+    conv = doubleConvolution(input, channels, kernel_size, activ_func, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint, leaky, is2D=is2D)
     transp = transposeConv(channels[2], kernel_size=kernel_size, strides=strides_size, padding='same',
                            activation=activ_func, kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init,
                            kernel_constraint=kernel_constraint, bias_constraint=bias_constraint)(conv)

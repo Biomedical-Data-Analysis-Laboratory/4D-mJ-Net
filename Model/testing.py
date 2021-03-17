@@ -20,7 +20,7 @@ import pickle as pkl
 ################################################################################
 # Predict the model based on the input
 def predictFromModel(nn, x_input):
-    return nn.model.predict(x=x_input, steps=nn.test_steps, use_multiprocessing=nn.mp)
+    return nn.model.predict(x=x_input, batch_size=1, use_multiprocessing=nn.mp)
 
 
 ################################################################################
@@ -104,7 +104,7 @@ def predictImage(nn, subfolder, p_id, patientFolder, relativePatientFolder, rela
         checkImageProcessed = cv2.imread(filename, cv2.COLOR_BGR2RGB)
 
     folders = [subfolder]
-    if nn.is4DModel: folders = model_utils.getPrevNextFolder(subfolder, idx)
+    if nn.is4DModel and nn.n_slices>1: folders = model_utils.getPrevNextFolder(subfolder, idx)
     for fold in folders:
         # get the images in a dictionary
         for imagename in np.sort(glob.glob(fold +"*" + constants.SUFFIX_IMG)):  # sort the images !
@@ -116,13 +116,15 @@ def predictImage(nn, subfolder, p_id, patientFolder, relativePatientFolder, rela
     # Portion for the prediction of the image
     if constants.get3DFlag()!= "":
         if not os.path.exists(filename_test):
-            if constants.getVerbose(): print("[WARNING] - File {} does NOT exist".format(filename_test))
+            if constants.getVerbose(): print("[ERROR] - File {} does NOT exist".format(filename_test))
             return
 
         test_df = dataset_utils.readFromPickleOrHickle(filename_test, nn.use_hickle)
         # get only the rows with data_aug_idx==0 (no rotation or any data augmentation)
         test_df = test_df[test_df.data_aug_idx==0]
+        print(test_df.shape)
         test_df = test_df[test_df.timeIndex==idx]  # todo: why timeindex?
+        print(test_df.shape)
         imagePredicted = generateTimeImagesAndConsensus(nn, test_df, relativepatientFolderGT, relativePatientFolderTMP, idx)
     else:  # usual behaviour
         while True:
@@ -133,7 +135,8 @@ def predictImage(nn, subfolder, p_id, patientFolder, relativePatientFolder, rela
             count = 0
 
             pixels = np.zeros(shape=pixels_shape)
-            if len(folders)>1: pixels = []
+            is4DModel = True if len(folders) > 1 or (nn.x_label == constants.getList_PMS() or (nn.x_label == "pixels" and nn.is4DModel)) else False
+            if is4DModel: pixels = []
             for z, fold in enumerate(folders):
                 count = 0
                 tmpPixels = np.zeros(shape=pixels_shape)
@@ -142,9 +145,9 @@ def predictImage(nn, subfolder, p_id, patientFolder, relativePatientFolder, rela
                     filename = imagename.replace(subfolder, '')
                     if not nn.supervised or nn.patientsFolder!="OLDPREPROC_PATIENTS/":
                         image = imagesDict[imagename]
-                        if len(folders) > 1:
-                             tmpPixels[:,:,count] = general_utils.getSlicingWindow(image, startingX, startingY)
-                             if z == np.trunc(len(folders)/2): binary_mask += (tmpPixels[:,:,count] > 0)
+                        if is4DModel:
+                            tmpPixels[:,:,count] = general_utils.getSlicingWindow(image, startingX, startingY)
+                            if z == int(np.trunc(len(folders)/2)): binary_mask += (tmpPixels[:,:,count] > 0)
                         else:
                             if constants.ORIGINAL_SHAPE: pixels[count, :, :] = general_utils.getSlicingWindow(image, startingX, startingY)
                             else: pixels[:,:,count] = general_utils.getSlicingWindow(image, startingX, startingY)
@@ -157,14 +160,32 @@ def predictImage(nn, subfolder, p_id, patientFolder, relativePatientFolder, rela
                             else: pixels[:,:,count] = general_utils.getSlicingWindow(image, startingX, startingY)
                             binary_mask += (pixels[:, :, count] > 0)  # add the mask of the pixels that are > 0
                             count+=1
-                if len(folders) > 1:
+                if is4DModel:
                     tmpPixels = tmpPixels.reshape(1,tmpPixels.shape[0],tmpPixels.shape[1],tmpPixels.shape[2],1)
                     pixels.append(tmpPixels)
 
-            if len(folders) > 1:
+            if is4DModel:
                 test_df = dataset_utils.readFromPickleOrHickle(filename_test, nn.use_hickle)
-                row_to_analyze = test_df[test_df.x_y == (startingX, startingY)]
+                test_df = test_df[test_df.x_y == (startingX, startingY)]
+                row_to_analyze = test_df[test_df.sliceIndex == idx]
                 if len(row_to_analyze)>0:
+                    pms = dict()
+                    coord = row_to_analyze["x_y"].iloc[0]
+                    if nn.x_label == constants.getList_PMS() or (nn.x_label == "pixels" and nn.is4DModel):
+                        for pm in constants.getList_PMS():
+                            if pm not in pms.keys(): pms[pm] = []
+                            totimg = cv2.imread(row_to_analyze[pm].iloc[0])
+                            if totimg is not None:
+                                if np.isnan(np.unique(totimg)).any(): print("getX", totimg.shape, np.isnan(totimg).any())
+                                img = general_utils.getSlicingWindow(totimg, coord[0], coord[1], removeColorBar=True)
+                                img = general_utils.performDataAugmentationOnTheImage(img, row_to_analyze["data_aug_idx"].iloc[0])
+                                pms[pm].append(img)
+                        if "cbf" in nn.multiInput.keys() and nn.multiInput["cbf"] == 1: pixels.append(np.array(pms["CBF"]))
+                        if "cbv" in nn.multiInput.keys() and nn.multiInput["cbv"] == 1: pixels.append(np.array(pms["CBV"]))
+                        if "ttp" in nn.multiInput.keys() and nn.multiInput["ttp"] == 1: pixels.append(np.array(pms["TTP"]))
+                        if "mtt" in nn.multiInput.keys() and nn.multiInput["mtt"] == 1: pixels.append(np.array(pms["MTT"]))
+                        if "tmax" in nn.multiInput.keys() and nn.multiInput["tmax"] == 1: pixels.append(np.array(pms["TMAX"]))
+                        if "mip" in nn.multiInput.keys() and nn.multiInput["mip"] == 1: pixels.append(np.array(pms["MIP"]))
                     if "nihss" in nn.multiInput.keys() and nn.multiInput["nihss"] == 1: pixels.append(np.array([int(row_to_analyze["NIHSS"].iloc[0])]) if row_to_analyze["NIHSS"].iloc[0]!="-" else np.array([0]))
                     if "age" in nn.multiInput.keys() and nn.multiInput["age"] == 1: pixels.append(np.array([int(row_to_analyze["age"].iloc[0])]))
                     if "gender" in nn.multiInput.keys() and nn.multiInput["gender"] == 1: pixels.append(np.array([int(row_to_analyze["gender"].iloc[0])]))
@@ -172,7 +193,7 @@ def predictImage(nn, subfolder, p_id, patientFolder, relativePatientFolder, rela
             # the final binary mask is a consensus among the all timepoints
             binary_mask = (binary_mask/(count+1) >= 0.5)
 
-            if not nn.is4DModel:
+            if not is4DModel:
                 if constants.get3DFlag()== "": pixels = pixels.reshape(1,pixels.shape[0],pixels.shape[1],pixels.shape[2],1)
                 else: pixels = pixels.reshape(1, pixels.shape[0], pixels.shape[1], pixels.shape[2])
             imagePredicted, categoricalImage = generate2DImage(nn, pixels, (startingX,startingY), imagePredicted, categoricalImage, binary_mask)
@@ -193,7 +214,7 @@ def predictImage(nn, subfolder, p_id, patientFolder, relativePatientFolder, rela
 
 
 ################################################################################
-#
+# Function for predicting a brain slice based on the parametric maps
 def predictImagesFromParametricMaps(nn, subfolder, p_id, relativePatientFolder, relativePatientFolderHeatMap, relativepatientFolderGT, relativePatientFolderTMP, filename_test):
     """
     Generate ALL the images for the patient using the PMs and save it.
@@ -254,14 +275,12 @@ def predictImagesFromParametricMaps(nn, subfolder, p_id, relativePatientFolder, 
                       relativepatientFolderGT, relativePatientFolderTMP, checkImageProcessed)
 
 
-
 ################################################################################
 # Util function to save image
 def saveImage(nn, relativePatientFolder, idx, imagePredicted, categoricalImage, relativePatientFolderHeatMap,
               relativepatientFolderGT, relativePatientFolderTMP, checkImageProcessed):
 
     if nn.save_images:
-        # s1 = time.time()
         # save the image predicted in the specific folder
         cv2.imwrite(nn.saveImagesFolder+relativePatientFolder+idx+".png", imagePredicted)
         # create and save the HEATMAP only if we are using softmax activation
@@ -299,9 +318,6 @@ def saveImage(nn, relativePatientFolder, idx, imagePredicted, categoricalImage, 
             # checkImageProcessed = cv2.addWeighted(checkImageProcessed, 1, core_area, 0.5, 0.0)
             cv2.imwrite(nn.saveImagesFolder+relativePatientFolderTMP+idx+".png",imagePredicted)
 
-        # s2 = time.time()
-        # if constants.getVerbose(): print("save time: {}".format(round(s2-s1, 3)))
-
 
 ################################################################################
 # Helpful function that return the 2D image from the pixel and the starting coordinates
@@ -322,7 +338,7 @@ def generate2DImage(nn, pixels, startingXY, imagePredicted, categoricalImage, bi
     """
     startingX, startingY = startingXY
     # slicingWindowPredicted_orig contain only the prediction for the last step
-    slicingWindowPredicted_orig = predictFromModel(nn, pixels)[nn.test_steps-1]
+    slicingWindowPredicted_orig = predictFromModel(nn, pixels)[0]
     if nn.save_images and nn.to_categ: categoricalImage[startingX:startingX + constants.getM(),
                                        startingY:startingY + constants.getN()] = slicingWindowPredicted_orig
 
@@ -478,10 +494,11 @@ def evaluateModel(nn, p_id, isAlreadySaved):
             dataframe=nn.train_df,
             indices=nn.dataset["test"]["indices"],
             sample_weights=sample_weights,
-            x_label="pixels" if not constants.getUSE_PM() else constants.getList_PMS(),
-            y_label="ground_truth",
+            x_label=nn.x_label,
+            y_label=nn.y_label,
             multiInput=nn.multiInput,
             to_categ=nn.to_categ,
+            params=nn.params,
             batch_size=nn.batch_size,
             flagtype="test",
             back_perc=100,

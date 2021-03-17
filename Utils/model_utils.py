@@ -1,9 +1,65 @@
 from tensorflow.keras import layers, models, regularizers
-from tensorflow.keras.layers import Conv2D, Conv3D, Concatenate, Conv2DTranspose, Conv3DTranspose
+from tensorflow.keras.layers import Conv2D, Conv3D, Concatenate, Conv2DTranspose, Conv3DTranspose, Dropout
 import tensorflow.keras.backend as K
+from tensorflow.keras.applications import VGG16
 
 import glob
 from Utils import general_utils
+from Model import constants
+
+
+################################################################################
+# Class that define a PM object
+class PM_obj(object):
+    def __init__(self, name, params, activ_func, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint, batch):
+        self.name = ("_" + name)
+        self.input_shape = (constants.getM(), constants.getN(), 3)
+
+        # Create base model
+        self.base_model = VGG16(weights='imagenet', include_top=False, input_shape=self.input_shape)
+        self.base_model._name += self.name
+        for layer in self.base_model.layers: layer._name += self.name
+        # Freeze base model
+        self.base_model.trainable = False if params["trainable"]==0 else True
+        self.input = self.base_model.input
+
+        # Creating dictionary that maps layer names to the layers
+        self.layer_dict = dict([(layer.name, layer) for layer in self.base_model.layers])
+
+        # Conv layers after the VGG16
+        self.conv_1 = Conv2D(128, kernel_size=(3, 3), padding='same',activation=activ_func,
+                             kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init,
+                             kernel_constraint=kernel_constraint, bias_constraint=bias_constraint)(self.base_model.output)
+        self.conv_2 = Conv2D(128, kernel_size=(3, 3), padding='same',activation=activ_func,
+                             kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init,
+                             kernel_constraint=kernel_constraint, bias_constraint=bias_constraint)(self.conv_1)
+        if batch: self.conv_2 = layers.BatchNormalization()(self.conv_2)
+        self.conv_2 = Dropout(params["dropout"][name+".1"])(self.conv_2)
+
+
+################################################################################
+# Get the list of PMs classes
+def getPMsList(multiInput, params, activ_func, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint, batch):
+    PMS = []
+    if "cbf" in multiInput.keys() and multiInput["cbf"] == 1:
+        cbf = PM_obj("cbf", params, activ_func, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint, batch)
+        PMS.append(cbf)
+    if "cbv" in multiInput.keys() and multiInput["cbv"] == 1:
+        cbv = PM_obj("cbv", params, activ_func, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint, batch)
+        PMS.append(cbv)
+    if "ttp" in multiInput.keys() and multiInput["ttp"] == 1:
+        ttp = PM_obj("ttp", params, activ_func, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint, batch)
+        PMS.append(ttp)
+    if "mtt" in multiInput.keys() and multiInput["mtt"] == 1:
+        mtt = PM_obj("mtt", params, activ_func, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint, batch)
+        PMS.append(mtt)
+    if "tmax" in multiInput.keys() and multiInput["tmax"] == 1:
+        tmax = PM_obj("tmax", params, activ_func, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint, batch)
+        PMS.append(tmax)
+    if "mip" in multiInput.keys() and multiInput["mip"]==1:
+        mip = PM_obj("mip", params, activ_func, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint, batch)
+        PMS.append(mip)
+    return PMS
 
 
 ################################################################################
@@ -64,8 +120,7 @@ def addMoreInfo(multiInput, inputs, layersForAppending, is3D=False, is4D=False):
         third_dim = 1 if not is3D else layersForAppending[0].shape[3]
         fourth_dim = 1 if not is3D else layersForAppending[0].shape[4]
 
-        dense_2 = layers.Dense(layersForAppending[0].shape[1] * layersForAppending[0].shape[2] * third_dim * fourth_dim,
-                               activation="relu")(dense_1)
+        dense_2 = layers.Dense(layersForAppending[0].shape[1] * layersForAppending[0].shape[2] * third_dim * fourth_dim, activation="relu")(dense_1)
         out = layers.Reshape((layersForAppending[0].shape[1], layersForAppending[0].shape[2], third_dim))(dense_2)
         if is4D: out = layers.Reshape((layersForAppending[0].shape[1], layersForAppending[0].shape[2], third_dim, fourth_dim))(dense_2)
         multiInput_mdl = models.Model(inputs=concat_input, outputs=[out])

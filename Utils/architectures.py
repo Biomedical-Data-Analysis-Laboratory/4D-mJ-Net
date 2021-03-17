@@ -48,7 +48,13 @@ def mJNet_2D_with_VGG16(params, to_categ, multiInput):
 ################################################################################
 # mJ-Net model version 3D
 def mJNet_4D(params, to_categ, multiInput, batch=True, drop=True, leaky=True, attentiongate=True):
-    return arch_mJNet.mJNet_4D(params, to_categ, multiInput, batch, drop, leaky, attentiongate)
+    return arch_mJNet.mJNet_4D(params, to_categ, multiInput, usePMs=False, batch=batch, drop=drop, leaky=leaky, attentiongate=attentiongate)
+
+
+################################################################################
+# mJ-Net model version 3D
+def mJNet_4DWithPMS(params, to_categ, multiInput, batch=True, drop=True, leaky=True, attentiongate=True):
+    return arch_mJNet.mJNet_4D(params, to_categ, multiInput, usePMs=True, batch=batch, drop=drop, leaky=leaky, attentiongate=attentiongate)
 
 
 ################################################################################

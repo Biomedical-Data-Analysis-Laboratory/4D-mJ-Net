@@ -152,7 +152,6 @@ def weighted_categorical_cross_entropy(y_true, y_pred):
     wcce = (weights * cce)/weights
     l1_norm = K.sum(K.abs(y_true - y_pred))+K.epsilon()
     l2_norm = K.sum(K.square(y_true - y_pred))+K.epsilon()
-
     return (lambda_0 * wcce) + (lambda_1 * l1_norm) + (lambda_2 * l2_norm)
 
 
@@ -235,11 +234,12 @@ def prec_c(y_true, y_pred):
     return _precision(y_true, y_pred, class_weights)
 
 
-def _precision(y_true, y_pred, class_weights):
+def _precision(y_true, y_pred, class_weights, thres=0.5):
     axis_to_reduce = list(range(1, K.ndim(y_pred)))  # All axis but first (batch)
-    numerator = y_true * tf.math.rint(y_pred) * class_weights
+    y_pred_bin = K.clip(K.round(y_pred + thres), 0, 1)
+    numerator = y_true * y_pred_bin * class_weights
     numerator = K.sum(numerator, axis=axis_to_reduce)
-    denominator = K.sum(tf.math.rint(y_pred) * class_weights, axis=axis_to_reduce)
+    denominator = K.sum(y_pred_bin * class_weights, axis=axis_to_reduce)
     return numerator / (denominator + K.epsilon())
 
 
@@ -259,9 +259,10 @@ def rec_c(y_true, y_pred):
     return _recall(y_true, y_pred, class_weights)
 
 
-def _recall(y_true, y_pred, class_weights):
+def _recall(y_true, y_pred, class_weights, thres=0.5):
     axis_to_reduce = list(range(1, K.ndim(y_pred)))  # All axis but first (batch)
-    numerator = y_true * tf.math.rint(y_pred) * class_weights
+    y_pred_bin = K.clip(K.round(y_pred + thres), 0, 1)
+    numerator = y_true * y_pred_bin * class_weights
     numerator = K.sum(numerator, axis=axis_to_reduce)
     denominator = y_true * class_weights
     denominator = K.sum(denominator, axis=axis_to_reduce)

@@ -34,7 +34,7 @@ colorbar_coord = (129, 435)
 suffix_partial_weights = "__"
 threeD_flag, ONE_TIME_POINT = "", ""
 
-list_PMS = list()
+list_PMS = ["CBF", "CBV", "TTP", "TMAX", "MIP"]
 dataFrameColumns = ['patient_id', 'label', 'pixels', 'CBF', 'CBV', 'TTP', 'TMAX', "MIP", "NIHSS", 'ground_truth', 'x_y',
                     'data_aug_idx','timeIndex', 'sliceIndex', 'severity', "age", "gender", 'label_code']
 
@@ -167,9 +167,7 @@ def setPrefixImagesSUS2020_v2():
 def setUSE_PM(pm):
     global USE_PM, list_PMS
     USE_PM = pm
-    if USE_PM:
-        list_PMS = ["CBF", "CBV", "TTP", "TMAX", "MIP"]
-        if getIsISLES2018(): list_PMS = ["CBF", "CBV", "MTT", "TMAX"]
+    if USE_PM and getIsISLES2018(): list_PMS = ["CBF", "CBV", "MTT", "TMAX"]
 
 
 def setFocal_Tversky(hyperparameters):

@@ -75,6 +75,7 @@ def main():
         if nn.cross_validation["use"]: n_rep = nn.cross_validation["split"]
 
         for split_id in range(1,n_rep+1):
+            nn.resetVars()
             model_split = general_utils.getStringFromIndex(split_id)
             nn.setModelSplit(model_split)
 

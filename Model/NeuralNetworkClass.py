@@ -23,7 +23,6 @@ class NeuralNetwork(object):
 
     def __init__(self, modelInfo, setting):
         super(NeuralNetwork, self).__init__()
-        self.summaryFlag = 0
 
         # Used to override the path for the saved model in order to test patients with a specific model
         self.OVERRIDE_MODELS_ID_PATH = setting["OVERRIDE_MODELS_ID_PATH"] if setting["OVERRIDE_MODELS_ID_PATH"]!="" else False
@@ -44,7 +43,6 @@ class NeuralNetwork(object):
             "number_patients_for_testing": modelInfo["val"]["number_patients_for_testing"] if "number_patients_for_testing" in modelInfo["val"].keys() else 0,
             "seed": modelInfo["val"]["seed"]
         }
-        self.test_steps = modelInfo["test_steps"]
 
         self.cross_validation = modelInfo["cross_validation"]
 
@@ -84,6 +82,10 @@ class NeuralNetwork(object):
         self.infoCallbacks = modelInfo["callbacks"]
 
         # empty variables initialization
+        self.n_slices = 0 if "n_slices" not in self.params.keys() else self.params["n_slices"]
+        self.x_label = "pixels" if not constants.getUSE_PM() else constants.getList_PMS()
+        self.y_label = "ground_truth"
+        self.summaryFlag = 0
         self.model = None
         self.model_split = None
         self.testing_score = []
@@ -100,6 +102,30 @@ class NeuralNetwork(object):
 
         # change the prefix if SUS2020_v2 is in the dataset name
         if "SUS2020" in self.datasetFolder: constants.setPrefixImagesSUS2020_v2()
+
+    ################################################################################
+    # Set model ID
+    def resetVars(self):
+        self.dataset = {"train": {}, "val": {}, "test": {}}
+
+        # empty variables initialization
+        self.n_slices = 0 if "n_slices" not in self.params.keys() else self.params["n_slices"]
+        self.x_label = "pixels" if not constants.getUSE_PM() else constants.getList_PMS()
+        self.y_label = "ground_truth"
+        self.summaryFlag = 0
+        self.model = None
+        self.model_split = None
+        self.testing_score = []
+        self.partialWeightsPath = ""
+        self.callbacks = None
+        self.initial_epoch = 0
+        self.train_df, self.val_list, self.test_list = None, None, None
+        self.N_BACKGROUND, self.N_BRAIN, self.N_PENUMBRA, self.N_CORE, self.N_TOT = 0, 0, 0, 0, 0
+        self.optimizer = None
+        self.sample_weights = None
+        self.train = None
+        self.train_sequence, self.val_sequence = None, None
+        self.mp = False
 
     ################################################################################
     # Set model ID
@@ -225,19 +251,15 @@ class NeuralNetwork(object):
     ################################################################################
     # Function that initialize the training, print the model summary and set the weights
     def initializeTraining(self, n_gpu):
+        assert n_gpu==1, "The number of GPU should be 1."
+
         if getVerbose():
             general_utils.printSeparation("*", 50)
             print("[INFO] - Start runTraining function.")
             print("[INFO] - Getting model {0} with {1} optimizer...".format(self.name, self.optimizerInfo["name"]))
 
         # Based on the number of GPUs available, call the function called self.name in architectures.py
-        if n_gpu==1:   self.model = getattr(architectures, self.name)(params=self.params, to_categ=self.to_categ, multiInput=self.multiInput)
-        else:
-            print("PROBLEMS!")
-            # # TODO: problems during the load of the model with multiple GPUs...
-            # with tf.device('/cpu:0'):
-            #     self.model = getattr(architectures, self.name)(params=self.params, to_categ=self.to_categ, multiInput=self.multiInput)
-            # self.model = multi_gpu_model(self.model, gpus=n_gpu)
+        self.model = getattr(architectures, self.name)(params=self.params, to_categ=self.to_categ, multiInput=self.multiInput)
 
         if self.summaryFlag==0:
             if getVerbose(): print(self.model.summary())
@@ -298,10 +320,11 @@ class NeuralNetwork(object):
             dataframe=self.train_df,
             indices=self.dataset["train"]["indices"],
             sample_weights=self.getSampleWeights("train"),
-            x_label="pixels" if not constants.getUSE_PM() else constants.getList_PMS(),
-            y_label="ground_truth",
+            x_label=self.x_label,
+            y_label=self.y_label,
             multiInput=self.multiInput,
             to_categ=self.to_categ,
+            params=self.params,
             batch_size=self.batch_size,
             back_perc=2 if not constants.getUSE_PM() or (constants.getM() != constants.IMAGE_WIDTH and constants.getN() != constants.IMAGE_HEIGHT) else 100,
             loss=self.loss["name"],
@@ -313,10 +336,11 @@ class NeuralNetwork(object):
             dataframe=self.train_df,
             indices=self.dataset["val"]["indices"],
             sample_weights=self.getSampleWeights("val"),
-            x_label="pixels" if not constants.getUSE_PM() else constants.getList_PMS(),
-            y_label="ground_truth",
+            x_label=self.x_label,
+            y_label=self.y_label,
             multiInput=self.multiInput,
             to_categ=self.to_categ,
+            params=self.params,
             batch_size=self.batch_size,
             back_perc=2 if not constants.getUSE_PM() or (constants.getM() != constants.IMAGE_WIDTH and constants.getN() != constants.IMAGE_HEIGHT) else 100,
             flagtype="val",

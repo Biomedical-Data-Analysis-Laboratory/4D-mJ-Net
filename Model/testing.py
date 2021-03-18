@@ -98,8 +98,7 @@ def predictImage(nn, subfolder, p_id, patientFolder, relativePatientFolder, rela
         if not os.path.exists(filename):
             print("[WARNING] - {0} does NOT exists, try another...".format(filename))
             filename = nn.labeledImagesFolder + constants.PREFIX_IMAGES + p_id + "/" + p_id + idx + constants.SUFFIX_IMG
-            if not os.path.exists(filename):
-                raise Exception("[ERROR] - {0} does NOT exist".format(filename))
+            assert os.path.exists(filename), "[ERROR] - {0} does NOT exist".format(filename)
 
         checkImageProcessed = cv2.imread(filename, cv2.COLOR_BGR2RGB)
 
@@ -115,9 +114,7 @@ def predictImage(nn, subfolder, p_id, patientFolder, relativePatientFolder, rela
 
     # Portion for the prediction of the image
     if constants.get3DFlag()!= "":
-        if not os.path.exists(filename_test):
-            if constants.getVerbose(): print("[ERROR] - File {} does NOT exist".format(filename_test))
-            return
+        assert os.path.exists(filename_test), "[ERROR] - File {} does NOT exist".format(filename_test)
 
         test_df = dataset_utils.readFromPickleOrHickle(filename_test, nn.use_hickle)
         # get only the rows with data_aug_idx==0 (no rotation or any data augmentation)
@@ -168,27 +165,29 @@ def predictImage(nn, subfolder, p_id, patientFolder, relativePatientFolder, rela
                 test_df = dataset_utils.readFromPickleOrHickle(filename_test, nn.use_hickle)
                 test_df = test_df[test_df.x_y == (startingX, startingY)]
                 row_to_analyze = test_df[test_df.sliceIndex == idx]
-                if len(row_to_analyze)>0:
-                    pms = dict()
-                    coord = row_to_analyze["x_y"].iloc[0]
-                    if nn.x_label == constants.getList_PMS() or (nn.x_label == "pixels" and nn.is4DModel):
-                        for pm in constants.getList_PMS():
-                            if pm not in pms.keys(): pms[pm] = []
-                            totimg = cv2.imread(row_to_analyze[pm].iloc[0])
-                            if totimg is not None:
-                                if np.isnan(np.unique(totimg)).any(): print("getX", totimg.shape, np.isnan(totimg).any())
-                                img = general_utils.getSlicingWindow(totimg, coord[0], coord[1], removeColorBar=True)
-                                img = general_utils.performDataAugmentationOnTheImage(img, row_to_analyze["data_aug_idx"].iloc[0])
-                                pms[pm].append(img)
-                        if "cbf" in nn.multiInput.keys() and nn.multiInput["cbf"] == 1: pixels.append(np.array(pms["CBF"]))
-                        if "cbv" in nn.multiInput.keys() and nn.multiInput["cbv"] == 1: pixels.append(np.array(pms["CBV"]))
-                        if "ttp" in nn.multiInput.keys() and nn.multiInput["ttp"] == 1: pixels.append(np.array(pms["TTP"]))
-                        if "mtt" in nn.multiInput.keys() and nn.multiInput["mtt"] == 1: pixels.append(np.array(pms["MTT"]))
-                        if "tmax" in nn.multiInput.keys() and nn.multiInput["tmax"] == 1: pixels.append(np.array(pms["TMAX"]))
-                        if "mip" in nn.multiInput.keys() and nn.multiInput["mip"] == 1: pixels.append(np.array(pms["MIP"]))
-                    if "nihss" in nn.multiInput.keys() and nn.multiInput["nihss"] == 1: pixels.append(np.array([int(row_to_analyze["NIHSS"].iloc[0])]) if row_to_analyze["NIHSS"].iloc[0]!="-" else np.array([0]))
-                    if "age" in nn.multiInput.keys() and nn.multiInput["age"] == 1: pixels.append(np.array([int(row_to_analyze["age"].iloc[0])]))
-                    if "gender" in nn.multiInput.keys() and nn.multiInput["gender"] == 1: pixels.append(np.array([int(row_to_analyze["gender"].iloc[0])]))
+
+                assert len(row_to_analyze)==1, "The length of the row to analyze should be 1."
+
+                pms = dict()
+                coord = row_to_analyze["x_y"].iloc[0]
+                if nn.x_label == constants.getList_PMS() or (nn.x_label == "pixels" and nn.is4DModel):
+                    for pm in constants.getList_PMS():
+                        if pm not in pms.keys(): pms[pm] = []
+                        totimg = cv2.imread(row_to_analyze[pm].iloc[0])
+                        if totimg is not None:
+                            if np.isnan(np.unique(totimg)).any(): print("getX", totimg.shape, np.isnan(totimg).any())
+                            img = general_utils.getSlicingWindow(totimg, coord[0], coord[1], removeColorBar=True)
+                            img = general_utils.performDataAugmentationOnTheImage(img, row_to_analyze["data_aug_idx"].iloc[0])
+                            pms[pm].append(img)
+                    if "cbf" in nn.multiInput.keys() and nn.multiInput["cbf"] == 1: pixels.append(np.array(pms["CBF"]))
+                    if "cbv" in nn.multiInput.keys() and nn.multiInput["cbv"] == 1: pixels.append(np.array(pms["CBV"]))
+                    if "ttp" in nn.multiInput.keys() and nn.multiInput["ttp"] == 1: pixels.append(np.array(pms["TTP"]))
+                    if "mtt" in nn.multiInput.keys() and nn.multiInput["mtt"] == 1: pixels.append(np.array(pms["MTT"]))
+                    if "tmax" in nn.multiInput.keys() and nn.multiInput["tmax"] == 1: pixels.append(np.array(pms["TMAX"]))
+                    if "mip" in nn.multiInput.keys() and nn.multiInput["mip"] == 1: pixels.append(np.array(pms["MIP"]))
+                if "nihss" in nn.multiInput.keys() and nn.multiInput["nihss"] == 1: pixels.append(np.array([int(row_to_analyze["NIHSS"].iloc[0])]) if row_to_analyze["NIHSS"].iloc[0]!="-" else np.array([0]))
+                if "age" in nn.multiInput.keys() and nn.multiInput["age"] == 1: pixels.append(np.array([int(row_to_analyze["age"].iloc[0])]))
+                if "gender" in nn.multiInput.keys() and nn.multiInput["gender"] == 1: pixels.append(np.array([int(row_to_analyze["gender"].iloc[0])]))
 
             # the final binary mask is a consensus among the all timepoints
             binary_mask = (binary_mask/(count+1) >= 0.5)
@@ -235,44 +234,42 @@ def predictImagesFromParametricMaps(nn, subfolder, p_id, relativePatientFolder, 
     # ATTENTION: careful here...
     n_fold = 7
     if constants.getIsISLES2018(): n_fold = 5
-    if len(glob.glob(subfolder+"*/"))>=n_fold:
-        for idx in glob.glob(subfolder+"/CBF/*"):
-            idx = general_utils.getStringFromIndex(idx.replace(subfolder, '').replace("/CBF/", ""))  # image index
-            if constants.getIsISLES2018(): idx = idx.replace(".tiff","")
-            else: idx = idx.replace(".png","")
-            checkImageProcessed = np.zeros(shape=(constants.IMAGE_WIDTH, constants.IMAGE_HEIGHT))
 
-            # remove the old logs.
-            logsName = nn.saveImagesFolder+relativePatientFolder+idx+"_logs.txt"
-            if os.path.isfile(logsName): os.remove(logsName)
+    assert len(glob.glob(subfolder+"*/"))>=n_fold, "We have a problem with the # of folders in {}".format(subfolder)
+    for idx in glob.glob(subfolder+"/CBF/*"):
+        idx = general_utils.getStringFromIndex(idx.replace(subfolder, '').replace("/CBF/", ""))  # image index
+        if constants.getIsISLES2018(): idx = idx.replace(".tiff","")
+        else: idx = idx.replace(".png","")
+        checkImageProcessed = np.zeros(shape=(constants.IMAGE_WIDTH, constants.IMAGE_HEIGHT))
 
-            # if constants.getVerbose(): print("[INFO] - Analyzing Patient {0}, image {1}.".format(p_id, idx))
+        # remove the old logs.
+        logsName = nn.saveImagesFolder+relativePatientFolder+idx+"_logs.txt"
+        if os.path.isfile(logsName): os.remove(logsName)
 
-            # get the label image only if the path is set
-            if nn.labeledImagesFolder!="":
-                fname = nn.labeledImagesFolder+constants.PREFIX_IMAGES+str(p_id)+"/"+idx+constants.SUFFIX_IMG
-                if not os.path.exists(fname):
-                    print("[WARNING] - {0} does NOT exists, try another...".format(fname))
-                    fname = nn.labeledImagesFolder+constants.PREFIX_IMAGES+str(p_id)+"/"+str(p_id)+idx+constants.SUFFIX_IMG
-                    if not os.path.exists(fname): raise Exception("[ERROR] - {0} does NOT exist".format(fname))
+        # if constants.getVerbose(): print("[INFO] - Analyzing Patient {0}, image {1}.".format(p_id, idx))
 
-                checkImageProcessed = cv2.imread(filename, cv2.COLOR_BGR2RGB)
+        # get the label image only if the path is set
+        if nn.labeledImagesFolder!="":
+            fname = nn.labeledImagesFolder+constants.PREFIX_IMAGES+str(p_id)+"/"+idx+constants.SUFFIX_IMG
+            if not os.path.exists(fname):
+                print("[WARNING] - {0} does NOT exists, try another...".format(fname))
+                fname = nn.labeledImagesFolder+constants.PREFIX_IMAGES+str(p_id)+"/"+str(p_id)+idx+constants.SUFFIX_IMG
+                assert os.path.exists(fname), "[ERROR] - {0} does NOT exist".format(fname)
+            checkImageProcessed = cv2.imread(filename, cv2.COLOR_BGR2RGB)
 
-            if not os.path.exists(filename_test):
-                if constants.getVerbose(): print("[WARNING] - File {} does NOT exist".format(filename_test))
-                return
+        assert os.path.exists(filename_test), "[ERROR] - File {0} does NOT exist".format(filename_test)
 
-            # get the pandas dataframe
-            test_df = dataset_utils.readFromPickleOrHickle(filename_test, nn.use_hickle)
-            # get only the rows with data_aug_idx==0 (no rotation or any data augmentation)
-            test_df = test_df[test_df.data_aug_idx == 0]
-            test_df = test_df[test_df.sliceIndex == idx]
+        # get the pandas dataframe
+        test_df = dataset_utils.readFromPickleOrHickle(filename_test, nn.use_hickle)
+        # get only the rows with data_aug_idx==0 (no rotation or any data augmentation)
+        test_df = test_df[test_df.data_aug_idx == 0]
+        test_df = test_df[test_df.sliceIndex == idx]
 
-            imagePredicted, categoricalImage = generateImageFromParametricMaps(nn, test_df)
+        imagePredicted, categoricalImage = generateImageFromParametricMaps(nn, test_df)
 
-            # save the image
-            saveImage(nn, relativePatientFolder, idx, imagePredicted, categoricalImage, relativePatientFolderHeatMap,
-                      relativepatientFolderGT, relativePatientFolderTMP, checkImageProcessed)
+        # save the image
+        saveImage(nn, relativePatientFolder, idx, imagePredicted, categoricalImage, relativePatientFolderHeatMap,
+                  relativepatientFolderGT, relativePatientFolderTMP, checkImageProcessed)
 
 
 ################################################################################
@@ -418,7 +415,7 @@ def generateImageFromParametricMaps(nn, test_df):
     Return:
     - imagePredicted        : the predicted image
     """
-
+    assert len(row_to_analyze)==1, "The length of the row to analyze should be 1."
     imagePredicted = np.zeros(shape=(constants.IMAGE_WIDTH, constants.IMAGE_HEIGHT))
     categoricalImage = np.zeros(shape=(constants.IMAGE_WIDTH, constants.IMAGE_HEIGHT, constants.N_CLASSES))
     startX, startY = 0, 0
@@ -426,31 +423,30 @@ def generateImageFromParametricMaps(nn, test_df):
     while True:
         row_to_analyze = test_df[test_df.x_y == (startX, startY)]
         binary_mask = np.zeros(shape=(constants.getM(), constants.getN()))
-        if len(row_to_analyze)>0:
-            pms = dict()
-            for pm_name in constants.getList_PMS():
-                filename = row_to_analyze[pm_name].iloc[0]
-                pm = cv2.imread(filename)  # , cv2.COLOR_BGR2RGB)
+        pms = dict()
+        for pm_name in constants.getList_PMS():
+            filename = row_to_analyze[pm_name].iloc[0]
+            pm = cv2.imread(filename)  # , cv2.COLOR_BGR2RGB)
 
-                pms[pm_name] = general_utils.getSlicingWindow(pm, startX, startY, removeColorBar=True)
-                # add the mask of the pixels that are > 0 only if it's the MIP image
-                if pm_name=="MIP": binary_mask += (cv2.cvtColor(pms[pm_name], cv2.COLOR_RGB2GRAY) > 0)
-                pms[pm_name] = np.array(pms[pm_name])
-                pms[pm_name] = pms[pm_name].reshape((1,) + pms[pm_name].shape)
+            pms[pm_name] = general_utils.getSlicingWindow(pm, startX, startY, removeColorBar=True)
+            # add the mask of the pixels that are > 0 only if it's the MIP image
+            if pm_name=="MIP": binary_mask += (cv2.cvtColor(pms[pm_name], cv2.COLOR_RGB2GRAY) > 0)
+            pms[pm_name] = np.array(pms[pm_name])
+            pms[pm_name] = pms[pm_name].reshape((1,) + pms[pm_name].shape)
 
-            X = []
-            if "cbf" in nn.multiInput.keys() and nn.multiInput["cbf"] == 1: X.append(pms["CBF"])
-            if "cbv" in nn.multiInput.keys() and nn.multiInput["cbv"] == 1: X.append(pms["CBV"])
-            if "ttp" in nn.multiInput.keys() and nn.multiInput["ttp"] == 1: X.append(pms["TTP"])
-            if "mtt" in nn.multiInput.keys() and nn.multiInput["mtt"] == 1: X.append(pms["MTT"])
-            if "tmax" in nn.multiInput.keys() and nn.multiInput["tmax"] == 1: X.append(pms["TMAX"])
-            if "mip" in nn.multiInput.keys() and nn.multiInput["mip"] == 1: X.append(pms["MIP"])
-            if "nihss" in nn.multiInput.keys() and nn.multiInput["nihss"] == 1: X.append(np.array([int(row_to_analyze["NIHSS"].iloc[0])]) if row_to_analyze["NIHSS"].iloc[0]!="-" else np.array([0]))
-            if "age" in nn.multiInput.keys() and nn.multiInput["age"] == 1: X.append(np.array([int(row_to_analyze["age"].iloc[0])]))
-            if "gender" in nn.multiInput.keys() and nn.multiInput["gender"] == 1: X.append(np.array([int(row_to_analyze["gender"].iloc[0])]))
+        X = []
+        if "cbf" in nn.multiInput.keys() and nn.multiInput["cbf"] == 1: X.append(pms["CBF"])
+        if "cbv" in nn.multiInput.keys() and nn.multiInput["cbv"] == 1: X.append(pms["CBV"])
+        if "ttp" in nn.multiInput.keys() and nn.multiInput["ttp"] == 1: X.append(pms["TTP"])
+        if "mtt" in nn.multiInput.keys() and nn.multiInput["mtt"] == 1: X.append(pms["MTT"])
+        if "tmax" in nn.multiInput.keys() and nn.multiInput["tmax"] == 1: X.append(pms["TMAX"])
+        if "mip" in nn.multiInput.keys() and nn.multiInput["mip"] == 1: X.append(pms["MIP"])
+        if "nihss" in nn.multiInput.keys() and nn.multiInput["nihss"] == 1: X.append(np.array([int(row_to_analyze["NIHSS"].iloc[0])]) if row_to_analyze["NIHSS"].iloc[0]!="-" else np.array([0]))
+        if "age" in nn.multiInput.keys() and nn.multiInput["age"] == 1: X.append(np.array([int(row_to_analyze["age"].iloc[0])]))
+        if "gender" in nn.multiInput.keys() and nn.multiInput["gender"] == 1: X.append(np.array([int(row_to_analyze["gender"].iloc[0])]))
 
-            # slicingWindowPredicted contain only the prediction for the last step
-            imagePredicted, categoricalImage = generate2DImage(nn, X, (startX,startY), imagePredicted, categoricalImage, binary_mask)
+        # slicingWindowPredicted contain only the prediction for the last step
+        imagePredicted, categoricalImage = generate2DImage(nn, X, (startX,startY), imagePredicted, categoricalImage, binary_mask)
 
         # if we reach the end of the image, break the while loop.
         if startX>= constants.IMAGE_WIDTH- constants.getM() and startY>= constants.IMAGE_HEIGHT- constants.getN(): break

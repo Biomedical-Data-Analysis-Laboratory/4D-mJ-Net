@@ -160,8 +160,7 @@ def performDataAugmentationOnTheImage(img, data_aug_idx):
 ################################################################################
 # Get the epoch number from the partial weight filename
 def getEpochFromPartialWeightFilename(partialWeightsPath):
-    return int(partialWeightsPath[partialWeightsPath.index(constants.suffix_partial_weights) +
-                                  len(constants.suffix_partial_weights):partialWeightsPath.index(".h5")])
+    return int(partialWeightsPath[partialWeightsPath.index(constants.suffix_partial_weights)+len(constants.suffix_partial_weights):partialWeightsPath.index(".h5")])
 
 
 ################################################################################
@@ -181,11 +180,9 @@ def getLoss(modelInfo):
 
     if name in general_losses: loss["loss"] = name
     else: loss["loss"] = getattr(losses, name)
-
     loss["name"] = name
 
     if constants.getVerbose(): print("[INFO] - Use {} Loss".format(name))
-
     return loss
 
 
@@ -245,9 +242,7 @@ def getStringFromIndex(index):
 ################################################################################
 # return the suffix for the model and the patient dataset
 def getSuffix():
-    return "_" + str(constants.SLICING_PIXELS) +\
-           "_" + str(constants.getM()) + "x" + str(constants.getN()) + \
-           constants.get3DFlag() + constants.getONETIMEPOINT()
+    return "_" + str(constants.SLICING_PIXELS) + "_" + str(constants.getM()) + "x" + str(constants.getN()) + constants.get3DFlag() + constants.getONETIMEPOINT()
 
 
 ################################################################################

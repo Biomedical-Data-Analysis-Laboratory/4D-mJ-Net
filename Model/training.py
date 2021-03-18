@@ -17,7 +17,9 @@ import tensorflow.keras.backend as K
 ################################################################################
 # Return the optimizer based on the setting
 def getOptimizer(optInfo):
+    if optInfo["name"].lower() not in ["adam","sgd","rmsprop","adadelta"]: raise Exception("The optimizer is not in the predefined list")
     optimizer = None
+
     if optInfo["name"].lower() == "adam":
         optimizer = optimizers.Adam(
             lr=optInfo["lr"],

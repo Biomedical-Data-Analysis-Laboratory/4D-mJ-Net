@@ -103,31 +103,34 @@ class datasetSequence(Sequence):
                 for pm in constants.getList_PMS():
                     if pm not in pms.keys(): pms[pm] = []
                     totimg = cv2.imread(row[pm])
-                    if totimg is not None:
-                        if np.isnan(np.unique(totimg)).any(): print("getX", totimg.shape, np.isnan(totimg).any())
-                        img = general_utils.getSlicingWindow(totimg, coord[0], coord[1], removeColorBar=True)
-                        img = general_utils.performDataAugmentationOnTheImage(img, data_aug_idx)
-                        pms[pm].append(img)
+
+                    assert totimg is not None, "The image {} is None".format(row[pm])
+
+                    if np.isnan(np.unique(totimg)).any(): print("getX", totimg.shape, np.isnan(totimg).any())
+                    img = general_utils.getSlicingWindow(totimg, coord[0], coord[1], removeColorBar=True)
+                    img = general_utils.performDataAugmentationOnTheImage(img, data_aug_idx)
+                    pms[pm].append(img)
 
             folders = [current_folder]
             if self.is4D and self.n_slices>1: folders = model_utils.getPrevNextFolder(current_folder, row["sliceIndex"])
             isXarray = True if len(folders) > 1 or (self.x_label == constants.getList_PMS() or (self.x_label == "pixels" and self.is4D)) else False
             if isXarray: X = []
 
-            for folder in folders:
-                tmpX = np.empty((len(current_batch), constants.getM(), constants.getN(), constants.NUMBER_OF_IMAGE_PER_SECTION, 1))
-                for timeIndex, filename in enumerate(np.sort(glob.glob(folder + "*" + constants.SUFFIX_IMG))):
-                    # TODO: for ISLES2018 (to change in the future) --> if the number of time-points per slice
-                    #  is > constants.NUMBER_OF_IMAGE_PER_SECTION
-                    if timeIndex >= constants.NUMBER_OF_IMAGE_PER_SECTION: break
+            if self.x_label != constants.getList_PMS():
+                for folder in folders:
+                    tmpX = np.empty((len(current_batch), constants.getM(), constants.getN(), constants.NUMBER_OF_IMAGE_PER_SECTION, 1))
+                    for timeIndex, filename in enumerate(np.sort(glob.glob(folder + "*" + constants.SUFFIX_IMG))):
+                        # TODO: for ISLES2018 (to change in the future) --> if the number of time-points per slice
+                        #  is > constants.NUMBER_OF_IMAGE_PER_SECTION
+                        if timeIndex >= constants.NUMBER_OF_IMAGE_PER_SECTION: break
 
-                    sliceW = general_utils.getSlicingWindow(cv2.imread(filename,cv2.IMREAD_GRAYSCALE),coord[0],coord[1])
-                    sliceW = general_utils.performDataAugmentationOnTheImage(sliceW, data_aug_idx)
+                        sliceW = general_utils.getSlicingWindow(cv2.imread(filename,cv2.IMREAD_GRAYSCALE),coord[0],coord[1])
+                        sliceW = general_utils.performDataAugmentationOnTheImage(sliceW, data_aug_idx)
 
-                    # reshape it for the correct input in the model
-                    if isXarray: tmpX[index, :, :, timeIndex, :] = sliceW.reshape(sliceW.shape + (1,))
-                    else: X[index, :, :, timeIndex, :] = sliceW.reshape(sliceW.shape + (1,))
-                if isXarray: X.append(tmpX)
+                        # reshape it for the correct input in the model
+                        if isXarray: tmpX[index, :, :, timeIndex, :] = sliceW.reshape(sliceW.shape + (1,))
+                        else: X[index, :, :, timeIndex, :] = sliceW.reshape(sliceW.shape + (1,))
+                    if isXarray: X.append(tmpX)
 
         if self.x_label == constants.getList_PMS() or (self.x_label == "pixels" and self.is4D):
             if "cbf" in self.multiInput.keys() and self.multiInput["cbf"] == 1: X.append(np.array(pms["CBF"]))

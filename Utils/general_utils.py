@@ -108,7 +108,9 @@ def setupEnvironmentForGPUs(args, setting):
         for physical_device in physical_devices: tf.config.experimental.set_memory_growth(physical_device, True)
 
     config.gpu_options.per_process_gpu_memory_fraction = setting["init"]["per_process_gpu_memory_fraction"] * N_GPU
-    session = tf.compat.v1.Session(config=config)
+    tf.compat.v1.disable_eager_execution()
+
+    # session = tf.compat.v1.Session(config=config)
 
     if constants.getVerbose():
         printSeparation("-",50)

@@ -60,7 +60,7 @@ def getOptimizer(optInfo):
 # Return the callbacks defined in the setting
 def getCallbacks(info, root_path, filename, textFolderPath, dataset, sample_weights, nn_id, add_for_finetuning):
     # add by default the TerminateOnNaN callback
-    cbs = [callback.TerminateOnNaN()]
+    cbs = [callback.TerminateOnNaN()]  #, callback.SavePrediction()]
 
     for key in info.keys():
         # save the weights

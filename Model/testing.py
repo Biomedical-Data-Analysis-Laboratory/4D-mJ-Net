@@ -235,41 +235,41 @@ def predictImagesFromParametricMaps(nn, subfolder, p_id, relativePatientFolder, 
     n_fold = 7
     if constants.getIsISLES2018(): n_fold = 5
 
-    assert len(glob.glob(subfolder+"*/"))>=n_fold, "We have a problem with the # of folders in {}".format(subfolder)
-    for idx in glob.glob(subfolder+"/CBF/*"):
-        idx = general_utils.getStringFromIndex(idx.replace(subfolder, '').replace("/CBF/", ""))  # image index
-        if constants.getIsISLES2018(): idx = idx.replace(".tiff","")
-        else: idx = idx.replace(".png","")
-        checkImageProcessed = np.zeros(shape=(constants.IMAGE_WIDTH, constants.IMAGE_HEIGHT))
-
-        # remove the old logs.
-        logsName = nn.saveImagesFolder+relativePatientFolder+idx+"_logs.txt"
-        if os.path.isfile(logsName): os.remove(logsName)
-
-        # if constants.getVerbose(): print("[INFO] - Analyzing Patient {0}, image {1}.".format(p_id, idx))
-
-        # get the label image only if the path is set
-        if nn.labeledImagesFolder!="":
-            fname = nn.labeledImagesFolder+constants.PREFIX_IMAGES+str(p_id)+"/"+idx+constants.SUFFIX_IMG
-            if not os.path.exists(fname):
-                print("[WARNING] - {0} does NOT exists, try another...".format(fname))
-                fname = nn.labeledImagesFolder+constants.PREFIX_IMAGES+str(p_id)+"/"+str(p_id)+idx+constants.SUFFIX_IMG
-                assert os.path.exists(fname), "[ERROR] - {0} does NOT exist".format(fname)
-            checkImageProcessed = cv2.imread(filename, cv2.COLOR_BGR2RGB)
-
-        assert os.path.exists(filename_test), "[ERROR] - File {0} does NOT exist".format(filename_test)
-
-        # get the pandas dataframe
-        test_df = dataset_utils.readFromPickleOrHickle(filename_test, nn.use_hickle)
-        # get only the rows with data_aug_idx==0 (no rotation or any data augmentation)
-        test_df = test_df[test_df.data_aug_idx == 0]
-        test_df = test_df[test_df.sliceIndex == idx]
-
-        imagePredicted, categoricalImage = generateImageFromParametricMaps(nn, test_df)
-
-        # save the image
-        saveImage(nn, relativePatientFolder, idx, imagePredicted, categoricalImage, relativePatientFolderHeatMap,
-                  relativepatientFolderGT, relativePatientFolderTMP, checkImageProcessed)
+    if len(glob.glob(subfolder+"*/"))>=n_fold:
+        for idx in glob.glob(subfolder+"/CBF/*"):
+            idx = general_utils.getStringFromIndex(idx.replace(subfolder, '').replace("/CBF/", ""))  # image index
+            if constants.getIsISLES2018(): idx = idx.replace(".tiff","")
+            else: idx = idx.replace(".png","")
+            checkImageProcessed = np.zeros(shape=(constants.IMAGE_WIDTH, constants.IMAGE_HEIGHT))
+    
+            # remove the old logs.
+            logsName = nn.saveImagesFolder+relativePatientFolder+idx+"_logs.txt"
+            if os.path.isfile(logsName): os.remove(logsName)
+    
+            # if constants.getVerbose(): print("[INFO] - Analyzing Patient {0}, image {1}.".format(p_id, idx))
+    
+            # get the label image only if the path is set
+            if nn.labeledImagesFolder!="":
+                fname = nn.labeledImagesFolder+constants.PREFIX_IMAGES+str(p_id)+"/"+idx+constants.SUFFIX_IMG
+                if not os.path.exists(fname):
+                    print("[WARNING] - {0} does NOT exists, try another...".format(fname))
+                    fname = nn.labeledImagesFolder+constants.PREFIX_IMAGES+str(p_id)+"/"+str(p_id)+idx+constants.SUFFIX_IMG
+                    assert os.path.exists(fname), "[ERROR] - {0} does NOT exist".format(fname)
+                checkImageProcessed = cv2.imread(fname, cv2.COLOR_BGR2RGB)
+    
+            assert os.path.exists(filename_test), "[ERROR] - File {0} does NOT exist".format(filename_test)
+    
+            # get the pandas dataframe
+            test_df = dataset_utils.readFromPickleOrHickle(filename_test, nn.use_hickle)
+            # get only the rows with data_aug_idx==0 (no rotation or any data augmentation)
+            test_df = test_df[test_df.data_aug_idx == 0]
+            test_df = test_df[test_df.sliceIndex == idx]
+    
+            imagePredicted, categoricalImage = generateImageFromParametricMaps(nn, test_df)
+    
+            # save the image
+            saveImage(nn, relativePatientFolder, idx, imagePredicted, categoricalImage, relativePatientFolderHeatMap,
+                      relativepatientFolderGT, relativePatientFolderTMP, checkImageProcessed)
 
 
 ################################################################################
@@ -342,7 +342,6 @@ def generate2DImage(nn, pixels, startingXY, imagePredicted, categoricalImage, bi
     # convert the categorical into a single array using a threshold (0.6) for removing some uncertain predictions
     if nn.to_categ: slicingWindowPredicted = K.eval((K.argmax(slicingWindowPredicted_orig)*255)/(constants.N_CLASSES-1))
     else: slicingWindowPredicted *= 255
-
     # save the predicted images
     if nn.save_images:
         if not constants.getIsISLES2018():
@@ -415,13 +414,16 @@ def generateImageFromParametricMaps(nn, test_df):
     Return:
     - imagePredicted        : the predicted image
     """
-    assert len(row_to_analyze)==1, "The length of the row to analyze should be 1."
+
     imagePredicted = np.zeros(shape=(constants.IMAGE_WIDTH, constants.IMAGE_HEIGHT))
     categoricalImage = np.zeros(shape=(constants.IMAGE_WIDTH, constants.IMAGE_HEIGHT, constants.N_CLASSES))
     startX, startY = 0, 0
 
     while True:
         row_to_analyze = test_df[test_df.x_y == (startX, startY)]
+
+        assert len(row_to_analyze) == 1, "The length of the row to analyze should be 1."
+
         binary_mask = np.zeros(shape=(constants.getM(), constants.getN()))
         pms = dict()
         for pm_name in constants.getList_PMS():

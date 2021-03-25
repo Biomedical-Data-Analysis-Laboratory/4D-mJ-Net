@@ -651,7 +651,7 @@ def initializeDataset():
             # save pickle and hickle version
             f = open(filename_train, 'wb')
             pkl.dump(train_df, f)
-            hkl.dump(train_df, filename_train_hkl, mode="w")
+            #hkl.dump(train_df, filename_train_hkl, mode="w")
 
 
 ################################################################################

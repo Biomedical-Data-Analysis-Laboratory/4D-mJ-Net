@@ -20,7 +20,7 @@ def mJNet(params, to_categ, batch=True, drop=False, longJ=False, v2=False):
     channels = [16,32,16,32,16,32,16,32,64,64,128,128,256,-1,-1,-1,-1,128,128,64,64,32,16]
     input_shape = (constants.getM(), constants.getN(), constants.NUMBER_OF_IMAGE_PER_SECTION, 1)
     kernel_init = "glorot_uniform"  # Xavier uniform initializer.
-    kernel_constraint, bias_constraint = max_norm(2.), max_norm(2.)
+    kernel_constraint, bias_constraint = None, None  # max_norm(2.), max_norm(2.)
 
     if v2:  # version 2
         # size_two = (2,2,1)

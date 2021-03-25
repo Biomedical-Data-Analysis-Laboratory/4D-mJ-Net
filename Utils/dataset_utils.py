@@ -85,18 +85,15 @@ def splitDataset(nn, listOfPatientsToTrainVal, listOfPatientsToTest):
         # We have set a number of testing patient(s) and we are inside a supervised learning
         if nn.supervised:
             if nn.val["number_patients_for_testing"] > 0 or len(listOfPatientsToTest) > 0:
+                random.seed(nn.val["seed"])
                 # if we already set the patient list in the setting file
                 if len(listOfPatientsToTest) > 0: test_list = listOfPatientsToTest
-                else:
-                    random.seed(nn.val["seed"])
-                    test_list = random.sample(listOfPatientsToTrainVal, nn.val["number_patients_for_testing"])
+                else: test_list = random.sample(listOfPatientsToTrainVal, nn.val["number_patients_for_testing"])
                 # remove the test_list elements from the list
                 listOfPatientsToTrainVal = list(set(listOfPatientsToTrainVal).difference(test_list))
                 if constants.getVerbose(): print("[INFO] - TEST list: {}".format(test_list))
 
-                for test_p in test_list:
-                    test_pid = general_utils.getStringFromIndex(test_p)
-                    nn.dataset["test"]["indices"].extend(np.nonzero((nn.train_df.patient_id.values == test_pid))[0])
+                for test_p in test_list: nn.dataset["test"]["indices"].extend(np.nonzero((nn.train_df.patient_id.values == general_utils.getStringFromIndex(test_p)))[0])
         # We have set a number of validation patient(s)
         if nn.val["number_patients_for_validation"] > 0:
             listOfPatientsToTrainVal.sort(reverse=False)  # sort the list and then...
@@ -129,15 +126,15 @@ def splitDataset(nn, listOfPatientsToTrainVal, listOfPatientsToTest):
 # Print info regarding the validation list and set the indices in the nn dataset
 def setValList(nn, validation_list):
     if constants.getVerbose():
-        if constants.PREFIX_IMAGES=="CTP_":
-            print("[INFO] - VALIDATION list LVO: {}".format([v for v in validation_list if "01_" in v or "00_" in v or "21_" in v or "20_" in v]))
-            print("[INFO] - VALIDATION list Non-LVO: {}".format([v for v in validation_list if "02_" in v or "22_" in v]))
-            print("[INFO] - VALIDATION list WIS: {}".format([v for v in validation_list if "03_" in v or "23_" in v]))
-        elif constants.PREFIX_IMAGES=="PA":
-            print("[INFO] - VALIDATION list {}".format(validation_list))
-    for val_p in validation_list:
-        val_pid = general_utils.getStringFromIndex(val_p)
-        nn.dataset["val"]["indices"].extend(np.nonzero((nn.train_df.patient_id.values == val_pid))[0])
+        if constants.getM()== constants.IMAGE_WIDTH and constants.getN()== constants.IMAGE_HEIGHT:
+            if constants.PREFIX_IMAGES=="CTP_":
+                print("[INFO] - VALIDATION list LVO: {}".format([v for v in validation_list if "01_" in v or "00_" in v or "21_" in v or "20_" in v]))
+                print("[INFO] - VALIDATION list Non-LVO: {}".format([v for v in validation_list if "02_" in v or "22_" in v]))
+                print("[INFO] - VALIDATION list WIS: {}".format([v for v in validation_list if "03_" in v or "23_" in v]))
+            elif constants.PREFIX_IMAGES=="PA":
+                print("[INFO] - VALIDATION list {}".format(validation_list))
+    for val_p in validation_list: nn.dataset["val"]["indices"].extend(np.nonzero((nn.train_df.patient_id.values == general_utils.getStringFromIndex(val_p)))[0])
+
     return nn
 
 

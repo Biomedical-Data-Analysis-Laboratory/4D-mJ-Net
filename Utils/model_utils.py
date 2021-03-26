@@ -1,4 +1,5 @@
-from tensorflow.keras import layers, models, regularizers
+from tensorflow.keras import layers, models, regularizers, initializers
+from tensorflow.keras.constraints import max_norm
 from tensorflow.keras.layers import Conv2D, Conv3D, Concatenate, Conv2DTranspose, Conv3DTranspose, Dropout
 import tensorflow.keras.backend as K
 from tensorflow.keras.applications import VGG16
@@ -70,6 +71,23 @@ def getRegularizer(reg_obj):
     elif reg_obj["type"]=="l2": regularizer = regularizers.l2(l=reg_obj["l"])
     elif reg_obj["type"]=="l1_l2": regularizer = regularizers.l1_l2(l1=reg_obj["l1"], l2=reg_obj["l2"])  # (l1=1e-6, l2=1e-5)
     return regularizer
+
+
+################################################################################
+# Return the correct kernel/bias constraint
+def getKernelInit(flag):
+    init = "glorot_uniform"
+    if flag=="glorot_uniform": init = flag  # Xavier uniform initializer.
+    elif flag=="hu_init": init = initializers.VarianceScaling(scale=(9/5), mode='fan_in', distribution='normal', seed=None) # Hu initializer
+    return init
+
+
+################################################################################
+# Return the correct kernel/bias constraint
+def getKernelBiasConstraint(flag):
+    constraint = None
+    if flag=="max_norm": constraint = max_norm(2.)
+    return constraint
 
 
 ################################################################################

@@ -12,6 +12,7 @@ M, N = 16, 16
 SLICING_PIXELS = int(M/4)
 IMAGE_WIDTH, IMAGE_HEIGHT = 512, 512
 NUMBER_OF_IMAGE_PER_SECTION = 30  # number of image (divided by time) for each section of the brain
+TIME_LAST = False
 N_CLASSES = 4
 LABELS = ["background", "brain", "penumbra", "core"]  # background:0, brain:85, penumbra:170, core:255
 PIXELVALUES = [0, 85, 170, 255]
@@ -86,6 +87,10 @@ def getList_PMS():
 
 def getIsISLES2018():
     return isISLES
+
+
+def getTIMELAST():
+    return TIME_LAST
 
 ################################################################################
 ################################################################################
@@ -185,3 +190,8 @@ def setISLES2018(isles):
     isISLES = isles
     dataFrameColumns = ['patient_id', 'label', 'pixels', 'CBF', 'CBV', 'MTT', 'TMAX', 'ground_truth', 'x_y',
                         'data_aug_idx', 'timeIndex', 'sliceIndex']
+
+
+def setTimeLast(timelast):
+    global TIME_LAST
+    TIME_LAST = timelast

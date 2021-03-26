@@ -64,7 +64,7 @@ class datasetSequence(Sequence):
         self.index_batch = current_batch.index
 
         # empty initialization
-        X = np.empty((len(current_batch), constants.getM(), constants.getN(), constants.NUMBER_OF_IMAGE_PER_SECTION, 1))
+        X = np.empty((len(current_batch), constants.getM(), constants.getN(), constants.NUMBER_OF_IMAGE_PER_SECTION, 1)) if constants.getTIMELAST() else np.empty((len(current_batch), constants.NUMBER_OF_IMAGE_PER_SECTION, constants.getM(), constants.getN(), 1))
         Y = np.empty((len(current_batch), constants.getM(), constants.getN()))
         weights = np.empty((len(current_batch),))
 
@@ -118,7 +118,7 @@ class datasetSequence(Sequence):
 
             if self.x_label != constants.getList_PMS():
                 for folder in folders:
-                    tmpX = np.empty((len(current_batch), constants.getM(), constants.getN(), constants.NUMBER_OF_IMAGE_PER_SECTION, 1))
+                    tmpX = np.empty((len(current_batch), constants.getM(), constants.getN(), constants.NUMBER_OF_IMAGE_PER_SECTION, 1)) if constants.getTIMELAST() else np.empty((len(current_batch), constants.NUMBER_OF_IMAGE_PER_SECTION, constants.getM(), constants.getN(), 1))
                     for timeIndex, filename in enumerate(np.sort(glob.glob(folder + "*" + constants.SUFFIX_IMG))):
                         # TODO: for ISLES2018 (to change in the future) --> if the number of time-points per slice
                         #  is > constants.NUMBER_OF_IMAGE_PER_SECTION
@@ -128,8 +128,12 @@ class datasetSequence(Sequence):
                         sliceW = general_utils.performDataAugmentationOnTheImage(sliceW, data_aug_idx)
 
                         # reshape it for the correct input in the model
-                        if isXarray: tmpX[index, :, :, timeIndex, :] = sliceW.reshape(sliceW.shape + (1,))
-                        else: X[index, :, :, timeIndex, :] = sliceW.reshape(sliceW.shape + (1,))
+                        if constants.getTIMELAST():
+                            if isXarray: tmpX[index, :, :, timeIndex, :] = sliceW.reshape(sliceW.shape + (1,))
+                            else: X[index, :, :, timeIndex, :] = sliceW.reshape(sliceW.shape + (1,))
+                        else:
+                            if isXarray: tmpX[index, timeIndex, :, :, :] = sliceW.reshape(sliceW.shape + (1,))
+                            else: X[index, timeIndex, :, :, :] = sliceW.reshape(sliceW.shape + (1,))
                     if isXarray: X.append(tmpX)
 
         if self.x_label == constants.getList_PMS() or (self.x_label == "pixels" and self.is4D):

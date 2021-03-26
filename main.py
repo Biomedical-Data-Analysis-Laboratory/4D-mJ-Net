@@ -71,10 +71,12 @@ def main():
         # Useful for creating a model for each patient (if cross-validation is set)
         # else, it will create a unique model
         #
-        n_rep = 1
-        if nn.cross_validation["use"]: n_rep = nn.cross_validation["split"]
+        starting_rep, n_rep = 1, 1
+        if nn.cross_validation["use"]:
+            n_rep = nn.cross_validation["split"]
+            starting_rep = nn.cross_validation["starting"] if "starting" in nn.cross_validation.keys() else 1
 
-        for split_id in range(1,n_rep+1):
+        for split_id in range(starting_rep,n_rep+1):
             nn.resetVars()
             model_split = general_utils.getStringFromIndex(split_id)
             nn.setModelSplit(model_split)
@@ -86,6 +88,7 @@ def main():
             # - The dataset is composed of all the .pkl files in the dataset folder! (To load only once)
             if train_df is None: train_df = dataset_utils.getDataset(nn, listOfPatientsToTrainVal)
             val_list = nn.splitDataset(train_df, listOfPatientsToTrainVal, listOfPatientsToTest)
+            print(val_list)
 
             # Check if the model was already trained and saved
             if nn.isModelSaved():
@@ -129,5 +132,6 @@ if __name__ == '__main__':
       -w, --weights         Set the weights for the categorical losses
       -e, --exp             Set the number of the experiment
       -j, --jump            Jump the training and go directly on the gradual fine-tuning function
+      --timelast           Set the time dimension in the last channel of the input model          
     """
     main()

@@ -5,7 +5,8 @@ from Utils import general_utils
 from keras import layers, regularizers, initializers, models
 # from keras.applications import VGG16
 
-def simple_autoencoder(params, to_categ):
+
+def simple_autoencoder(params):
     input_shape = (constants.getM(), constants.getN(), constants.NUMBER_OF_IMAGE_PER_SECTION, 1)
 
     activ_func = layers.LeakyReLU(alpha=0.33)

@@ -17,7 +17,7 @@ from Utils import general_utils, dataset_utils, model_utils
 ################################################################################
 # https://faroit.com/keras-docs/2.1.3/models/sequential/#fit_generator
 class datasetSequence(Sequence):
-    def __init__(self, dataframe, indices, sample_weights, x_label, y_label, multiInput, to_categ, batch_size, params,
+    def __init__(self, dataframe, indices, sample_weights, x_label, y_label, multiInput, batch_size, params,
                  back_perc, is4D, flagtype="train", loss=None):
         self.indices = indices
         self.dataframe = dataframe.iloc[self.indices]
@@ -27,7 +27,6 @@ class datasetSequence(Sequence):
         self.y_label = y_label
         self.multiInput = multiInput
         self.batch_size = batch_size
-        self.to_categ = to_categ
         self.params = params
         self.back_perc = back_perc
         self.flagtype = flagtype
@@ -189,14 +188,14 @@ class datasetSequence(Sequence):
 
                 # convert the label in [0, 1] values,
                 # for to_categ the division happens inside dataset_utils.getSingleLabelFromIndexCateg
-                if not self.to_categ: img = np.divide(img,255)
+                if not constants.getTO_CATEG(): img = np.divide(img,255)
 
-                if aug_idx=="0": img = img if not self.to_categ or self.loss=="sparse_categorical_crossentropy" else dataset_utils.getSingleLabelFromIndexCateg(img)
-                elif aug_idx=="1": img = np.rot90(img) if not self.to_categ or self.loss=="sparse_categorical_crossentropy" else dataset_utils.getSingleLabelFromIndexCateg(np.rot90(img))
-                elif aug_idx=="2": img = np.rot90(img, 2) if not self.to_categ or self.loss=="sparse_categorical_crossentropy" else dataset_utils.getSingleLabelFromIndexCateg(np.rot90(img, 2))
-                elif aug_idx=="3": img = np.rot90(img, 3) if not self.to_categ or self.loss=="sparse_categorical_crossentropy" else dataset_utils.getSingleLabelFromIndexCateg(np.rot90(img, 3))
-                elif aug_idx=="4": img = np.flipud(img) if not self.to_categ or self.loss=="sparse_categorical_crossentropy" else dataset_utils.getSingleLabelFromIndexCateg(np.flipud(img))
-                elif aug_idx=="5": img = np.fliplr(img) if not self.to_categ or self.loss=="sparse_categorical_crossentropy" else dataset_utils.getSingleLabelFromIndexCateg(np.fliplr(img))
+                if aug_idx=="0": img = img if not constants.getTO_CATEG() or self.loss=="sparse_categorical_crossentropy" else dataset_utils.getSingleLabelFromIndexCateg(img)
+                elif aug_idx=="1": img = np.rot90(img) if not constants.getTO_CATEG() or self.loss=="sparse_categorical_crossentropy" else dataset_utils.getSingleLabelFromIndexCateg(np.rot90(img))
+                elif aug_idx=="2": img = np.rot90(img, 2) if not constants.getTO_CATEG() or self.loss=="sparse_categorical_crossentropy" else dataset_utils.getSingleLabelFromIndexCateg(np.rot90(img, 2))
+                elif aug_idx=="3": img = np.rot90(img, 3) if not constants.getTO_CATEG() or self.loss=="sparse_categorical_crossentropy" else dataset_utils.getSingleLabelFromIndexCateg(np.rot90(img, 3))
+                elif aug_idx=="4": img = np.flipud(img) if not constants.getTO_CATEG() or self.loss=="sparse_categorical_crossentropy" else dataset_utils.getSingleLabelFromIndexCateg(np.flipud(img))
+                elif aug_idx=="5": img = np.fliplr(img) if not constants.getTO_CATEG() or self.loss=="sparse_categorical_crossentropy" else dataset_utils.getSingleLabelFromIndexCateg(np.fliplr(img))
 
                 Y.append(img)
 

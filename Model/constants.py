@@ -4,6 +4,7 @@ verbose = False
 USE_PM = False
 DEBUG = False
 ORIGINAL_SHAPE = False
+TIME_LAST = False
 isISLES = False
 
 root_path = ""
@@ -12,12 +13,12 @@ M, N = 16, 16
 SLICING_PIXELS = int(M/4)
 IMAGE_WIDTH, IMAGE_HEIGHT = 512, 512
 NUMBER_OF_IMAGE_PER_SECTION = 30  # number of image (divided by time) for each section of the brain
-TIME_LAST = False
 N_CLASSES = 4
 LABELS = ["background", "brain", "penumbra", "core"]  # background:0, brain:85, penumbra:170, core:255
 PIXELVALUES = [0, 85, 170, 255]
 # weights for the various weighted losses: 1) position: background, 2) brain, 3) penumbra, 4) core
 HOT_ONE_WEIGHTS = [[0, 0.1, 50, 440]]  # [[0.1, 0.1, 2, 15]]
+TO_CATEG = False
 
 # hyperparameters for the multi focal loss
 ALPHA = [[0.25,0.25,0.25,0.25]]
@@ -91,6 +92,10 @@ def getIsISLES2018():
 
 def getTIMELAST():
     return TIME_LAST
+
+
+def getTO_CATEG():
+    return TO_CATEG
 
 ################################################################################
 ################################################################################
@@ -195,3 +200,8 @@ def setISLES2018(isles):
 def setTimeLast(timelast):
     global TIME_LAST
     TIME_LAST = timelast
+
+
+def setTO_CATEG(flag):
+    global TO_CATEG
+    TO_CATEG = flag

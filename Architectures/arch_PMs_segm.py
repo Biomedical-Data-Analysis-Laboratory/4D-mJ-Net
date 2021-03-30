@@ -8,7 +8,7 @@ import tensorflow.keras.backend as K
 
 ################################################################################
 # mJ-Net model version for the parametric maps as input
-def PMs_segmentation(params, to_categ, multiInput, batch=True):
+def PMs_segmentation(params, multiInput, batch=True):
     activ_func = 'relu'
     l1_l2_reg = None if "regularizer" not in params.keys() else model_utils.getRegularizer(params["regularizer"])
     kernel_init = "glorot_uniform"  # Xavier uniform initializer.
@@ -60,7 +60,7 @@ def PMs_segmentation(params, to_categ, multiInput, batch=True):
     shape_output = (constants.getM(), constants.getN())
 
     # set the softmax activation function if the flag is set
-    if to_categ:
+    if constants.getTO_CATEG():
         act_name = "softmax"
         n_chann = len(constants.LABELS)
         shape_output = (constants.getM(), constants.getN(), n_chann)

@@ -1,6 +1,6 @@
 from tensorflow.keras import layers, models, regularizers, initializers
 from tensorflow.keras.constraints import max_norm
-from tensorflow.keras.layers import Conv2D, Conv3D, Concatenate, Conv2DTranspose, Conv3DTranspose, Dropout
+from tensorflow.keras.layers import Conv2D, Conv3D, Concatenate, Conv2DTranspose, Conv3DTranspose, Dropout, TimeDistributed
 import tensorflow.keras.backend as K
 from tensorflow.keras.applications import VGG16
 
@@ -91,6 +91,33 @@ def getKernelBiasConstraint(flag):
 
 
 ################################################################################
+# Function to call the convolution layer (2D / 3D)
+def convolutionLayer(input, channel, kernel_size, activation, kernel_regularizer, kernel_initializer, padding,
+                     kernel_constraint, bias_constraint, strides=1, leaky=False, is2D=False, timedistr=False):
+    if is2D: convLayer = Conv2D
+    else: convLayer = Conv3D
+
+    if timedistr:  # layer to every temporal slice of an input.
+        conv = convLayer(channel, kernel_size=kernel_size, activation=activation, kernel_regularizer=kernel_regularizer, strides=strides,
+                         kernel_initializer=kernel_initializer, padding=padding, kernel_constraint=kernel_constraint, bias_constraint=bias_constraint)
+        conv = TimeDistributed(conv)(input)
+    else:
+        conv = convLayer(channel, kernel_size=kernel_size, activation=activation, kernel_regularizer=kernel_regularizer, strides=strides,
+                         kernel_initializer=kernel_initializer, padding=padding, kernel_constraint=kernel_constraint, bias_constraint=bias_constraint)(input)
+    if leaky: conv = layers.LeakyReLU(alpha=0.33)(conv)
+    return conv
+
+
+################################################################################
+# Function to compute two 3D (or 2D) convolutional layers
+def doubleConvolution(input, channels, kernel_size, activ_func, l1_l2_reg, kernel_init, kernel_constraint,
+                      bias_constraint, leaky=False, is2D=False):
+    conv = convolutionLayer(input, channels[0], kernel_size, activ_func, l1_l2_reg, kernel_init, 'same', kernel_constraint, bias_constraint, leaky=leaky, is2D=is2D)
+    conv = convolutionLayer(conv, channels[1], kernel_size, activ_func, l1_l2_reg, kernel_init, 'same', kernel_constraint, bias_constraint, leaky=leaky, is2D=is2D)
+    return conv
+
+
+################################################################################
 # Function containing the transpose layers for the deconvolutional part
 def upLayers(input, block, channels, kernel_size, strides_size, activ_func, l1_l2_reg, kernel_init, kernel_constraint,
              bias_constraint, leaky=False, is2D=False):
@@ -152,37 +179,17 @@ def addMoreInfo(multiInput, inputs, layersForAppending, is3D=False, is4D=False):
 # Function containing a block for the convolutional part
 def blockConv3D(input, channels, kernel_size, activ_func, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint,
               leaky, batch, pool_size):
-    conv_1 = Conv3D(channels[0], kernel_size=kernel_size, activation=activ_func, padding='same',
-                    kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init,
-                    kernel_constraint=kernel_constraint, bias_constraint=bias_constraint)(input)
-    if leaky: conv_1 = layers.LeakyReLU(alpha=0.33)(conv_1)
+    conv_1 = convolutionLayer(input, channel=channels[0], kernel_size=kernel_size, activation=activ_func, kernel_regularizer=l1_l2_reg,
+                              kernel_initializer=kernel_init, padding='same', kernel_constraint=kernel_constraint, bias_constraint=bias_constraint,
+                              leaky=leaky)
     if batch: conv_1 = layers.BatchNormalization()(conv_1)
 
-    conv_1 = Conv3D(channels[1], kernel_size=kernel_size, activation=activ_func, padding='same',
-                    kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init,
-                    kernel_constraint=kernel_constraint, bias_constraint=bias_constraint)(conv_1)
-    if leaky: conv_1 = layers.LeakyReLU(alpha=0.33)(conv_1)
+    conv_1 = convolutionLayer(conv_1, channel=channels[1], kernel_size=kernel_size, activation=activ_func, kernel_regularizer=l1_l2_reg,
+                              kernel_initializer=kernel_init, padding='same', kernel_constraint=kernel_constraint, bias_constraint=bias_constraint,
+                              leaky=leaky)
     if batch: conv_1 = layers.BatchNormalization()(conv_1)
 
     return layers.MaxPooling3D(pool_size)(conv_1)
-
-
-################################################################################
-# Function to compute two 3D convolutional layers
-def doubleConvolution(input, channels, kernel_size, activ_func, l1_l2_reg, kernel_init, kernel_constraint,
-                      bias_constraint, leaky, is2D=False):
-    if is2D: convLayer = Conv2D
-    else: convLayer = Conv3D
-
-    conv = convLayer(channels[0], kernel_size=kernel_size, padding='same', activation=activ_func,
-                     kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init, kernel_constraint=kernel_constraint,
-                     bias_constraint=bias_constraint)(input)
-    if leaky: conv = layers.LeakyReLU(alpha=0.33)(conv)
-    conv = convLayer(channels[1], kernel_size=kernel_size, padding='same', activation=activ_func,
-                     kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init, kernel_constraint=kernel_constraint,
-                     bias_constraint=bias_constraint)(conv)
-    if leaky: conv = layers.LeakyReLU(alpha=0.33)(conv)
-    return conv
 
 
 ################################################################################

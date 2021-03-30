@@ -6,7 +6,7 @@ import tensorflow.keras.backend as K
 
 ################################################################################
 # Model from Ronneberger (original paper of U-Net) (https://doi.org/10.1007/978-3-319-24574-4_28)
-def Ronneberger_UNET(params, to_categ):
+def Ronneberger_UNET(params):
     # Hu initializer = [0, sqrt(2/fan_in)]
     hu_init = initializers.he_normal(seed=None)
 

@@ -57,6 +57,7 @@ class NeuralNetwork(object):
         # FLAGS for the model
         self.multiInput = self.params["multiInput"] if "multiInput" in self.params.keys() else dict()
         self.to_categ = True if modelInfo["to_categ"]==1 else False
+        constants.setTO_CATEG(self.to_categ)
         self.save_images = True if modelInfo["save_images"]==1 else False
         self.da = True if modelInfo["data_augmentation"]==1 else False
         self.train_again = True if modelInfo["train_again"]==1 else False
@@ -259,7 +260,7 @@ class NeuralNetwork(object):
             print("[INFO] - Getting model {0} with {1} optimizer...".format(self.name, self.optimizerInfo["name"]))
 
         # Based on the number of GPUs available, call the function called self.name in architectures.py
-        self.model = getattr(architectures, self.name)(params=self.params, to_categ=self.to_categ, multiInput=self.multiInput)
+        self.model = getattr(architectures, self.name)(params=self.params, multiInput=self.multiInput)
 
         if self.summaryFlag==0:
             if getVerbose(): print(self.model.summary())
@@ -287,9 +288,9 @@ class NeuralNetwork(object):
     def runTraining(self, n_gpu):
         self.initializeTraining(n_gpu)
 
-        self.dataset["train"]["labels"] = dataset_utils.getLabelsFromIndex(train_df=self.train_df, dataset=self.dataset["train"], modelname=self.name, to_categ=self.to_categ, flag="train")
-        self.dataset["val"]["labels"] = None if self.val["validation_perc"]==0 else dataset_utils.getLabelsFromIndex(train_df=self.train_df, dataset=self.dataset["val"], modelname=self.name, to_categ=self.to_categ, flag="val")
-        if self.supervised: self.dataset["test"]["labels"] = dataset_utils.getLabelsFromIndex(train_df=self.train_df, dataset=self.dataset["test"], modelname=self.name, to_categ=self.to_categ, flag="test")
+        self.dataset["train"]["labels"] = dataset_utils.getLabelsFromIndex(train_df=self.train_df, dataset=self.dataset["train"], modelname=self.name, flag="train")
+        self.dataset["val"]["labels"] = None if self.val["validation_perc"]==0 else dataset_utils.getLabelsFromIndex(train_df=self.train_df, dataset=self.dataset["val"], modelname=self.name, flag="val")
+        if self.supervised: self.dataset["test"]["labels"] = dataset_utils.getLabelsFromIndex(train_df=self.train_df, dataset=self.dataset["test"], modelname=self.name, flag="test")
 
         # fit and train the model
         self.train = training.fitModel(
@@ -323,7 +324,6 @@ class NeuralNetwork(object):
             x_label=self.x_label,
             y_label=self.y_label,
             multiInput=self.multiInput,
-            to_categ=self.to_categ,
             params=self.params,
             batch_size=self.batch_size,
             back_perc=2 if not constants.getUSE_PM() and (constants.getM() != constants.IMAGE_WIDTH and constants.getN() != constants.IMAGE_HEIGHT) else 100,
@@ -339,7 +339,6 @@ class NeuralNetwork(object):
             x_label=self.x_label,
             y_label=self.y_label,
             multiInput=self.multiInput,
-            to_categ=self.to_categ,
             params=self.params,
             batch_size=self.batch_size,
             back_perc=2 if not constants.getUSE_PM() and (constants.getM() != constants.IMAGE_WIDTH and constants.getN() != constants.IMAGE_HEIGHT) else 100,
@@ -569,7 +568,7 @@ class NeuralNetwork(object):
             ret_id += ("_VAL" + str(self.val["validation_perc"]))
             if self.val["random_validation_selection"]: ret_id += "_RANDOM"
 
-            if self.to_categ: ret_id += "_SOFTMAX"  # differentiate between softmax and sigmoid last activation layer
+            if constants.getTO_CATEG(): ret_id += "_SOFTMAX"  # differentiate between softmax and sigmoid last activation layer
 
             # if there is cross validation, add the SPLIT ID to differentiate the models
             if self.cross_validation["use"]: ret_id += ("_" + self.model_split)

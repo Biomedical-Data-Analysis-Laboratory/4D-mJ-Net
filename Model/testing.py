@@ -125,8 +125,8 @@ def predictImage(nn, subfolder, p_id, patientFolder, relativePatientFolder, rela
         imagePredicted = generateTimeImagesAndConsensus(nn, test_df, relativepatientFolderGT, relativePatientFolderTMP, idx)
     else:  # usual behaviour
         while True:
-            if constants.ORIGINAL_SHAPE: pixels_shape = (constants.NUMBER_OF_IMAGE_PER_SECTION, constants.getM(), constants.getN())
-            else: pixels_shape = (constants.getM(), constants.getN(), constants.NUMBER_OF_IMAGE_PER_SECTION)
+            if constants.getTIMELAST(): pixels_shape = (constants.getM(), constants.getN(), constants.NUMBER_OF_IMAGE_PER_SECTION)
+            else: pixels_shape = (constants.NUMBER_OF_IMAGE_PER_SECTION, constants.getM(), constants.getN())
 
             binary_mask = np.zeros(shape=(constants.getM(), constants.getN()))
             count = 0
@@ -146,16 +146,22 @@ def predictImage(nn, subfolder, p_id, patientFolder, relativePatientFolder, rela
                             tmpPixels[:,:,count] = general_utils.getSlicingWindow(image, startingX, startingY)
                             if z == int(np.trunc(len(folders)/2)): binary_mask += (tmpPixels[:,:,count] > 0)
                         else:
-                            if constants.ORIGINAL_SHAPE: pixels[count, :, :] = general_utils.getSlicingWindow(image, startingX, startingY)
-                            else: pixels[:,:,count] = general_utils.getSlicingWindow(image, startingX, startingY)
-                            binary_mask += (pixels[:,:,count]>0)  # add the mask of the pixels that are > 0
+                            if constants.getTIMELAST():
+                                pixels[:,:,count] = general_utils.getSlicingWindow(image, startingX, startingY)
+                                binary_mask += (pixels[:, :, count] > 0)  # add the mask of the pixels that are > 0
+                            else:
+                                pixels[count, :, :] = general_utils.getSlicingWindow(image, startingX, startingY)
+                                binary_mask += (pixels[count, :, :] > 0)  # add the mask of the pixels that are > 0
                         count+=1
                     else:
                         if filename != "01"+ constants.SUFFIX_IMG:
                             image = imagesDict[imagename]
-                            if constants.ORIGINAL_SHAPE:pixels[count, :, :] = general_utils.getSlicingWindow(image, startingX, startingY)
-                            else: pixels[:,:,count] = general_utils.getSlicingWindow(image, startingX, startingY)
-                            binary_mask += (pixels[:, :, count] > 0)  # add the mask of the pixels that are > 0
+                            if constants.getTIMELAST():
+                                pixels[:, :, count] = general_utils.getSlicingWindow(image, startingX, startingY)
+                                binary_mask += (pixels[:, :, count] > 0)  # add the mask of the pixels that are > 0
+                            else:
+                                pixels[count, :, :] = general_utils.getSlicingWindow(image, startingX, startingY)
+                                binary_mask += (pixels[count, :, :] > 0)  # add the mask of the pixels that are > 0
                             count+=1
                 if is4DModel:
                     tmpPixels = tmpPixels.reshape(1,tmpPixels.shape[0],tmpPixels.shape[1],tmpPixels.shape[2],1)
@@ -281,7 +287,7 @@ def saveImage(nn, relativePatientFolder, idx, imagePredicted, categoricalImage, 
         # save the image predicted in the specific folder
         cv2.imwrite(nn.saveImagesFolder+relativePatientFolder+idx+".png", imagePredicted)
         # create and save the HEATMAP only if we are using softmax activation
-        if nn.to_categ and nn.labeledImagesFolder!="":
+        if constants.getTO_CATEG() and nn.labeledImagesFolder!="":
             p_idx, c_idx = 2,3
             if constants.N_CLASSES==3: p_idx, c_idx = 1, 2
             elif constants.N_CLASSES==2: c_idx = 1
@@ -336,11 +342,11 @@ def generate2DImage(nn, pixels, startingXY, imagePredicted, categoricalImage, bi
     startingX, startingY = startingXY
     # slicingWindowPredicted_orig contain only the prediction for the last step
     slicingWindowPredicted_orig = predictFromModel(nn, pixels)[0]
-    if nn.save_images and nn.to_categ: categoricalImage[startingX:startingX + constants.getM(),
+    if nn.save_images and constants.getTO_CATEG(): categoricalImage[startingX:startingX + constants.getM(),
                                        startingY:startingY + constants.getN()] = slicingWindowPredicted_orig
 
     # convert the categorical into a single array using a threshold (0.6) for removing some uncertain predictions
-    if nn.to_categ: slicingWindowPredicted = K.eval((K.argmax(slicingWindowPredicted_orig)*255)/(constants.N_CLASSES-1))
+    if constants.getTO_CATEG(): slicingWindowPredicted = K.eval((K.argmax(slicingWindowPredicted_orig)*255)/(constants.N_CLASSES-1))
     else: slicingWindowPredicted *= 255
     # save the predicted images
     if nn.save_images:
@@ -481,7 +487,7 @@ def evaluateModel(nn, p_id, isAlreadySaved):
         nn.train_df = dataset_utils.readFromPickleOrHickle(filename_train, nn.use_hickle)
 
         nn.dataset = dataset_utils.getTestDataset(nn.dataset, nn.train_df, p_id, nn.use_sequence, nn.mp)
-        if not nn.use_sequence: nn.dataset["test"]["labels"] = dataset_utils.getLabelsFromIndex(train_df=nn.train_df, dataset=nn.dataset["test"], modelname=nn.name, to_categ=nn.to_categ, flag="test")
+        if not nn.use_sequence: nn.dataset["test"]["labels"] = dataset_utils.getLabelsFromIndex(train_df=nn.train_df, dataset=nn.dataset["test"], modelname=nn.name, flag="test")
         nn.compileModel()  # compile the model and then evaluate it
 
     sample_weights = nn.getSampleWeights("test")
@@ -495,7 +501,6 @@ def evaluateModel(nn, p_id, isAlreadySaved):
             x_label=nn.x_label,
             y_label=nn.y_label,
             multiInput=nn.multiInput,
-            to_categ=nn.to_categ,
             params=nn.params,
             batch_size=nn.batch_size,
             flagtype="test",

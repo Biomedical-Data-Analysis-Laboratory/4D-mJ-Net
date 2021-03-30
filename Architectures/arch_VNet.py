@@ -12,7 +12,7 @@ from tensorflow.keras.constraints import max_norm
 
 ################################################################################
 # Model from Milletari's V-Net (https://arxiv.org/pdf/1606.04797.pdf)
-def VNet_Milletari(params, to_categ):
+def VNet_Milletari(params):
     kernel_size_1, kernel_size_2 = (5,5,5), (2,2,2)
     channels = [8,16,32,64,128,256]
     channels = [int(ch / 2) for ch in channels]
@@ -129,7 +129,7 @@ def VNet_Milletari(params, to_categ):
     last_channels = 1
     activation_func = "sigmoid"
     shape_output = (constants.getM(), constants.getN())
-    if to_categ:
+    if constants.getTO_CATEG():
         last_channels = len(constants.LABELS)
         activation_func = "softmax"
         shape_output = (constants.getM(), constants.getN(), last_channels)
@@ -154,7 +154,7 @@ def VNet_Milletari(params, to_categ):
 ################################################################################
 # Model of V-Net Light
 # https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=9098643
-def VNet_Light(params, to_categ):
+def VNet_Light(params):
     # Hu initializer
     kernel_init = initializers.VarianceScaling(scale=(9/5), mode='fan_in', distribution='normal', seed=None)
     kernel_constraint, bias_constraint = max_norm(2.), max_norm(2.)
@@ -214,7 +214,7 @@ def VNet_Light(params, to_categ):
     last_channels = 1
     activation_func = "sigmoid"
     shape_output = (constants.getM(), constants.getN())
-    if to_categ:
+    if constants.getTO_CATEG():
         last_channels = len(constants.LABELS)
         activation_func = "softmax"
         shape_output = (constants.getM(), constants.getN(), last_channels)

@@ -242,7 +242,7 @@ def getSingleLabelFromIndexCateg(singledata):
 
 ################################################################################
 # Return the labels given the indices
-def getLabelsFromIndex(train_df, dataset, modelname, to_categ, flag):
+def getLabelsFromIndex(train_df, dataset, modelname, flag):
     start = time.time()
     labels = None
     indices = dataset["indices"]
@@ -252,7 +252,7 @@ def getLabelsFromIndex(train_df, dataset, modelname, to_categ, flag):
 
     data = [a for a in np.array(train_df.ground_truth.values[indices])]
 
-    if to_categ:
+    if constants.getTO_CATEG():
         with multiprocessing.Pool(processes=1) as pool:  # auto closing workers
             labels = pool.map(getSingleLabelFromIndexCateg, data)
         if type(labels) is not np.array: labels = np.array(labels)

@@ -18,7 +18,7 @@ from Utils import general_utils, dataset_utils, model_utils
 # https://faroit.com/keras-docs/2.1.3/models/sequential/#fit_generator
 class datasetSequence(Sequence):
     def __init__(self, dataframe, indices, sample_weights, x_label, y_label, multiInput, batch_size, params,
-                 back_perc, is4D, flagtype="train", loss=None):
+                 back_perc, is4D, SVO_focus=False, flagtype="train", loss=None):
         self.indices = indices
         self.dataframe = dataframe.iloc[self.indices]
 
@@ -32,6 +32,7 @@ class datasetSequence(Sequence):
         self.flagtype = flagtype
         self.loss = loss
         self.is4D = is4D
+        self.SVO_focus = SVO_focus
 
         if self.flagtype != "test":
             # get ALL the rows with label != from background
@@ -174,7 +175,7 @@ class datasetSequence(Sequence):
                     penumbra_value, penumbra_weight = constants.PIXELVALUES[penumbra_idx], constants.HOT_ONE_WEIGHTS[0][penumbra_idx]
 
                     # focus on the SVO core only during training (only for SUS2020 dataset)!
-                    if self.flagtype=="train" and current_batch.loc[row_index]["severity"]=="02":
+                    if self.SVO_focus and current_batch.loc[row_index]["severity"]=="02":
                         core_weight *= 6
                         penumbra_weight *= 6
 

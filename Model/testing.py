@@ -347,7 +347,7 @@ def generate2DImage(nn, pixels, startingXY, imagePredicted, categoricalImage, bi
 
     # convert the categorical into a single array using a threshold (0.6) for removing some uncertain predictions
     if constants.getTO_CATEG(): slicingWindowPredicted = K.eval((K.argmax(slicingWindowPredicted_orig)*255)/(constants.N_CLASSES-1))
-    else: slicingWindowPredicted *= 255
+    else: slicingWindowPredicted = slicingWindowPredicted_orig*255
     # save the predicted images
     if nn.save_images:
         if not constants.getIsISLES2018():

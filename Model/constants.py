@@ -97,6 +97,7 @@ def getTIMELAST():
 def getTO_CATEG():
     return TO_CATEG
 
+
 ################################################################################
 ################################################################################
 # Functions used to set the various GLOBAl variables
@@ -150,7 +151,7 @@ def setNumberOfClasses(c):
         PIXELVALUES = [0, 255]
         HOT_ONE_WEIGHTS = [[0.1, 10]]
         GAMMA = [[2., 2.]]
-        ALPHA = [[.25,.25]]
+        ALPHA = [[0.25,0.25]]
     elif c == 3:
         LABELS = ["background", "penumbra", "core"]
         PIXELVALUES = [0, 170, 255]

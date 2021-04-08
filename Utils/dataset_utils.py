@@ -33,6 +33,13 @@ def loadTrainingDataframe(nn, patients):
         if not general_utils.isFilenameInListOfPatient(filename_train, patients): continue
 
         tmp_df = readFromPickleOrHickle(filename_train, nn.use_hickle)
+
+        # Remove the overlapping tiles except if they are labeled as "core"
+        one = tmp_df.x_y.str[0] % constants.getM() == 0
+        two = tmp_df.x_y.str[1] % constants.getN() == 0
+        three = tmp_df.label.values == constants.LABELS[-1]
+        tmp_df = tmp_df[(one & two) | three]
+
         frames.append(tmp_df)
 
         idx += 1
@@ -44,8 +51,7 @@ def loadTrainingDataframe(nn, patients):
 ################################################################################
 # Return the elements in the filename saved as a pickle or as hickle (depending on the flag)
 def readFromPickleOrHickle(filename, flagHickle):
-    if flagHickle:
-        return sklearn.utils.shuffle(hkl.load(filename))
+    if flagHickle: return sklearn.utils.shuffle(hkl.load(filename))
     else:
         file = open(filename, "rb")
         return sklearn.utils.shuffle(pkl.load(file))

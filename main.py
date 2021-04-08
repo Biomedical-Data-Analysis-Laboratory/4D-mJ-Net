@@ -59,6 +59,7 @@ def main():
         # if DEBUG mode: use only 5 patients in the list
         if constants.getDEBUG():
             listOfPatientsToTrainVal = listOfPatientsToTrainVal[:5]
+            listOfPatientsToTest = listOfPatientsToTest[:3]
             nn.setDebugDataset()
 
         listOfPatientsToTrainVal.sort()  # sort the list
@@ -70,7 +71,6 @@ def main():
         # loop over all the list of patients.
         # Useful for creating a model for each patient (if cross-validation is set)
         # else, it will create a unique model
-        #
         starting_rep, n_rep = 1, 1
         if nn.cross_validation["use"]:
             n_rep = nn.cross_validation["split"]
@@ -88,7 +88,6 @@ def main():
             # - The dataset is composed of all the .pkl files in the dataset folder! (To load only once)
             if train_df is None: train_df = dataset_utils.getDataset(nn, listOfPatientsToTrainVal)
             val_list = nn.splitDataset(train_df, listOfPatientsToTrainVal, listOfPatientsToTest)
-            print(val_list)
 
             # Check if the model was already trained and saved
             if nn.isModelSaved():

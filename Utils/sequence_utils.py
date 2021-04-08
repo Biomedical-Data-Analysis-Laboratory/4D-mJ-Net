@@ -154,6 +154,7 @@ class datasetSequence(Sequence):
     def getY(self, current_batch, weights):
         Y = []
         for aug_idx in self.index_pd_DA.keys():
+            if len(self.index_pd_DA[aug_idx])==0: continue
             for index in self.index_pd_DA[aug_idx]:
                 row_index = self.index_batch[index]
                 filename = current_batch.loc[row_index][self.y_label]
@@ -179,6 +180,7 @@ class datasetSequence(Sequence):
                         core_weight *= 6
                         penumbra_weight *= 6
 
+                    # sum the pixel value for the image with the corresponding "weight" for class
                     f = lambda x: np.sum(np.where(np.array(x) == core_value, core_weight,
                                                   np.where(np.array(x) == penumbra_value, penumbra_weight, constants.HOT_ONE_WEIGHTS[0][0])))
                     weights[index] = f(img) / (constants.getM() * constants.getN())

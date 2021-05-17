@@ -1,5 +1,5 @@
 from Model import constants
-from Architectures import arch_mJNet, arch_PMs_segm, arch_autoencoder, arch_van_De_Leemput, arch_UNet, arch_VNet
+from Architectures import arch_mJNet, arch_PMs_segm, arch_autoencoder, arch_van_De_Leemput, arch_UNet, arch_VNet, arch_ResUNet
 from Utils import general_utils, spatial_pyramid
 
 
@@ -104,3 +104,9 @@ def VNet_Milletari(params, multiInput):
 # Model for the V-Net Light https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=9098643
 def VNet_Light(params, multiInput):
     return arch_VNet.VNet_Light(params)
+
+
+################################################################################
+# Model for the Res-UNet++ https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=8959021
+def ResUNet(params, multiInput):
+    return arch_ResUNet.ResUNet(params)

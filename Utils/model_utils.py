@@ -272,3 +272,66 @@ def attentionGateBlock(x, g, inter_shape, l1_l2_reg, kernel_init, kernel_constra
     output = convLayer(filters=shape_x[-1], kernel_size=1, padding='same')(attn_coefficients)
     output = layers.BatchNormalization()(output)
     return output
+
+
+################################################################################
+# Squeeze and excite block
+def squeeze_excite_block(inputs, ratio=8):
+    filters = inputs.shape[-1]
+    se_shape = (1,1,filters)
+
+    se = layers.GlobalAveragePooling3D()(inputs)
+    se = layers.Reshape(se_shape)(se)
+    se = layers.Dense(filters//ratio, activation='relu', kernel_initializer='he_normal', use_bias=False)(se)
+    se = layers.Dense(filters, activation='sigmoid', kernel_initializer='he_normal', use_bias=False)(se)
+
+    return layers.Multiply()([inputs, se])
+
+
+################################################################################
+# ResNet block
+def resNetBlock(input, k_reg, k_init, k_constraint, bias_constraint, filter, strides):
+    conv_1 = layers.BatchNormalization()(input)
+    conv_1 = layers.Activation("relu")(conv_1)
+    conv_1 = Conv3D(filter, kernel_size=(3, 3, 3), kernel_regularizer=k_reg, padding="same", strides=strides,
+                    kernel_initializer=k_init, kernel_constraint=k_constraint, bias_constraint=bias_constraint)(conv_1)
+    conv_1 = layers.BatchNormalization()(conv_1)
+    conv_1 = layers.Activation("relu")(conv_1)
+    conv_1 = Conv3D(filter, kernel_size=(3, 3, 3), kernel_regularizer=k_reg, padding="same", kernel_initializer=k_init,
+                    kernel_constraint=k_constraint, bias_constraint=bias_constraint)(conv_1)
+
+    conv_2 = Conv3D(filter, kernel_size=(1, 1, 1), kernel_regularizer=k_reg, padding="same", kernel_initializer=k_init,
+                    kernel_constraint=k_constraint, bias_constraint=bias_constraint, strides=strides)(input)
+    conv_2 = layers.BatchNormalization()(conv_2)
+
+    add = layers.Add()([conv_1, conv_2])
+    return squeeze_excite_block(add)
+
+
+################################################################################
+# Atrous Spatial Pyramidal Pooling block
+def ASSP(input, k_reg, k_init, k_constraint, bias_constraint, filter, r_scale=1):
+    d_rate = (6*r_scale,6*r_scale,6*r_scale)
+    conv_1 = Conv3D(filter, kernel_size=(3, 3, 3), kernel_regularizer=k_reg, padding="same", kernel_initializer=k_init,
+                    kernel_constraint=k_constraint, bias_constraint=bias_constraint, dilation_rate=d_rate)(input)
+    conv_1 = layers.BatchNormalization()(conv_1)
+
+    d_rate = (12*r_scale,12*r_scale,12*r_scale)
+    conv_2 = Conv3D(filter, kernel_size=(3, 3, 3), kernel_regularizer=k_reg, padding="same", kernel_initializer=k_init,
+                    kernel_constraint=k_constraint, bias_constraint=bias_constraint, dilation_rate=d_rate)(input)
+    conv_2 = layers.BatchNormalization()(conv_2)
+
+    d_rate = (18*r_scale,18*r_scale,18*r_scale)
+    conv_3 = Conv3D(filter, kernel_size=(3, 3, 3), kernel_regularizer=k_reg, padding="same", kernel_initializer=k_init,
+                    kernel_constraint=k_constraint, bias_constraint=bias_constraint, dilation_rate=d_rate)(input)
+    conv_3 = layers.BatchNormalization()(conv_3)
+
+    conv_4 = Conv3D(filter, kernel_size=(3, 3, 3), kernel_regularizer=k_reg, padding="same", kernel_initializer=k_init,
+                    kernel_constraint=k_constraint, bias_constraint=bias_constraint)(input)
+    conv_4 = layers.BatchNormalization()(conv_4)
+
+    add = layers.Add()([conv_1, conv_2, conv_3, conv_4])
+    return Conv3D(filter, kernel_size=(1,1,1), kernel_regularizer=k_reg, padding="same", kernel_initializer=k_init,
+                  kernel_constraint=k_constraint, bias_constraint=bias_constraint)(add)
+
+

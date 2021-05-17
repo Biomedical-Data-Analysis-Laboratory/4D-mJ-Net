@@ -87,10 +87,8 @@ def getCallbacks(info, root_path, filename, textFolderPath, dataset, sample_weig
             validation_data = (dataset["val"]["data"], dataset["val"]["labels"])
             # # TODO: no model passed!
             # # TODO: filename is different (is the TMP_MODELS not MODELS folder)
-            cbs.append(
-                callback.RocCallback(training_data, validation_data, model, sample_weights, filename, textFolderPath))
-        # elif key=="TensorBoard":
-        #     cbs.append(callback.TensorBoard(log_dir=textFolderPath, update_freq=info[key]["update_freq"], histogram_freq=info[key]["histogram_freq"]))
+            cbs.append(callback.RocCallback(training_data, validation_data, model, sample_weights, filename, textFolderPath))
+        # elif key=="TensorBoard": cbs.append(callback.TensorBoard(log_dir=textFolderPath, update_freq=info[key]["update_freq"], histogram_freq=info[key]["histogram_freq"]))
 
     return cbs
 

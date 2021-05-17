@@ -116,9 +116,8 @@ def readAndMirrorGT(relativePatientPath):
 def readAndMirrorMask(relativePatientPath):
     if not os.path.isdir(MIRRORED_MASK_FOLDER + relativePatientPath): os.mkdir(MIRRORED_MASK_FOLDER + relativePatientPath)
     else:
-        print("MAsk for {} already exists, continue...".format(MIRRORED_MASK_FOLDER + relativePatientPath))
+        print("Mask for {} already exists, continue...".format(MIRRORED_MASK_FOLDER + relativePatientPath))
         return
-
     for image_name in glob.glob(MASK_FOLDER + relativePatientPath + "*"):
         image_idx = image_name.replace(MASK_FOLDER + relativePatientPath, '')
         img = cv2.imread(image_name, cv2.IMREAD_GRAYSCALE)
@@ -137,7 +136,7 @@ if __name__ == '__main__':
     """
     Example usage for SUS2020 DS (& ISLES2018): 
     
-    python augment_DS.py /home/prosjekt/PerfusionCT/StrokeSUS/ORIGINAL/ FINAL_Najm_v1/ Parametric_Maps/ GT_TIFF/ MASKS_HU_Najm/  -d -c
+    python augment_DS.py /home/prosjekt/PerfusionCT/StrokeSUS/ORIGINAL/ FINAL_Najm_v1/ Parametric_Maps/ GT_TIFF/ MASKS_v5/  -d -c
     
     python augment_DS.py /home/stud/lucat/PhD_Project/Stroke_segmentation/PATIENTS/ISLES2018/Processed_TRAINING/ FINAL/ Parametric_Maps/ Binary_Ground_Truth/ "" -f 1
 
@@ -165,12 +164,12 @@ if __name__ == '__main__':
     if not os.path.isdir(ROOT_PATH): os.mkdir(ROOT_PATH)
 
     MIRRORED_REGISTERED_FOLDER = ROOT_PATH + "MIRRORED_" + DS_NAME
-    PM_FOLDER = ROOT_PATH + PM_NAME
+    PM_FOLDER = args.root + PM_NAME
     MIRRORED_PM_FOLDER = ROOT_PATH + "MIRRORED_" + PM_NAME
-    GT_FOLDER = ROOT_PATH + GT_NAME
+    GT_FOLDER = args.root + GT_NAME
     MIRRORED_GT_FOLDER = ROOT_PATH + "MIRRORED_" + GT_NAME
     if MASK_NAME!="":
-        MASK_FOLDER = ROOT_PATH + MASK_NAME
+        MASK_FOLDER = args.root + MASK_NAME
         MIRRORED_MASK_FOLDER = ROOT_PATH + "MIRRORED_" + MASK_NAME
 
     FLIP = args.flip

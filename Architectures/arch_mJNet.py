@@ -27,7 +27,7 @@ def mJNet(params, batch=True, drop=False, longJ=False, v2=False):
         activ_func = None
         # channels = [16,32,32,64,64,128,128,32,64,128,256,512,1024,512,1024,512,1024,-1,512,256,-1,128,64]
         channels = [16,16,32,32,64,64,-1,64,64,128,128,128,128,128,128,128,128,-1,128,128,-1,64,32]
-        channels = [int(ch/2) for ch in channels]  # implemented due to memory issues
+        channels = [int(ch/4) for ch in channels]  # implemented due to memory issues
 
     input_x = layers.Input(shape=input_shape, sparse=False)
     general_utils.print_int_shape(input_x)  # (None, 30, M, N, 1)

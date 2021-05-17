@@ -89,6 +89,18 @@ def main():
             if train_df is None: train_df = dataset_utils.getDataset(nn, listOfPatientsToTrainVal)
             val_list = nn.splitDataset(train_df, listOfPatientsToTrainVal, listOfPatientsToTest)
 
+            ### Remove the 4 patients with motion artifacts if the dataset is != PMs
+            if not args.pm:
+                motion_artifact_patients = ["01_014", "21_014", "01_038", "21_038", "01_046", "21_046", "02_011", "22_011"]
+                val_list = list(set(val_list) - set(motion_artifact_patients))
+
+                for map in motion_artifact_patients:
+                    indices = (train_df["patient_id"]==map).index
+                    train_df = train_df.drop(indices)
+                    nn.dataset["train"]["indices"] = list(set(nn.dataset["train"]["indices"]) - set(indices))
+                    nn.dataset["val"]["indices"] = list(set(nn.dataset["val"]["indices"]) - set(indices))
+                nn.updateDataset(train_df, val_list)
+
             # Check if the model was already trained and saved
             if nn.isModelSaved():
                 # SET THE CALLBACKS & LOAD MODEL

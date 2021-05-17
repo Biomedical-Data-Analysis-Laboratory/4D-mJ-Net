@@ -213,6 +213,20 @@ class NeuralNetwork(object):
 
         return self.val_list
 
+
+    ################################################################################
+    # Update the dataset with the new train_df, the dataset, and val_list
+    def updateDataset(self, train_df, val_list):
+        self.train_df = train_df
+        self.val_list = val_list
+        # get the number of element per class in the dataset
+        self.N_BACKGROUND, self.N_BRAIN, self.N_PENUMBRA, self.N_CORE, self.N_TOT = dataset_utils.getNumberOfElements(self.train_df)
+        if constants.PREFIX_IMAGES=="CTP_":
+                print("[INFO] - VALIDATION list LVO: {}".format([v for v in self.val_list if "01_" in v or "00_" in v or "21_" in v or "20_" in v]))
+                print("[INFO] - VALIDATION list Non-LVO: {}".format([v for v in self.val_list if "02_" in v or "22_" in v]))
+                print("[INFO] - VALIDATION list WIS: {}".format([v for v in self.val_list if "03_" in v or "23_" in v]))
+
+
     ################################################################################
     # Function to reshape the pixel array and initialize the model.
     def prepareDataset(self):

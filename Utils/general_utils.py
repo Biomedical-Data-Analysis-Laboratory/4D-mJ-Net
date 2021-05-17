@@ -225,6 +225,20 @@ def isFilenameInListOfPatient(filename, patients):
 
     return ret
 
+
+################################################################################
+# Get the correct class weights for the metrics
+def getClassWeights(type):
+    four_cat = [[1,1,0,0]] if type=="rest" else [[0,0,1,0]] if type=="penumbra" else [[0,0,0,1]]
+    three_cat = [[1,0,0]] if type=="rest" else [[0,1,0]] if type=="penumbra" else [[0,0,1]]
+    two_cat = [[1,0]] if type=="rest" else [[0,1]]
+
+    class_weights = tf.constant(four_cat, dtype=tf.float32)
+    if constants.N_CLASSES == 3: class_weights = tf.constant(three_cat, dtype=tf.float32)
+    elif constants.N_CLASSES == 2: class_weights = tf.constant(two_cat, dtype=tf.float32)
+    return class_weights
+
+
 ################################################################################
 ################################################################################
 ################################################################################

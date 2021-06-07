@@ -27,7 +27,6 @@ def loadTrainingDataframe(nn, patients):
     if nn.use_hickle: suffix_filename = ".hkl"
     listOfFolders = glob.glob(nn.datasetFolder + "*" + suffix + suffix_filename)
 
-    idx = 1
     for filename_train in listOfFolders:
         # don't load the dataframe if patient_id NOT in the list of patients
         if not general_utils.isFilenameInListOfPatient(filename_train, patients): continue
@@ -41,8 +40,6 @@ def loadTrainingDataframe(nn, patients):
         tmp_df = tmp_df[(one & two) | three]
 
         frames.append(tmp_df)
-
-        idx += 1
 
     train_df = pd.concat(frames, sort=False, ignore_index=True)
     return train_df

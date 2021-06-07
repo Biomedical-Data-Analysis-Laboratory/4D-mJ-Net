@@ -202,12 +202,9 @@ def getMetricFunctions(listStats):
     ]
 
     statisticFuncs = []
-    for m in listStats:
-        if m in general_metrics: statisticFuncs.append(m)
-        else: statisticFuncs.append(getattr(metrics, m))
+    for m in listStats: statisticFuncs.append(m) if m in general_metrics else statisticFuncs.append(getattr(metrics, m))
 
     if constants.getVerbose(): print("[INFO] - Getting {} functions".format(listStats))
-
     if len(statisticFuncs)==0: statisticFuncs = None
 
     return statisticFuncs

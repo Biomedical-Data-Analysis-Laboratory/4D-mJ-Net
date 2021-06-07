@@ -121,7 +121,7 @@ def fitModel(model, dataset, batch_size, epochs, listOfCallbacks, sample_weights
 ################################################################################
 # Function that call a fit_generator to load the training dataset on the fly
 def fit_generator(model, train_sequence, val_sequence, steps_per_epoch, validation_steps, epochs, listOfCallbacks,
-                  initial_epoch, save_activation_filter, intermediate_activation_path, use_multiprocessing, clear):
+                  initial_epoch, save_activation_filter, intermediate_activation_path, use_multiprocessing):
     multiplier = 16
     # steps_per_epoch is given by the len(train_sequence)*steps_per_epoch_ratio rounded to the nearest integer
     training = model.fit_generator(
@@ -139,8 +139,6 @@ def fit_generator(model, train_sequence, val_sequence, steps_per_epoch, validati
         use_multiprocessing=use_multiprocessing)
 
     if save_activation_filter: saveIntermediateLayers(model, intermediate_activation_path=intermediate_activation_path)
-
-    if clear: K.clear_session()
 
     return training
 

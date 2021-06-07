@@ -54,9 +54,9 @@ def readAndMirror4DCTP(relativePatientPath,patientFolder):
 ################################################################################
 def readAndMirrorPM(relativePatientPath):
     if not os.path.isdir(MIRRORED_PM_FOLDER + relativePatientPath): os.mkdir(MIRRORED_PM_FOLDER + relativePatientPath)
-    # else:
-    #     print("PMs for {} already exists, continue...".format(MIRRORED_PM_FOLDER + relativePatientPath))
-    #     return
+    else:
+        print("PMs for {} already exists, continue...".format(MIRRORED_PM_FOLDER + relativePatientPath))
+        return
 
     if HASDAYFOLDER:  # SUS2020 dataset
         for dayfolder in glob.glob(PM_FOLDER + relativePatientPath + "*/"):

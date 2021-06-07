@@ -179,7 +179,7 @@ def predictImage(nn, subfolder, p_id, patientFolder, relativePatientFolder, rela
                 if nn.x_label == constants.getList_PMS() or (nn.x_label == "pixels" and nn.is4DModel):
                     for pm in constants.getList_PMS():
                         if pm not in pms.keys(): pms[pm] = []
-                        totimg = cv2.imread(row_to_analyze[pm].iloc[0])
+                        totimg = cv2.imread(row_to_analyze[pm].iloc[0], nn.inputImgFlag)
                         if totimg is not None:
                             if np.isnan(np.unique(totimg)).any(): print("getX", totimg.shape, np.isnan(totimg).any())
                             img = general_utils.getSlicingWindow(totimg, coord[0], coord[1], removeColorBar=True)
@@ -434,13 +434,16 @@ def generateImageFromParametricMaps(nn, test_df):
         pms = dict()
         for pm_name in constants.getList_PMS():
             filename = row_to_analyze[pm_name].iloc[0]
-            pm = cv2.imread(filename)  # , cv2.COLOR_BGR2RGB)
-
+            pm = cv2.imread(filename, nn.inputImgFlag)
             pms[pm_name] = general_utils.getSlicingWindow(pm, startX, startY, removeColorBar=True)
             # add the mask of the pixels that are > 0 only if it's the MIP image
-            if pm_name=="MIP": binary_mask += (cv2.cvtColor(pms[pm_name], cv2.COLOR_RGB2GRAY) > 0)
+            if pm_name=="MIP":
+                if nn.params["convertImgToGray"]: binary_mask += pms[pm_name] > 0
+                else: binary_mask += (cv2.cvtColor(pms[pm_name], cv2.COLOR_RGB2GRAY) > 0)
             pms[pm_name] = np.array(pms[pm_name])
             pms[pm_name] = pms[pm_name].reshape((1,) + pms[pm_name].shape)
+            if nn.params["concatenate_input"] and nn.params["inflate_network"]: pms[pm_name] = pms[pm_name].reshape((1,)+pms[pm_name].shape)
+            elif nn.params["concatenate_input"]: pms[pm_name] = pms[pm_name].reshape(pms[pm_name].shape + (1,))
 
         X = []
         if "cbf" in nn.multiInput.keys() and nn.multiInput["cbf"] == 1: X.append(pms["CBF"])
@@ -506,7 +509,8 @@ def evaluateModel(nn, p_id, isAlreadySaved):
             flagtype="test",
             back_perc=100,
             loss=nn.loss["name"],
-            is4D=nn.is4DModel
+            is4D=nn.is4DModel,
+            inputImgFlag=nn.inputImgFlag
         )
 
         testing = nn.model.evaluate_generator(

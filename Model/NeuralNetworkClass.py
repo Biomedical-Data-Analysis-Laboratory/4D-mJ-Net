@@ -4,7 +4,7 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 from Utils import general_utils, dataset_utils, sequence_utils, architectures, losses
 from Model import training, testing, constants
 
-import os, glob, math
+import os, glob, math, cv2
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras.models import model_from_json
@@ -53,6 +53,12 @@ class NeuralNetwork(object):
         self.params = modelInfo["params"]
         self.loss = general_utils.getLoss(modelInfo)
         self.metricFuncs = general_utils.getMetricFunctions(modelInfo["metrics"])
+
+        # inflate and concatenate only work with PMs_segmentation architectures!
+        self.params["concatenate_input"] = True if "concatenate_input" in self.params.keys() and self.params["concatenate_input"] else False
+        self.params["convertImgToGray"] = True if "convertImgToGray" in self.params.keys() and self.params["convertImgToGray"] else False
+        self.inputImgFlag = cv2.IMREAD_COLOR if not self.params["convertImgToGray"] else cv2.IMREAD_GRAYSCALE  # only works when the input are the PMs (concatenate)
+        self.params["inflate_network"] = True if "inflate_network" in self.params.keys() and self.params["inflate_network"] else False
 
         # FLAGS for the model
         self.multiInput = self.params["multiInput"] if "multiInput" in self.params.keys() else dict()
@@ -213,19 +219,17 @@ class NeuralNetwork(object):
 
         return self.val_list
 
-
     ################################################################################
     # Update the dataset with the new train_df, the dataset, and val_list
-    def updateDataset(self, train_df, val_list):
+    def updateDataset(self, train_df, val_list, listOfPatientsToTest):
         self.train_df = train_df
         self.val_list = val_list
         # get the number of element per class in the dataset
         self.N_BACKGROUND, self.N_BRAIN, self.N_PENUMBRA, self.N_CORE, self.N_TOT = dataset_utils.getNumberOfElements(self.train_df)
-        if constants.PREFIX_IMAGES=="CTP_":
-                print("[INFO] - VALIDATION list LVO: {}".format([v for v in self.val_list if "01_" in v or "00_" in v or "21_" in v or "20_" in v]))
-                print("[INFO] - VALIDATION list Non-LVO: {}".format([v for v in self.val_list if "02_" in v or "22_" in v]))
-                print("[INFO] - VALIDATION list WIS: {}".format([v for v in self.val_list if "03_" in v or "23_" in v]))
 
+        # Reset the indices for validation and train lists
+        dataset_utils.setValList(self, self.val_list)
+        dataset_utils.setTrainIndices(self, self.val_list, listOfPatientsToTest)
 
     ################################################################################
     # Function to reshape the pixel array and initialize the model.
@@ -344,7 +348,8 @@ class NeuralNetwork(object):
             back_perc=1 if not constants.getUSE_PM() and (constants.getM() != constants.IMAGE_WIDTH and constants.getN() != constants.IMAGE_HEIGHT) else 100,
             loss=self.loss["name"],
             is4D=self.is4DModel,
-            SVO_focus=self.SVO_focus
+            SVO_focus=self.SVO_focus,
+            inputImgFlag=self.inputImgFlag
         )
 
         # validation data sequence
@@ -360,13 +365,13 @@ class NeuralNetwork(object):
             back_perc=1 if not constants.getUSE_PM() and (constants.getM() != constants.IMAGE_WIDTH and constants.getN() != constants.IMAGE_HEIGHT) else 100,
             flagtype="val",
             loss=self.loss["name"],
-            is4D=self.is4DModel
+            is4D=self.is4DModel,
+            inputImgFlag=self.inputImgFlag
         )
 
     ################################################################################
     # Function to start the train using the sequence as input and the fit_generator function
-    def runTrainSequence(self, clear=True):
-        if "gradual_finetuning_solution" not in self.params.keys(): clear=False
+    def runTrainSequence(self):
         self.train = training.fit_generator(
             model=self.model,
             train_sequence=self.train_sequence,
@@ -378,8 +383,7 @@ class NeuralNetwork(object):
             initial_epoch=self.initial_epoch,
             save_activation_filter=self.save_activation_filter,
             intermediate_activation_path=self.intermediateActivationFolder,
-            use_multiprocessing=self.mp,
-            clear=clear
+            use_multiprocessing=self.mp
         )
 
     ################################################################################
@@ -389,7 +393,14 @@ class NeuralNetwork(object):
         if "gradual_finetuning_solution" in self.params.keys() and self.params["trainable"] == 0:
             finished_first_half = False
             layer_indexes = []
-            for pm in constants.getList_PMS(): layer_indexes.extend([i for i, l in enumerate(self.model.layers) if pm.lower() in l.name])
+            if self.params["concatenate_input"]:
+                model_name = "model"
+                if "nihss" in self.multiInput.keys() and self.multiInput["nihss"] == 1: model_name += "_1"
+                elif "age" in self.multiInput.keys() and self.multiInput["age"] == 1: model_name += "_1"
+                elif "gender" in self.multiInput.keys() and self.multiInput["gender"] == 1: model_name += "_1"
+                layer_indexes.extend([i for i, l in enumerate(self.model.get_layer(model_name).layers) if "concat" in l.name])
+            else:
+                for pm in constants.getList_PMS(): layer_indexes.extend([i for i, l in enumerate(self.model.layers) if pm.lower() in l.name])
             layer_indexes = np.sort(layer_indexes)
 
             # The optimizer (==ADAM) should have a low learning rate
@@ -405,10 +416,13 @@ class NeuralNetwork(object):
             if self.params["gradual_finetuning_solution"]["type"] == "half":
                 # Perform fine tuning twice: first on the bottom half, then on the totality
                 # Make the bottom half of the VGG-16 layers trainable
-                for ind in layer_indexes[len(layer_indexes) // 2:]: self.model.layers[ind].trainable = True
-                if getVerbose():  print("Fine-tuning setting: {} layers trainable".format(layer_indexes[len(layer_indexes) // 2:]))
+                if self.params["concatenate_input"]:
+                    for ind in layer_indexes[len(layer_indexes) // 2:]: self.model.get_layer(model_name).layers[ind].trainable = True
+                else:
+                    for ind in layer_indexes[len(layer_indexes) // 2:]: self.model.layers[ind].trainable = True
+                if getVerbose(): print("Fine-tuning setting: {} layers trainable".format(layer_indexes[len(layer_indexes) // 2:]))
                 if self.arePartialWeightsSaved():
-                    self.model.load_weights(self.partialWeightsPath)
+                    if not self.params["concatenate_input"]: self.model.load_weights(self.partialWeightsPath)
                     self.initial_epoch = general_utils.getEpochFromPartialWeightFilename(self.partialWeightsPath) + previousEarlyStoppingPatience
                 # Compile the model again
                 self.compileModel()
@@ -418,14 +432,17 @@ class NeuralNetwork(object):
                 self.setCallbacks(self.sample_weights, "_half")
                 # Train the model again
                 self.runTrainSequence()
-                finished_first_half = True
+                finished_first_half = False if "only" in self.params["gradual_finetuning_solution"].keys() and self.params["gradual_finetuning_solution"]["only"] == "half" else True
 
             if self.params["gradual_finetuning_solution"]["type"] == "full" or finished_first_half:
                 # Make ALL the VGG-16 layers trainable
-                for ind in layer_indexes:  self.model.layers[ind].trainable = True
+                if self.params["concatenate_input"]:
+                    for ind in layer_indexes:  self.model.get_layer(model_name).layers[ind].trainable = True
+                else:
+                    for ind in layer_indexes:  self.model.layers[ind].trainable = True
                 if getVerbose(): print("Fine-tuning setting: {} layers trainable".format(layer_indexes))
                 if self.arePartialWeightsSaved():
-                    self.model.load_weights(self.partialWeightsPath)
+                    if not self.params["concatenate_input"]: self.model.load_weights(self.partialWeightsPath)
                     self.initial_epoch = general_utils.getEpochFromPartialWeightFilename(self.partialWeightsPath) + previousEarlyStoppingPatience
                 # Compile the model again
                 self.compileModel()
@@ -434,7 +451,7 @@ class NeuralNetwork(object):
                 # Set the callbacks
                 self.setCallbacks(self.sample_weights, "_full")
                 # Train the model again
-                self.runTrainSequence(clear=False)
+                self.runTrainSequence()
 
     ################################################################################
     # Get the sample weight from the dataset

@@ -18,7 +18,7 @@ from Utils import general_utils, dataset_utils, model_utils
 # https://faroit.com/keras-docs/2.1.3/models/sequential/#fit_generator
 class datasetSequence(Sequence):
     def __init__(self, dataframe, indices, sample_weights, x_label, y_label, multiInput, batch_size, params,
-                 back_perc, is4D, SVO_focus=False, flagtype="train", loss=None):
+                 back_perc, is4D, inputImgFlag, SVO_focus=False, flagtype="train", loss=None):
         self.indices = indices
         self.dataframe = dataframe.iloc[self.indices]
 
@@ -33,6 +33,7 @@ class datasetSequence(Sequence):
         self.loss = loss
         self.is4D = is4D
         self.SVO_focus = SVO_focus
+        self.inputImgFlag = inputImgFlag  # only works when the input are the PMs (concatenate)
 
         if self.flagtype != "test":
             # get ALL the rows with label != from background
@@ -99,16 +100,21 @@ class datasetSequence(Sequence):
             # add the index into the correct set
             self.index_pd_DA[str(data_aug_idx)].add(index)
 
+            # we are working with the PMs in input
             if self.x_label == constants.getList_PMS() or (self.x_label=="pixels" and self.is4D):
                 for pm in constants.getList_PMS():
                     if pm not in pms.keys(): pms[pm] = []
-                    totimg = cv2.imread(row[pm])
+                    totimg = cv2.imread(row[pm], self.inputImgFlag)
 
                     assert totimg is not None, "The image {} is None".format(row[pm])
 
                     if np.isnan(np.unique(totimg)).any(): print("getX", totimg.shape, np.isnan(totimg).any())
                     img = general_utils.getSlicingWindow(totimg, coord[0], coord[1], removeColorBar=True)
                     img = general_utils.performDataAugmentationOnTheImage(img, data_aug_idx)
+
+                    channels = 1 if self.params["convertImgToGray"] else 3
+                    img = np.reshape(img, (constants.getM(), constants.getN(), channels)) if self.params["convertImgToGray"] else img
+                    img = np.reshape(img, (1, constants.getM(), constants.getN(), channels)) if self.params["inflate_network"] and self.params["concatenate_input"] else img
                     pms[pm].append(img)
 
             folders = [current_folder]
@@ -116,6 +122,7 @@ class datasetSequence(Sequence):
             isXarray = True if len(folders) > 1 or (self.x_label == constants.getList_PMS() or (self.x_label == "pixels" and self.is4D)) else False
             if isXarray: X = []
 
+            #  we are working with the 4D raw dataset
             if self.x_label != constants.getList_PMS():
                 for folder in folders:
                     tmpX = np.empty((len(current_batch), constants.getM(), constants.getN(), constants.NUMBER_OF_IMAGE_PER_SECTION, 1)) if constants.getTIMELAST() else np.empty((len(current_batch), constants.NUMBER_OF_IMAGE_PER_SECTION, constants.getM(), constants.getN(), 1))
@@ -124,7 +131,10 @@ class datasetSequence(Sequence):
                         #  is > constants.NUMBER_OF_IMAGE_PER_SECTION
                         if timeIndex >= constants.NUMBER_OF_IMAGE_PER_SECTION: break
 
-                        sliceW = general_utils.getSlicingWindow(cv2.imread(filename,cv2.IMREAD_GRAYSCALE),coord[0],coord[1])
+                        totimg = cv2.imread(filename,cv2.IMREAD_GRAYSCALE)
+                        assert totimg is not None, "The image {} is None".format(filename)
+
+                        sliceW = general_utils.getSlicingWindow(totimg,coord[0],coord[1])
                         sliceW = general_utils.performDataAugmentationOnTheImage(sliceW, data_aug_idx)
 
                         # reshape it for the correct input in the model
@@ -159,6 +169,7 @@ class datasetSequence(Sequence):
                 row_index = self.index_batch[index]
                 filename = current_batch.loc[row_index][self.y_label]
                 coord = current_batch.loc[row_index]["x_y"]  # coordinates of the slice window
+                if not isinstance(filename,str): print(filename)
                 img = cv2.imread(filename,cv2.IMREAD_GRAYSCALE)
                 if np.isnan(np.unique(img)).any(): print("getY", img.shape, np.isnan(img).any())
                 img = general_utils.getSlicingWindow(img, coord[0], coord[1], isgt=True)

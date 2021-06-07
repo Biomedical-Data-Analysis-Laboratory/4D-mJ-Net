@@ -5,6 +5,7 @@ import tensorflow.keras.backend as K
 from tensorflow.keras.applications import VGG16
 
 import glob
+import numpy as np
 from Utils import general_utils
 from Model import constants
 
@@ -15,51 +16,111 @@ class PM_obj(object):
     def __init__(self, name, params, activ_func, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint, batch):
         self.name = ("_" + name)
         self.input_shape = (constants.getM(), constants.getN(), 3)
+        self.chan = 1 if params["convertImgToGray"] else 3
+        self.input, self.input_tensor, self.pre_input, self.pre_model = None, None, None, None
+
+        self.weights = 'imagenet'
+
+        if params["concatenate_input"]:  # concatenate the PMs (RGB or Gray)
+            self.pre_input = []
+            for pm in constants.getList_PMS():
+                if pm.lower() in params["multiInput"].keys() and params["multiInput"][pm.lower()] == 1:
+                    inp_shape = (constants.getM(), constants.getN(), self.chan) if not params["inflate_network"] else (1, constants.getM(), constants.getN(), self.chan)
+                    self.pre_input.append(layers.Input(shape=inp_shape))
+            # concatenate on the end if there is no inflation else concatenate on the first dimension (temporal)
+            axis = -1 if not params["inflate_network"] else 1
+            self.input_tensor = layers.Concatenate(axis=axis)(self.pre_input)
+            # if we don't want to inflate, don't do a conv layer to squeeze the channel dimension
+            if not params["inflate_network"]:
+                self.input_tensor = Conv2D(3, kernel_size=(3, 3), padding='same', activation=activ_func,
+                                           kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init,
+                                           kernel_constraint=kernel_constraint, bias_constraint=bias_constraint)(self.input_tensor)
 
         # Create base model
-        self.base_model = VGG16(weights='imagenet', include_top=False, input_shape=self.input_shape)
+        self.base_model = VGG16(weights=self.weights, include_top=False, input_shape=self.input_shape)
         self.base_model._name += self.name
-        for layer in self.base_model.layers: layer._name += self.name
+
+        self.inflateModel = models.Sequential() if params["inflate_network"] else None
+        self.dictWeights = dict()
+
+        for layer in self.base_model.layers:
+            layer._name += self.name
+            if params["inflate_network"] and params["concatenate_input"]: self.inflateVGG16Layer(layer)
+
+        if params["inflate_network"] and params["concatenate_input"]: self.base_model = self.inflateModel
         # Freeze base model
         self.base_model.trainable = False if params["trainable"]==0 else True
         self.input = self.base_model.input
-
         # Creating dictionary that maps layer names to the layers
         self.layer_dict = dict([(layer.name, layer) for layer in self.base_model.layers])
 
         # Conv layers after the VGG16
+        input_layer = self.base_model.output
+        if params["inflate_network"] and params["concatenate_input"]:
+            input_layer = layers.Reshape((self.base_model.output.shape[2],self.base_model.output.shape[3],
+                                          self.base_model.output.shape[1]*self.base_model.output.shape[-1]))(self.base_model.output)
         self.conv_1 = Conv2D(128, kernel_size=(3, 3), padding='same',activation=activ_func,
                              kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init,
-                             kernel_constraint=kernel_constraint, bias_constraint=bias_constraint)(self.base_model.output)
+                             kernel_constraint=kernel_constraint, bias_constraint=bias_constraint)(input_layer)
         self.conv_2 = Conv2D(128, kernel_size=(3, 3), padding='same',activation=activ_func,
                              kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init,
                              kernel_constraint=kernel_constraint, bias_constraint=bias_constraint)(self.conv_1)
         if batch: self.conv_2 = layers.BatchNormalization()(self.conv_2)
         self.conv_2 = Dropout(params["dropout"][name+".1"])(self.conv_2)
 
+    # inflate the layer for the new VGG16 architecture
+    def inflateVGG16Layer(self, layer):
+        newLayer = None
+        weights, biases = np.empty(0), np.empty(0)
+        config = layer.get_config()
+        if len(layer.weights) > 0:
+            weights, biases = layer.get_weights()
+            weights = np.stack([weights/3]*3, axis=0)
+
+        # overwrite the input shape and inflate the conv and pooling layers from 2D to 3D
+        if type(layer)==layers.InputLayer: newLayer = layers.Input(shape=(len(self.pre_input), constants.getM(), constants.getN(), self.chan))
+        elif type(layer)==layers.Conv2D:
+            newLayer = layers.Conv3D(config["filters"], kernel_size=config["kernel_size"][0], strides=config["strides"][0],
+                                     padding=config["padding"], dilation_rate=config["dilation_rate"][0],activation=config["activation"])
+            self.dictWeights[layer._name] = (weights, biases)
+        elif type(layer)==layers.MaxPooling2D:
+            recep_field = (1,1) if "block4" not in layer.name and "block5" not in layer.name else (config["pool_size"][0], config["strides"][0])
+            padding = config["padding"] if "block4" not in layer.name and "block5" not in layer.name else "same"
+            newLayer = layers.MaxPooling3D(pool_size=(recep_field[0],)+config["pool_size"], padding=padding, strides=(recep_field[1],)+config["strides"])
+        else: print("we have a problem: ", type(layer), layers.Input, type(layer)==layers.Input)
+
+        # set the name and add the new layer
+        if newLayer is not None:
+            newLayer._name = layer._name
+            self.inflateModel.add(newLayer)
+
 
 ################################################################################
 # Get the list of PMs classes
 def getPMsList(multiInput, params, activ_func, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint, batch):
     PMS = []
-    if "cbf" in multiInput.keys() and multiInput["cbf"] == 1:
-        cbf = PM_obj("cbf", params, activ_func, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint, batch)
-        PMS.append(cbf)
-    if "cbv" in multiInput.keys() and multiInput["cbv"] == 1:
-        cbv = PM_obj("cbv", params, activ_func, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint, batch)
-        PMS.append(cbv)
-    if "ttp" in multiInput.keys() and multiInput["ttp"] == 1:
-        ttp = PM_obj("ttp", params, activ_func, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint, batch)
-        PMS.append(ttp)
-    if "mtt" in multiInput.keys() and multiInput["mtt"] == 1:
-        mtt = PM_obj("mtt", params, activ_func, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint, batch)
-        PMS.append(mtt)
-    if "tmax" in multiInput.keys() and multiInput["tmax"] == 1:
-        tmax = PM_obj("tmax", params, activ_func, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint, batch)
-        PMS.append(tmax)
-    if "mip" in multiInput.keys() and multiInput["mip"]==1:
-        mip = PM_obj("mip", params, activ_func, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint, batch)
-        PMS.append(mip)
+    if params["concatenate_input"]:
+        concat = PM_obj("concat", params, activ_func, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint, batch)
+        PMS.append(concat)
+    else:
+        if "cbf" in multiInput.keys() and multiInput["cbf"] == 1:
+            cbf = PM_obj("cbf", params, activ_func, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint, batch)
+            PMS.append(cbf)
+        if "cbv" in multiInput.keys() and multiInput["cbv"] == 1:
+            cbv = PM_obj("cbv", params, activ_func, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint, batch)
+            PMS.append(cbv)
+        if "ttp" in multiInput.keys() and multiInput["ttp"] == 1:
+            ttp = PM_obj("ttp", params, activ_func, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint, batch)
+            PMS.append(ttp)
+        if "mtt" in multiInput.keys() and multiInput["mtt"] == 1:
+            mtt = PM_obj("mtt", params, activ_func, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint, batch)
+            PMS.append(mtt)
+        if "tmax" in multiInput.keys() and multiInput["tmax"] == 1:
+            tmax = PM_obj("tmax", params, activ_func, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint, batch)
+            PMS.append(tmax)
+        if "mip" in multiInput.keys() and multiInput["mip"]==1:
+            mip = PM_obj("mip", params, activ_func, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint, batch)
+            PMS.append(mip)
     return PMS
 
 
@@ -85,9 +146,7 @@ def getKernelInit(flag):
 ################################################################################
 # Return the correct kernel/bias constraint
 def getKernelBiasConstraint(flag):
-    constraint = None
-    if flag=="max_norm": constraint = max_norm(2.)
-    return constraint
+    return max_norm(2.) if flag=="max_norm" else None
 
 
 ################################################################################
@@ -120,7 +179,7 @@ def doubleConvolution(input, channels, kernel_size, activ_func, l1_l2_reg, kerne
 ################################################################################
 # Function containing the transpose layers for the deconvolutional part
 def upLayers(input, block, channels, kernel_size, strides_size, activ_func, l1_l2_reg, kernel_init, kernel_constraint,
-             bias_constraint, leaky=False, is2D=False):
+             bias_constraint, params, leaky=False, is2D=False):
     if is2D: transposeConv = Conv2DTranspose
     else: transposeConv = Conv3DTranspose
 
@@ -130,49 +189,49 @@ def upLayers(input, block, channels, kernel_size, strides_size, activ_func, l1_l
                            kernel_constraint=kernel_constraint, bias_constraint=bias_constraint)(conv)
     if leaky: transp = layers.LeakyReLU(alpha=0.33)(transp)
 
-    block_conc = Concatenate(-1)(block)
+    if params["concatenate_input"] and not params["inflate_network"]: block_conc = block[0]
+    else: block_conc = Concatenate(-1)(block)
     return Concatenate(-1)([transp, block_conc])
 
 
 ################################################################################
 # Check if the architecture need to have more info in the input
-def addMoreInfo(multiInput, inputs, layersForAppending, is3D=False, is4D=False):
+def addMoreInfo(multiInput, inputs, layersForAppending, pre_input, pre_layer, is3D=False, is4D=False):
     # MORE INFO as input = NIHSS score, age, gender
     input_dim = 0
     concat_input = []
     flag_dense = 0
 
     if "nihss" in multiInput.keys() and multiInput["nihss"] == 1:
-        NIHSS_input = layers.Input(shape=(1,))
-        input_dim += 1
-        concat_input.append(NIHSS_input)
         flag_dense = 1
+        input_dim += 1
+        concat_input.append(layers.Input(shape=(1,)))
     if "age" in multiInput.keys() and multiInput["age"] == 1:
-        age_input = layers.Input(shape=(1,))
-        input_dim += 1
-        concat_input.append(age_input)
         flag_dense = 1
+        input_dim += 1
+        concat_input.append(layers.Input(shape=(1,)))
     if "gender" in multiInput.keys() and multiInput["gender"] == 1:
-        gender_input = layers.Input(shape=(1,))
-        input_dim += 1
-        concat_input.append(gender_input)
         flag_dense = 1
+        input_dim += 1
+        concat_input.append(layers.Input(shape=(1,)))
 
     if flag_dense:
         if input_dim == 1: conc = concat_input[0]
         else: conc = Concatenate(1)(concat_input)
         dense_1 = layers.Dense(100, input_dim=input_dim, activation="relu")(conc)
         third_dim = 1 if not is3D else layersForAppending[0].shape[3]
-        fourth_dim = 1 if not is3D else layersForAppending[0].shape[4]
+        fourth_dim = 1 if not is4D else layersForAppending[0].shape[4]
 
         dense_2 = layers.Dense(layersForAppending[0].shape[1] * layersForAppending[0].shape[2] * third_dim * fourth_dim, activation="relu")(dense_1)
         out = layers.Reshape((layersForAppending[0].shape[1], layersForAppending[0].shape[2], third_dim))(dense_2)
         if is4D: out = layers.Reshape((layersForAppending[0].shape[1], layersForAppending[0].shape[2], third_dim, fourth_dim))(dense_2)
         multiInput_mdl = models.Model(inputs=concat_input, outputs=[out])
-        inputs = [inputs, multiInput_mdl.input]
+        inputs = [inputs, concat_input]
+        pre_input = [pre_input, concat_input]
+        pre_layer = [pre_layer, concat_input]
         layersForAppending.append(multiInput_mdl.output)
 
-    return inputs, layersForAppending
+    return inputs, layersForAppending, pre_input, pre_layer
 
 
 ################################################################################

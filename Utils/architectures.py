@@ -99,6 +99,9 @@ def Ronneberger_UNET(params, multiInput):
 def VNet_Milletari(params, multiInput):
     return arch_VNet.VNet_Milletari(params)
 
+def VNet_Milletari_PMS(params, multiInput):
+    return arch_VNet.VNet_Milletari_PMS(params, multiInput)
+
 
 ################################################################################
 # Model for the V-Net Light https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=9098643

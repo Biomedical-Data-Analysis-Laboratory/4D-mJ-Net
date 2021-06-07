@@ -23,14 +23,21 @@ def VNet_Milletari(params):
     bias_constraint = None if "bias_constraint" not in params.keys() else model_utils.getKernelBiasConstraint(params["bias_constraint"])
 
     input_shape = (constants.getM(), constants.getN(), constants.NUMBER_OF_IMAGE_PER_SECTION, 1) if constants.getTIMELAST() else (constants.NUMBER_OF_IMAGE_PER_SECTION, constants.getM(), constants.getN(), 1)
-    input_x = layers.Input(shape=input_shape, sparse=False)
+    if constants.getUSE_PM(): # use the PMs as input and concatenate them
+        list_input = []
+        if "multiInput" in params.keys():
+            for pm in ["cbf", "cbv", "ttp", "mip", "mtt", "tmax"]:
+                if pm in params["multiInput"].keys() and params["multiInput"][pm] == 1: list_input.append(layers.Input(shape=(constants.getM(), constants.getN(), 3, 1), sparse=False))
+        input_x = layers.Concatenate(3)(list_input)
+
+    else: input_x = layers.Input(shape=input_shape, sparse=False)
     general_utils.print_int_shape(input_x)  # (None, M, N, 30, 16)
 
     # Stage 1
     stage_1 = layers.Conv3D(channels[1],kernel_size=kernel_size_1,activation=layers.PReLU(), padding='same',kernel_initializer=kernel_init,kernel_constraint=kernel_constraint,bias_constraint=bias_constraint)(input_x)
     stage_1 = layers.Add()([input_x, stage_1])
     general_utils.print_int_shape(stage_1)  # (None, M, N, 30, 16)
-    stride_1 = (2, 2, params["strides"]["conv.1"]) if constants.getTIMELAST() else (params["strides"]["conv.1"], 2, 2)
+    stride_1 = (2, 2, params["strides"]["conv.1"]) if constants.getTIMELAST() or constants.getUSE_PM() else (params["strides"]["conv.1"], 2, 2)
     conv_1 = layers.Conv3D(channels[2],kernel_size=kernel_size_2,activation=layers.PReLU(),padding='same',bias_constraint=bias_constraint,kernel_initializer=kernel_init,kernel_constraint=kernel_constraint,strides=stride_1)(stage_1)
     general_utils.print_int_shape(conv_1)  # (None, M, N, 30, 16)
 
@@ -39,7 +46,7 @@ def VNet_Milletari(params):
     stage_2 = layers.Conv3D(channels[2],kernel_size=kernel_size_1,activation=layers.PReLU(),padding='same',kernel_initializer=kernel_init,kernel_constraint=kernel_constraint,bias_constraint=bias_constraint)(stage_2)
     stage_2 = layers.Add()([conv_1, stage_2])
     general_utils.print_int_shape(stage_2)  # (None, M/2, N/2, 15, 32)
-    stride_2 = (2, 2, params["strides"]["conv.2"]) if constants.getTIMELAST() else (params["strides"]["conv.2"], 2, 2)
+    stride_2 = (2, 2, params["strides"]["conv.2"]) if constants.getTIMELAST() or constants.getUSE_PM() else (params["strides"]["conv.2"], 2, 2)
     conv_2 = layers.Conv3D(channels[3],kernel_size=kernel_size_2,activation=layers.PReLU(),padding='same',bias_constraint=bias_constraint,kernel_initializer=kernel_init,kernel_constraint=kernel_constraint,strides=stride_2)(stage_2)
     general_utils.print_int_shape(conv_2)  # (None, M/2, N/2, 15, 32)
 
@@ -49,7 +56,7 @@ def VNet_Milletari(params):
     stage_3 = layers.Conv3D(channels[3],kernel_size=kernel_size_1,activation=layers.PReLU(),padding='same',kernel_initializer=kernel_init,kernel_constraint=kernel_constraint,bias_constraint=bias_constraint)(stage_3)
     stage_3 = layers.Add()([conv_2, stage_3])
     general_utils.print_int_shape(stage_3)  # (None, M/4, N/4, 5, 64)
-    stride_3 = (2, 2, params["strides"]["conv.3"]) if constants.getTIMELAST() else (params["strides"]["conv.3"], 2, 2)
+    stride_3 = (2, 2, params["strides"]["conv.3"]) if constants.getTIMELAST() or constants.getUSE_PM() else (params["strides"]["conv.3"], 2, 2)
     conv_3 = layers.Conv3D(channels[4],kernel_size=kernel_size_2,activation=layers.PReLU(),padding='same',strides=stride_3,kernel_initializer=kernel_init,kernel_constraint=kernel_constraint,bias_constraint=bias_constraint)(stage_3)
 
     # Stage 4
@@ -58,7 +65,7 @@ def VNet_Milletari(params):
     stage_4 = layers.Conv3D(channels[4],kernel_size=kernel_size_1,activation=layers.PReLU(),padding='same',kernel_initializer=kernel_init,kernel_constraint=kernel_constraint,bias_constraint=bias_constraint)(stage_4)
     stage_4 = layers.Add()([conv_3, stage_4])
     general_utils.print_int_shape(stage_4)  # (None, M/8, N/8, 1, 128)
-    stride_4 = (2, 2, params["strides"]["conv.4"]) if constants.getTIMELAST() else (params["strides"]["conv.4"], 2, 2)
+    stride_4 = (2, 2, params["strides"]["conv.4"]) if constants.getTIMELAST() or constants.getUSE_PM() else (params["strides"]["conv.4"], 2, 2)
     conv_4 = layers.Conv3D(channels[5],kernel_size=kernel_size_2,activation=layers.PReLU(),padding='same',strides=stride_4,kernel_initializer=kernel_init,kernel_constraint=kernel_constraint,bias_constraint=bias_constraint)(stage_4)
     general_utils.print_int_shape(conv_4)  # (None, M/16, N/16, 1, 128)
 
@@ -111,20 +118,20 @@ def VNet_Milletari(params):
         activation_func = "softmax"
         shape_output = (constants.getM(), constants.getN(), last_channels)
 
-    stride_5 = (1, 1, params["strides"]["conv.1"]) if constants.getTIMELAST() else (params["strides"]["conv.1"], 1, 1)
+    stride_5 = (1, 1, params["strides"]["conv.1"]) if constants.getTIMELAST() or constants.getUSE_PM()  else (params["strides"]["conv.1"], 1, 1)
     last_conv = layers.Conv3D(channels[2],kernel_size=stride_1,activation=layers.PReLU(),padding='same',kernel_initializer=kernel_init,strides=stride_5,kernel_constraint=kernel_constraint,bias_constraint=bias_constraint)(r_stage_1)
-    stride_6 = (1, 1, params["strides"]["conv.2"]) if constants.getTIMELAST() else (params["strides"]["conv.2"], 1, 1)
+    stride_6 = (1, 1, params["strides"]["conv.2"]) if constants.getTIMELAST() or constants.getUSE_PM() else (params["strides"]["conv.2"], 1, 1)
     last_conv = layers.Conv3D(channels[1],kernel_size=stride_2,activation=layers.PReLU(),padding='same',kernel_initializer=kernel_init,strides=stride_6,kernel_constraint=kernel_constraint,bias_constraint=bias_constraint)(last_conv)
-    stride_7 = (1, 1, params["strides"]["conv.3"]) if constants.getTIMELAST() else (params["strides"]["conv.3"], 1, 1)
+    stride_7 = (1, 1, params["strides"]["conv.3"]) if constants.getTIMELAST() or constants.getUSE_PM() else (params["strides"]["conv.3"], 1, 1)
     last_conv = layers.Conv3D(channels[0],kernel_size=stride_3,activation=layers.PReLU(),padding='same',kernel_initializer=kernel_init,strides=stride_7,kernel_constraint=kernel_constraint,bias_constraint=bias_constraint)(last_conv)
-    stride_8 = (1, 1, params["strides"]["conv.4"]) if constants.getTIMELAST() else (params["strides"]["conv.4"], 1, 1)
+    stride_8 = (1, 1, params["strides"]["conv.4"]) if constants.getTIMELAST() or constants.getUSE_PM() else (params["strides"]["conv.4"], 1, 1)
     last_conv = layers.Conv3D(channels[0],kernel_size=stride_4,activation=layers.PReLU(),padding='same',kernel_initializer=kernel_init,strides=stride_8,kernel_constraint=kernel_constraint,bias_constraint=bias_constraint)(last_conv)
     last_conv = layers.Conv3D(last_channels,kernel_size=(1,1,1),activation=activation_func,padding='same',kernel_initializer=kernel_init,kernel_constraint=kernel_constraint,bias_constraint=bias_constraint)(last_conv)
 
     output = layers.Reshape(shape_output)(last_conv)
     general_utils.print_int_shape(output)  # (None, M, N, 4)
 
-    model = models.Model(inputs=input_x, outputs=output)
+    model = models.Model(inputs=input_x, outputs=output) if not constants.getUSE_PM() else models.Model(inputs=list_input, outputs=output)
     return model
 
 
@@ -253,3 +260,125 @@ def ThreeD_Light_Module(layer_in, Cin, Cout, g, kernel_init, kernel_constraint, 
     assert out.shape[-1] == Cout
 
     return out
+
+
+def VNet_Milletari_PMS(params, multiInput):
+    kernel_size_1, kernel_size_2 = (5,5,5), (2,2,2)
+    channels = [8,16,32,64,128,256]
+    channels = [int(ch/4) for ch in channels]
+
+    # Hu initializer
+    kernel_init = initializers.VarianceScaling(scale=(9/5), mode='fan_in', distribution='normal', seed=None)
+    kernel_constraint = None if "kernel_constraint" not in params.keys() else model_utils.getKernelBiasConstraint(params["kernel_constraint"])
+    bias_constraint = None if "bias_constraint" not in params.keys() else model_utils.getKernelBiasConstraint(params["bias_constraint"])
+
+    list_input = []
+    for pm in ["cbf", "cbv", "ttp", "mip", "mtt", "tmax"]:
+        if pm in multiInput.keys() and multiInput[pm] == 1: list_input.append(layers.Input(shape=(constants.getM(), constants.getN(), 3), sparse=False))
+
+    reshape_inputs = []
+    for inp in list_input: reshape_inputs.append(layers.Reshape((constants.getM(), constants.getN(), 3, 1))(inp))
+    input_x = layers.Concatenate(3)(reshape_inputs)
+
+    general_utils.print_int_shape(input_x)  # (None, M, N, 30, 16)
+
+    # Stage 1
+    stage_1 = layers.Conv3D(channels[1],kernel_size=kernel_size_1,activation=layers.PReLU(), padding='same',kernel_initializer=kernel_init,kernel_constraint=kernel_constraint,bias_constraint=bias_constraint)(input_x)
+    stage_1 = layers.Add()([input_x, stage_1])
+    general_utils.print_int_shape(stage_1)  # (None, M, N, 30, 16)
+    stride_1 = (2, 2, params["strides"]["conv.1"])
+    conv_1 = layers.Conv3D(channels[2],kernel_size=kernel_size_2,activation=layers.PReLU(),padding='same',bias_constraint=bias_constraint,kernel_initializer=kernel_init,kernel_constraint=kernel_constraint,strides=stride_1)(stage_1)
+    general_utils.print_int_shape(conv_1)  # (None, M, N, 30, 16)
+
+    # Stage 2
+    stage_2 = layers.Conv3D(channels[2],kernel_size=kernel_size_1,activation=layers.PReLU(),padding='same',kernel_initializer=kernel_init,kernel_constraint=kernel_constraint,bias_constraint=bias_constraint)(conv_1)
+    stage_2 = layers.Conv3D(channels[2],kernel_size=kernel_size_1,activation=layers.PReLU(),padding='same',kernel_initializer=kernel_init,kernel_constraint=kernel_constraint,bias_constraint=bias_constraint)(stage_2)
+    stage_2 = layers.Add()([conv_1, stage_2])
+    general_utils.print_int_shape(stage_2)  # (None, M/2, N/2, 15, 32)
+    stride_2 = (2, 2, params["strides"]["conv.2"])
+    conv_2 = layers.Conv3D(channels[3],kernel_size=kernel_size_2,activation=layers.PReLU(),padding='same',bias_constraint=bias_constraint,kernel_initializer=kernel_init,kernel_constraint=kernel_constraint,strides=stride_2)(stage_2)
+    general_utils.print_int_shape(conv_2)  # (None, M/2, N/2, 15, 32)
+
+    # Stage 3
+    stage_3 = layers.Conv3D(channels[3],kernel_size=kernel_size_1,activation=layers.PReLU(),padding='same',kernel_initializer=kernel_init,kernel_constraint=kernel_constraint,bias_constraint=bias_constraint)(conv_2)
+    stage_3 = layers.Conv3D(channels[3],kernel_size=kernel_size_1,activation=layers.PReLU(),padding='same',kernel_initializer=kernel_init,kernel_constraint=kernel_constraint,bias_constraint=bias_constraint)(stage_3)
+    stage_3 = layers.Conv3D(channels[3],kernel_size=kernel_size_1,activation=layers.PReLU(),padding='same',kernel_initializer=kernel_init,kernel_constraint=kernel_constraint,bias_constraint=bias_constraint)(stage_3)
+    stage_3 = layers.Add()([conv_2, stage_3])
+    general_utils.print_int_shape(stage_3)  # (None, M/4, N/4, 5, 64)
+    stride_3 = (2, 2, params["strides"]["conv.3"])
+    conv_3 = layers.Conv3D(channels[4],kernel_size=kernel_size_2,activation=layers.PReLU(),padding='same',strides=stride_3,kernel_initializer=kernel_init,kernel_constraint=kernel_constraint,bias_constraint=bias_constraint)(stage_3)
+
+    # Stage 4
+    stage_4 = layers.Conv3D(channels[4],kernel_size=kernel_size_1,activation=layers.PReLU(),padding='same',kernel_initializer=kernel_init,kernel_constraint=kernel_constraint,bias_constraint=bias_constraint)(conv_3)
+    stage_4 = layers.Conv3D(channels[4],kernel_size=kernel_size_1,activation=layers.PReLU(),padding='same',kernel_initializer=kernel_init,kernel_constraint=kernel_constraint,bias_constraint=bias_constraint)(stage_4)
+    stage_4 = layers.Conv3D(channels[4],kernel_size=kernel_size_1,activation=layers.PReLU(),padding='same',kernel_initializer=kernel_init,kernel_constraint=kernel_constraint,bias_constraint=bias_constraint)(stage_4)
+    stage_4 = layers.Add()([conv_3, stage_4])
+    general_utils.print_int_shape(stage_4)  # (None, M/8, N/8, 1, 128)
+    stride_4 = (2, 2, params["strides"]["conv.4"])
+    conv_4 = layers.Conv3D(channels[5],kernel_size=kernel_size_2,activation=layers.PReLU(),padding='same',strides=stride_4,kernel_initializer=kernel_init,kernel_constraint=kernel_constraint,bias_constraint=bias_constraint)(stage_4)
+    general_utils.print_int_shape(conv_4)  # (None, M/16, N/16, 1, 128)
+
+    # Stage 5
+    stage_5 = layers.Conv3D(channels[5],kernel_size=kernel_size_1,activation=layers.PReLU(),padding='same',kernel_initializer=kernel_init,kernel_constraint=kernel_constraint,bias_constraint=bias_constraint)(conv_4)
+    stage_5 = layers.Conv3D(channels[5],kernel_size=kernel_size_1,activation=layers.PReLU(),padding='same',kernel_initializer=kernel_init,kernel_constraint=kernel_constraint,bias_constraint=bias_constraint)(stage_5)
+    stage_5 = layers.Conv3D(channels[5],kernel_size=kernel_size_1,activation=layers.PReLU(),padding='same',kernel_initializer=kernel_init, kernel_constraint=kernel_constraint,bias_constraint=bias_constraint)(stage_5)
+    stage_5 = layers.Add()([conv_4, stage_5])
+    general_utils.print_int_shape(stage_5)  # (None, M/16, N/16, 1, 256)
+    conv_5 = layers.Conv3DTranspose(channels[5],kernel_size=kernel_size_2,activation=layers.PReLU(),padding='same',strides=stride_4,kernel_initializer=kernel_init,kernel_constraint=kernel_constraint,bias_constraint=bias_constraint)(stage_5)
+
+    # R-Stage 4
+    # fine-grained feature forwarding (== concatenation according to the U-Net paper)
+    r_stage_4 = layers.Concatenate(-1)([stage_4, conv_5])
+    r_stage_4 = layers.Conv3D(channels[5],kernel_size=kernel_size_1,activation=layers.PReLU(),padding='same',kernel_initializer=kernel_init,kernel_constraint=kernel_constraint,bias_constraint=bias_constraint)(r_stage_4)
+    r_stage_4 = layers.Conv3D(channels[5],kernel_size=kernel_size_1,activation=layers.PReLU(),padding='same',kernel_initializer=kernel_init,kernel_constraint=kernel_constraint,bias_constraint=bias_constraint)(r_stage_4)
+    r_stage_4 = layers.Conv3D(channels[5],kernel_size=kernel_size_1,activation=layers.PReLU(),padding='same',kernel_initializer=kernel_init,kernel_constraint=kernel_constraint,bias_constraint=bias_constraint)(r_stage_4)
+    r_stage_4 = layers.Add()([r_stage_4, conv_5])
+    general_utils.print_int_shape(r_stage_4)  # (None, M/8, N/8, 1, 128)
+    conv_6 = layers.Conv3DTranspose(channels[4],kernel_size=kernel_size_2,activation=layers.PReLU(),padding='same',strides=stride_3,kernel_initializer=kernel_init,kernel_constraint=kernel_constraint,bias_constraint=bias_constraint)(r_stage_4)
+
+    # R-Stage 3
+    r_stage_3 = layers.Concatenate(-1)([stage_3, conv_6])
+    r_stage_3 = layers.Conv3D(channels[4],kernel_size=kernel_size_1,activation=layers.PReLU(),padding='same',kernel_initializer=kernel_init,kernel_constraint=kernel_constraint,bias_constraint=bias_constraint)(r_stage_3)
+    r_stage_3 = layers.Conv3D(channels[4],kernel_size=kernel_size_1,activation=layers.PReLU(),padding='same',kernel_initializer=kernel_init,kernel_constraint=kernel_constraint,bias_constraint=bias_constraint)(r_stage_3)
+    r_stage_3 = layers.Conv3D(channels[4],kernel_size=kernel_size_1,activation=layers.PReLU(),padding='same',kernel_initializer=kernel_init,kernel_constraint=kernel_constraint,bias_constraint=bias_constraint)(r_stage_3)
+    r_stage_3 = layers.Add()([r_stage_3, conv_6])
+    general_utils.print_int_shape(r_stage_3)  # (None, M/4, N/4, 5, 128)
+    conv_7 = layers.Conv3DTranspose(channels[3],kernel_size=kernel_size_2,activation=layers.PReLU(),padding='same',strides=stride_2,kernel_initializer=kernel_init, kernel_constraint=kernel_constraint, bias_constraint=bias_constraint)(r_stage_3)
+
+    # R-Stage 2
+    r_stage_2 = layers.Concatenate(-1)([stage_2, conv_7])
+    r_stage_2 = layers.Conv3D(channels[3],kernel_size=kernel_size_1,activation=layers.PReLU(),padding='same',kernel_initializer=kernel_init,kernel_constraint=kernel_constraint,bias_constraint=bias_constraint)(r_stage_2)
+    r_stage_2 = layers.Conv3D(channels[3],kernel_size=kernel_size_1,activation=layers.PReLU(),padding='same',kernel_initializer=kernel_init,kernel_constraint=kernel_constraint,bias_constraint=bias_constraint)(r_stage_2)
+    r_stage_2 = layers.Add()([conv_7, r_stage_2])
+    general_utils.print_int_shape(r_stage_2)  # (None, M/2, N/2, 15, 64)
+    conv_8 = layers.Conv3DTranspose(channels[2],kernel_size=kernel_size_2,activation=layers.PReLU(),padding='same',strides=stride_1,kernel_initializer=kernel_init,kernel_constraint=kernel_constraint,bias_constraint=bias_constraint)(r_stage_2)
+
+    # R-Stage 1
+    r_stage_1 = layers.Concatenate(-1)([stage_1, conv_8])
+    r_stage_1 = layers.Conv3D(channels[2],kernel_size=kernel_size_1,activation=layers.PReLU(),padding='same',kernel_initializer=kernel_init,kernel_constraint=kernel_constraint,bias_constraint=bias_constraint)(r_stage_1)
+    r_stage_1 = layers.Add()([conv_8, r_stage_1])
+    general_utils.print_int_shape(r_stage_1)  # (None, M, N, 30, 32)
+
+    last_channels = 1
+    activation_func = "sigmoid"
+    shape_output = (constants.getM(), constants.getN())
+    if constants.getTO_CATEG():
+        last_channels = len(constants.LABELS)
+        activation_func = "softmax"
+        shape_output = (constants.getM(), constants.getN(), last_channels)
+
+    stride_5 = (1, 1, params["strides"]["conv.1"])
+    last_conv = layers.Conv3D(channels[2],kernel_size=stride_1,activation=layers.PReLU(),padding='same',kernel_initializer=kernel_init,strides=stride_5,kernel_constraint=kernel_constraint,bias_constraint=bias_constraint)(r_stage_1)
+    stride_6 = (1, 1, params["strides"]["conv.2"])
+    last_conv = layers.Conv3D(channels[1],kernel_size=stride_2,activation=layers.PReLU(),padding='same',kernel_initializer=kernel_init,strides=stride_6,kernel_constraint=kernel_constraint,bias_constraint=bias_constraint)(last_conv)
+    stride_7 = (1, 1, params["strides"]["conv.3"])
+    last_conv = layers.Conv3D(channels[0],kernel_size=stride_3,activation=layers.PReLU(),padding='same',kernel_initializer=kernel_init,strides=stride_7,kernel_constraint=kernel_constraint,bias_constraint=bias_constraint)(last_conv)
+    stride_8 = (1, 1, params["strides"]["conv.4"])
+    last_conv = layers.Conv3D(channels[0],kernel_size=stride_4,activation=layers.PReLU(),padding='same',kernel_initializer=kernel_init,strides=stride_8,kernel_constraint=kernel_constraint,bias_constraint=bias_constraint)(last_conv)
+    last_conv = layers.Conv3D(last_channels,kernel_size=(1,1,1),activation=activation_func,padding='same',kernel_initializer=kernel_init,kernel_constraint=kernel_constraint,bias_constraint=bias_constraint)(last_conv)
+
+    output = layers.Reshape(shape_output)(last_conv)
+    general_utils.print_int_shape(output)  # (None, M, N, 4)
+
+    model = models.Model(inputs=list_input, outputs=output)
+    return model

@@ -132,6 +132,8 @@ def jaccard_distance(y_true, y_pred):
 ################################################################################
 # Function that calculate the metrics for the CATEGORICAL CROSS ENTROPY
 def categorical_crossentropy(y_true, y_pred):
+    y_true = K.flatten(y_true)
+    y_pred = K.flatten(y_pred)
     y_pred = K.clip(y_pred, 0, 1)
     return metrics.categorical_accuracy(y_true, y_pred)
 

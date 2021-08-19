@@ -67,3 +67,10 @@ def tanimoto_loss(y_true, y_pred):
 # Tanimoto loss with its complement. https://arxiv.org/pdf/1904.00592.pdf
 def tanimoto_with_dual_loss(y_true, y_pred):
     return 1-((metrics.tanimoto(y_true, y_pred)+metrics.tanimoto(1-y_true, 1-y_pred))/2)
+
+
+################################################################################
+# Hybrid loss containing the pixel wise cross-entropy and the soft dice coefficient
+# https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=8932614
+def pixelwise_crossentropy_plus_squared_dice_coeff(y_true, y_pred):
+    return -(metrics.categorical_crossentropy(y_true, y_pred) + metrics.squared_dice_coef(y_true, y_pred))

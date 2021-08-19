@@ -18,6 +18,24 @@ import pickle as pkl
 
 
 ################################################################################
+# Get the labeled image processed (= GT)
+def getCheckImageProcessed(nn, p_id, idx):
+    checkImageProcessed = np.zeros(shape=(constants.IMAGE_WIDTH, constants.IMAGE_HEIGHT))
+    # get the label image only if the path is set
+    if nn.labeledImagesFolder != "":
+        filename = nn.labeledImagesFolder + constants.PREFIX_IMAGES + p_id + "/" + idx + constants.SUFFIX_IMG
+        if not os.path.exists(filename):
+            print("[WARNING] - {0} does NOT exists, try another...".format(filename))
+            filename = nn.labeledImagesFolder + constants.PREFIX_IMAGES + p_id + "/" + p_id + idx + constants.SUFFIX_IMG
+            assert os.path.exists(filename), "[ERROR] - {0} does NOT exist".format(filename)
+
+        checkImageProcessed = cv2.imread(filename, cv2.COLOR_BGR2RGB)
+        if len(checkImageProcessed.shape)==3: checkImageProcessed=cv2.cvtColor(checkImageProcessed, cv2.COLOR_BGR2GRAY)
+        assert len(checkImageProcessed.shape)==2, "The GT image shape should be 2."
+    return checkImageProcessed
+
+
+################################################################################
 # Predict the model based on the input
 def predictFromModel(nn, x_input):
     return nn.model.predict(x=x_input, batch_size=1, use_multiprocessing=nn.mp)
@@ -82,7 +100,6 @@ def predictImage(nn, subfolder, p_id, patientFolder, relativePatientFolder, rela
     startingX, startingY = 0, 0
     imagePredicted = np.zeros(shape=(constants.IMAGE_WIDTH, constants.IMAGE_HEIGHT))
     categoricalImage = np.zeros(shape=(constants.IMAGE_WIDTH, constants.IMAGE_HEIGHT, constants.N_CLASSES))
-    checkImageProcessed = np.zeros(shape=(constants.IMAGE_WIDTH, constants.IMAGE_HEIGHT))
 
     idx = general_utils.getStringFromIndex(subfolder.replace(patientFolder, '').replace("/", ""))  # image index
 
@@ -91,16 +108,7 @@ def predictImage(nn, subfolder, p_id, patientFolder, relativePatientFolder, rela
     if os.path.isfile(logsName): os.remove(logsName)
 
     # if constants.getVerbose(): print("[INFO] - Analyzing Patient {0}, image {1}.".format(p_id, idx))
-
-    # get the label image only if the path is set
-    if nn.labeledImagesFolder!="":
-        filename = nn.labeledImagesFolder + constants.PREFIX_IMAGES + p_id + "/" + idx + constants.SUFFIX_IMG
-        if not os.path.exists(filename):
-            print("[WARNING] - {0} does NOT exists, try another...".format(filename))
-            filename = nn.labeledImagesFolder + constants.PREFIX_IMAGES + p_id + "/" + p_id + idx + constants.SUFFIX_IMG
-            assert os.path.exists(filename), "[ERROR] - {0} does NOT exist".format(filename)
-
-        checkImageProcessed = cv2.imread(filename, cv2.COLOR_BGR2RGB)
+    checkImageProcessed = getCheckImageProcessed(nn, p_id, idx)
 
     folders = [subfolder]
     if nn.is4DModel and nn.n_slices>1: folders = model_utils.getPrevNextFolder(subfolder, idx)
@@ -128,8 +136,7 @@ def predictImage(nn, subfolder, p_id, patientFolder, relativePatientFolder, rela
             if constants.getTIMELAST(): pixels_shape = (constants.getM(), constants.getN(), constants.NUMBER_OF_IMAGE_PER_SECTION)
             else: pixels_shape = (constants.NUMBER_OF_IMAGE_PER_SECTION, constants.getM(), constants.getN())
 
-            binary_mask = np.zeros(shape=(constants.getM(), constants.getN()))
-            count = 0
+            binary_mask = checkImageProcessed!=constants.PIXELVALUES[0]  # np.zeros(shape=(constants.getM(), constants.getN()))
 
             pixels = np.zeros(shape=pixels_shape)
             is4DModel = True if len(folders) > 1 or (nn.x_label == constants.getList_PMS() or (nn.x_label == "pixels" and nn.is4DModel)) else False
@@ -143,25 +150,17 @@ def predictImage(nn, subfolder, p_id, patientFolder, relativePatientFolder, rela
                     if not nn.supervised or nn.patientsFolder!="OLDPREPROC_PATIENTS/":
                         image = imagesDict[imagename]
                         if is4DModel:
-                            tmpPixels[:,:,count] = general_utils.getSlicingWindow(image, startingX, startingY)
-                            if z == int(np.trunc(len(folders)/2)): binary_mask += (tmpPixels[:,:,count] > 0)
+                            if constants.getTIMELAST(): tmpPixels[:,:,count] = general_utils.getSlicingWindow(image, startingX, startingY)
+                            else: tmpPixels[count,:,:] = general_utils.getSlicingWindow(image, startingX, startingY)
                         else:
-                            if constants.getTIMELAST():
-                                pixels[:,:,count] = general_utils.getSlicingWindow(image, startingX, startingY)
-                                binary_mask += (pixels[:, :, count] > 0)  # add the mask of the pixels that are > 0
-                            else:
-                                pixels[count, :, :] = general_utils.getSlicingWindow(image, startingX, startingY)
-                                binary_mask += (pixels[count, :, :] > 0)  # add the mask of the pixels that are > 0
+                            if constants.getTIMELAST(): pixels[:,:,count] = general_utils.getSlicingWindow(image, startingX, startingY)
+                            else: pixels[count, :, :] = general_utils.getSlicingWindow(image, startingX, startingY)
                         count+=1
                     else:
                         if filename != "01"+ constants.SUFFIX_IMG:
                             image = imagesDict[imagename]
-                            if constants.getTIMELAST():
-                                pixels[:, :, count] = general_utils.getSlicingWindow(image, startingX, startingY)
-                                binary_mask += (pixels[:, :, count] > 0)  # add the mask of the pixels that are > 0
-                            else:
-                                pixels[count, :, :] = general_utils.getSlicingWindow(image, startingX, startingY)
-                                binary_mask += (pixels[count, :, :] > 0)  # add the mask of the pixels that are > 0
+                            if constants.getTIMELAST(): pixels[:, :, count] = general_utils.getSlicingWindow(image, startingX, startingY)
+                            else: pixels[count, :, :] = general_utils.getSlicingWindow(image, startingX, startingY)
                             count+=1
                 if is4DModel:
                     tmpPixels = tmpPixels.reshape(1,tmpPixels.shape[0],tmpPixels.shape[1],tmpPixels.shape[2],1)
@@ -194,9 +193,6 @@ def predictImage(nn, subfolder, p_id, patientFolder, relativePatientFolder, rela
                 if "nihss" in nn.multiInput.keys() and nn.multiInput["nihss"] == 1: pixels.append(np.array([int(row_to_analyze["NIHSS"].iloc[0])]) if row_to_analyze["NIHSS"].iloc[0]!="-" else np.array([0]))
                 if "age" in nn.multiInput.keys() and nn.multiInput["age"] == 1: pixels.append(np.array([int(row_to_analyze["age"].iloc[0])]))
                 if "gender" in nn.multiInput.keys() and nn.multiInput["gender"] == 1: pixels.append(np.array([int(row_to_analyze["gender"].iloc[0])]))
-
-            # the final binary mask is a consensus among the all timepoints
-            binary_mask = (binary_mask/(count+1) >= 0.5)
 
             if not is4DModel:
                 if constants.get3DFlag()== "": pixels = pixels.reshape(1,pixels.shape[0],pixels.shape[1],pixels.shape[2],1)
@@ -246,23 +242,14 @@ def predictImagesFromParametricMaps(nn, subfolder, p_id, relativePatientFolder, 
             idx = general_utils.getStringFromIndex(idx.replace(subfolder, '').replace("/CBF/", ""))  # image index
             if constants.getIsISLES2018(): idx = idx.replace(".tiff","")
             else: idx = idx.replace(".png","")
-            checkImageProcessed = np.zeros(shape=(constants.IMAGE_WIDTH, constants.IMAGE_HEIGHT))
-    
             # remove the old logs.
             logsName = nn.saveImagesFolder+relativePatientFolder+idx+"_logs.txt"
             if os.path.isfile(logsName): os.remove(logsName)
     
             # if constants.getVerbose(): print("[INFO] - Analyzing Patient {0}, image {1}.".format(p_id, idx))
-    
-            # get the label image only if the path is set
-            if nn.labeledImagesFolder!="":
-                fname = nn.labeledImagesFolder+constants.PREFIX_IMAGES+str(p_id)+"/"+idx+constants.SUFFIX_IMG
-                if not os.path.exists(fname):
-                    print("[WARNING] - {0} does NOT exists, try another...".format(fname))
-                    fname = nn.labeledImagesFolder+constants.PREFIX_IMAGES+str(p_id)+"/"+str(p_id)+idx+constants.SUFFIX_IMG
-                    assert os.path.exists(fname), "[ERROR] - {0} does NOT exist".format(fname)
-                checkImageProcessed = cv2.imread(fname, cv2.COLOR_BGR2RGB)
-    
+
+            checkImageProcessed = getCheckImageProcessed(nn, str(p_id), idx)
+
             assert os.path.exists(filename_test), "[ERROR] - File {0} does NOT exist".format(filename_test)
     
             # get the pandas dataframe
@@ -324,8 +311,7 @@ def saveImage(nn, relativePatientFolder, idx, imagePredicted, categoricalImage, 
 
 ################################################################################
 # Helpful function that return the 2D image from the pixel and the starting coordinates
-def generate2DImage(nn, pixels, startingXY, imagePredicted, categoricalImage, binary_mask,
-                    slicingWindowPredicted=None):
+def generate2DImage(nn,pixels,startingXY,imgPredicted,categoricalImage,binary_mask):
     """
     Generate a 2D image from the test_df
 
@@ -333,32 +319,35 @@ def generate2DImage(nn, pixels, startingXY, imagePredicted, categoricalImage, bi
     - nn                    : NeuralNetwork class
     - pixels                : pixel in a numpy array
     - startingXY            : (x,y) coordinates
-    - imagePredicted        : the predicted image
-    - checkImageProcessed   : the ground truth image
+    - imgPredicted          : the predicted image
+    - categoricalImage      : the categorical image predicted
+    - binary_mask           : the binary mask containing the skull
 
     Return:
-    - imagePredicted        : the predicted image
+    - imgPredicted          : the predicted image
     """
-    startingX, startingY = startingXY
-    # slicingWindowPredicted_orig contain only the prediction for the last step
-    slicingWindowPredicted_orig = predictFromModel(nn, pixels)[0]
-    if nn.save_images and constants.getTO_CATEG(): categoricalImage[startingX:startingX + constants.getM(),
-                                       startingY:startingY + constants.getN()] = slicingWindowPredicted_orig
+    x, y = startingXY
+    # swp_orig contain only the prediction for the last step
+    swp_orig = predictFromModel(nn, pixels)[0]
+    if nn.save_images and constants.getTO_CATEG(): categoricalImage[x:x+constants.getM(),y:y+constants.getN()]=swp_orig
 
-    # convert the categorical into a single array using a threshold (0.6) for removing some uncertain predictions
-    if constants.getTO_CATEG(): slicingWindowPredicted = K.eval((K.argmax(slicingWindowPredicted_orig)*255)/(constants.N_CLASSES-1))
-    else: slicingWindowPredicted = slicingWindowPredicted_orig*255
+    # convert the categorical into a single array for removing some uncertain predictions
+    if constants.getTO_CATEG(): slicingWindowPredicted = K.eval((K.argmax(swp_orig) * 255) / (constants.N_CLASSES - 1))
+    else: slicingWindowPredicted = swp_orig * 255
     # save the predicted images
     if nn.save_images:
         if not constants.getIsISLES2018():
             # Remove the parts already classified by the model
             binary_mask = np.array(binary_mask, dtype=np.float)
+            # force all the predictions to be inside the binary mask defined by the GT
+            slicingWindowPredicted *= binary_mask
+
             overlapping_pred = np.array(slicingWindowPredicted>0,dtype=np.float)
             overlapping_pred *= 85.
             binary_mask *= 85.  # multiply the binary mask for the brain pixel value
             slicingWindowPredicted += (binary_mask-overlapping_pred)  # add the brain to the prediction window
-        imagePredicted[startingX:startingX + constants.getM(), startingY:startingY + constants.getN()] = slicingWindowPredicted
-    return imagePredicted, categoricalImage
+        imgPredicted[x:x+constants.getM(),y:y+constants.getN()]=slicingWindowPredicted
+    return imgPredicted, categoricalImage
 
 
 ################################################################################

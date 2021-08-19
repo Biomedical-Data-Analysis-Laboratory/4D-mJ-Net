@@ -1,5 +1,5 @@
 from Model import constants
-from Utils import general_utils, spatial_pyramid, model_utils
+from Utils import general_utils, model_utils
 
 from tensorflow.keras import layers, models
 from tensorflow.keras.layers import Conv3D, Conv2DTranspose, Conv3DTranspose, Dropout, Concatenate
@@ -206,15 +206,11 @@ def mJNet(params, batch=True, drop=False, longJ=False, v2=False):
         general_utils.print_int_shape(pool_drop_5)  # (None, 1, M, N, 16)
         if drop: pool_drop_5 = Dropout(params["dropout"]["5"])(pool_drop_5)
 
-    act_name = "sigmoid"
-    n_chann = 1
-    shape_output = (constants.getM(), constants.getN())
-
     # set the softmax activation function if the flag is set
-    if constants.getTO_CATEG():
-        act_name = "softmax"
-        n_chann = len(constants.LABELS)
-        shape_output = (constants.getM(), constants.getN(), n_chann)
+    act_name = "softmax" if constants.getTO_CATEG() else "sigmoid"
+    n_chann = len(constants.LABELS) if constants.getTO_CATEG() else 1
+    shape_output = (constants.getM(), constants.getN(), n_chann) if constants.getTO_CATEG() else (
+    constants.getM(), constants.getN())
 
     # last convolutional layer; plus reshape from (1,M,N) to (M,N)
     conv_7 = model_utils.convolutionLayer(pool_drop_5,n_chann,(1,1,1),act_name,l1_l2_reg,kernel_init,'same',kernel_constraint,bias_constraint,leaky=False)
@@ -327,15 +323,11 @@ def mJNet_2D_with_VGG16(params, multiInput, batch=True, drop=True, leaky=True, a
     final_conv_2 = model_utils.convolutionLayer(final_conv_1,16,kernel_size,activ_func,l1_l2_reg,kernel_init,'same',kernel_constraint,bias_constraint,leaky=leaky,is2D=True)
     if batch: final_conv_2 = layers.BatchNormalization()(final_conv_2)
     general_utils.print_int_shape(final_conv_2)
-    act_name = "sigmoid"
-    n_chann = 1
-    shape_output = (constants.getM(), constants.getN())
 
-    # set the softmax activation function if the flag is set
-    if constants.getTO_CATEG():
-        act_name = "softmax"
-        n_chann = len(constants.LABELS)
-        shape_output = (constants.getM(), constants.getN(), n_chann)
+     # set the softmax activation function if the flag is set
+    act_name = "softmax" if constants.getTO_CATEG() else  "sigmoid"
+    n_chann = len(constants.LABELS) if constants.getTO_CATEG() else 1
+    shape_output = (constants.getM(), constants.getN(), n_chann) if constants.getTO_CATEG() else (constants.getM(), constants.getN())
 
     conv_last = model_utils.convolutionLayer(final_conv_2,n_chann,(1,1),act_name,l1_l2_reg,kernel_init,'same',kernel_constraint,bias_constraint,is2D=True)
     general_utils.print_int_shape(conv_last)
@@ -368,13 +360,16 @@ def mJNet_4D(params, multiInput, usePMs=True, batch=True, drop=False, leaky=True
         inputs.append(input_x)
 
         kernel_shape = (3,3,constants.NUMBER_OF_IMAGE_PER_SECTION) if constants.getTIMELAST() else (constants.NUMBER_OF_IMAGE_PER_SECTION,3,3)
-        out_1 = model_utils.blockConv3D(input_x,[8,8],kernel_shape,activ_func,l1_l2_reg,kernel_init,kernel_constraint,bias_constraint,leaky,batch,(1,1,params["max_pool"][str(slice)+".long.1"]))
+        pool_size = (1,1,params["max_pool"][str(slice)+".long.1"]) if constants.getTIMELAST() else (params["max_pool"][str(slice)+".long.1"],1,1)
+        out_1 = model_utils.blockConv3D(input_x,[8,8],kernel_shape,activ_func,l1_l2_reg,kernel_init,kernel_constraint,bias_constraint,leaky,batch,pool_size)
         new_z = int(constants.NUMBER_OF_IMAGE_PER_SECTION/params["max_pool"][str(slice)+".long.1"])
         kernel_shape = (3,3,new_z) if constants.getTIMELAST() else (new_z,3,3)
-        out_2 = model_utils.blockConv3D(out_1,[16,16],kernel_shape,activ_func,l1_l2_reg,kernel_init,kernel_constraint,bias_constraint,leaky,batch,(1,1,params["max_pool"][str(slice)+".long.2"]))
+        pool_size = (1,1,params["max_pool"][str(slice)+".long.2"]) if constants.getTIMELAST() else (params["max_pool"][str(slice)+".long.2"],1,1)
+        out_2 = model_utils.blockConv3D(out_1,[16,16],kernel_shape,activ_func,l1_l2_reg,kernel_init,kernel_constraint,bias_constraint,leaky,batch,pool_size)
         new_z = int(constants.NUMBER_OF_IMAGE_PER_SECTION/params["max_pool"][str(slice)+".long.2"])
         kernel_shape = (3,3,new_z) if constants.getTIMELAST() else (new_z,3,3)
-        out_3 = model_utils.blockConv3D(out_2,[32,32],kernel_shape,activ_func,l1_l2_reg,kernel_init,kernel_constraint,bias_constraint,leaky,batch,(1,1,params["max_pool"][str(slice)+".long.3"]))
+        pool_size = (1,1,params["max_pool"][str(slice)+".long.3"]) if constants.getTIMELAST() else (params["max_pool"][str(slice)+".long.3"],1,1)
+        out_3 = model_utils.blockConv3D(out_2,[32,32],kernel_shape,activ_func,l1_l2_reg,kernel_init,kernel_constraint,bias_constraint,leaky,batch,pool_size)
         if drop: out_3 = Dropout(params["dropout"][str(slice)+".long.1"])(out_3)
         block_3.append(out_3)
         out_4 = model_utils.blockConv3D(out_3,[8,16],kernel_size,activ_func,l1_l2_reg,kernel_init,kernel_constraint,bias_constraint,leaky,batch,size_two)
@@ -412,7 +407,7 @@ def mJNet_4D(params, multiInput, usePMs=True, batch=True, drop=False, leaky=True
         conv_out.append(layers.Reshape((transp_1.shape[1],transp_1.shape[2],1,transp_1.shape[3]))(transp_1))
 
     # check if there is a need to add more info in the input (NIHSS, gender, ...)
-    inputs, conv_out = model_utils.addMoreInfo(multiInput, inputs, conv_out, is3D=True, is4D=True)
+    inputs, conv_out, _, _ = model_utils.addMoreInfo(multiInput, inputs, conv_out, [], [], is3D=True, is4D=True)
     if len(conv_out)>1: conv_out = layers.Concatenate(-1)(conv_out)
     elif len(conv_out)==1: conv_out = conv_out[0]
     if attentiongate:
@@ -440,14 +435,11 @@ def mJNet_4D(params, multiInput, usePMs=True, batch=True, drop=False, leaky=True
         up_3 = model_utils.upLayers(up_2,block_4,[32,32,32],kernel_size,size_two,activ_func,l1_l2_reg,kernel_init,kernel_constraint,bias_constraint,leaky)
         up_4 = model_utils.upLayers(up_3,block_3,[16,16,16],kernel_size,size_two,activ_func,l1_l2_reg,kernel_init,kernel_constraint,bias_constraint,leaky)
 
-    act_name = "sigmoid"
-    n_chann = 1
-    shape_output = (constants.getM(), constants.getN())
-
-    if constants.getTO_CATEG():
-        act_name = "softmax"
-        n_chann = len(constants.LABELS)
-        shape_output = (constants.getM(), constants.getN(), n_chann)
+    # set the softmax activation function if the flag is set
+    act_name = "softmax" if constants.getTO_CATEG() else "sigmoid"
+    n_chann = len(constants.LABELS) if constants.getTO_CATEG() else 1
+    shape_output = (constants.getM(), constants.getN(), n_chann) if constants.getTO_CATEG() else (
+    constants.getM(), constants.getN())
 
     final_conv = Conv3D(n_chann, kernel_size=(1,1,1), activation=act_name, padding='same', kernel_regularizer=l1_l2_reg,
                         kernel_initializer=kernel_init,kernel_constraint=kernel_constraint, bias_constraint=bias_constraint)(up_4)

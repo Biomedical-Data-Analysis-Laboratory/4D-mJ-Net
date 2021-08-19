@@ -170,9 +170,9 @@ def convolutionLayer(input, channel, kernel_size, activation, kernel_regularizer
 ################################################################################
 # Function to compute two 3D (or 2D) convolutional layers
 def doubleConvolution(input, channels, kernel_size, activ_func, l1_l2_reg, kernel_init, kernel_constraint,
-                      bias_constraint, leaky=False, is2D=False):
-    conv = convolutionLayer(input, channels[0], kernel_size, activ_func, l1_l2_reg, kernel_init, 'same', kernel_constraint, bias_constraint, leaky=leaky, is2D=is2D)
-    conv = convolutionLayer(conv, channels[1], kernel_size, activ_func, l1_l2_reg, kernel_init, 'same', kernel_constraint, bias_constraint, leaky=leaky, is2D=is2D)
+                      bias_constraint, leaky=False, is2D=False, timedistr=False):
+    conv = convolutionLayer(input, channels[0], kernel_size, activ_func, l1_l2_reg, kernel_init, 'same', kernel_constraint, bias_constraint, leaky=leaky, is2D=is2D, timedistr=timedistr)
+    conv = convolutionLayer(conv, channels[1], kernel_size, activ_func, l1_l2_reg, kernel_init, 'same', kernel_constraint, bias_constraint, leaky=leaky, is2D=is2D, timedistr=timedistr)
     return conv
 
 
@@ -238,14 +238,14 @@ def addMoreInfo(multiInput, inputs, layersForAppending, pre_input, pre_layer, is
 # Function containing a block for the convolutional part
 def blockConv3D(input, channels, kernel_size, activ_func, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint,
               leaky, batch, pool_size):
-    conv_1 = convolutionLayer(input, channel=channels[0], kernel_size=kernel_size, activation=activ_func, kernel_regularizer=l1_l2_reg,
-                              kernel_initializer=kernel_init, padding='same', kernel_constraint=kernel_constraint, bias_constraint=bias_constraint,
-                              leaky=leaky)
+    conv_1 = convolutionLayer(input, channel=channels[0], kernel_size=kernel_size, activation=activ_func, leaky=leaky,
+                              kernel_initializer=kernel_init, padding='same', kernel_constraint=kernel_constraint,
+                              bias_constraint=bias_constraint, kernel_regularizer=l1_l2_reg)
     if batch: conv_1 = layers.BatchNormalization()(conv_1)
 
-    conv_1 = convolutionLayer(conv_1, channel=channels[1], kernel_size=kernel_size, activation=activ_func, kernel_regularizer=l1_l2_reg,
-                              kernel_initializer=kernel_init, padding='same', kernel_constraint=kernel_constraint, bias_constraint=bias_constraint,
-                              leaky=leaky)
+    conv_1 = convolutionLayer(conv_1, channel=channels[1], kernel_size=kernel_size, activation=activ_func, leaky=leaky,
+                              kernel_initializer=kernel_init, padding='same', kernel_constraint=kernel_constraint,
+                              bias_constraint=bias_constraint, kernel_regularizer=l1_l2_reg)
     if batch: conv_1 = layers.BatchNormalization()(conv_1)
 
     return layers.MaxPooling3D(pool_size)(conv_1)

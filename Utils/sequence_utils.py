@@ -108,7 +108,7 @@ class datasetSequence(Sequence):
 
                     assert totimg is not None, "The image {} is None".format(row[pm])
 
-                    if np.isnan(np.unique(totimg)).any(): print("getX", totimg.shape, np.isnan(totimg).any())
+                    # if np.isnan(np.unique(totimg)).any(): print("getX", totimg.shape, np.isnan(totimg).any())
                     img = general_utils.getSlicingWindow(totimg, coord[0], coord[1], removeColorBar=True)
                     img = general_utils.performDataAugmentationOnTheImage(img, data_aug_idx)
 
@@ -171,7 +171,9 @@ class datasetSequence(Sequence):
                 coord = current_batch.loc[row_index]["x_y"]  # coordinates of the slice window
                 if not isinstance(filename,str): print(filename)
                 img = cv2.imread(filename,cv2.IMREAD_GRAYSCALE)
-                if np.isnan(np.unique(img)).any(): print("getY", img.shape, np.isnan(img).any())
+
+                # if np.isnan(np.unique(img)).any(): print("getY", img.shape, np.isnan(img).any())
+
                 img = general_utils.getSlicingWindow(img, coord[0], coord[1], isgt=True)
 
                 # remove the brain from the image ==> it becomes background

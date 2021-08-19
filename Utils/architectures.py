@@ -1,6 +1,6 @@
 from Model import constants
-from Architectures import arch_mJNet, arch_PMs_segm, arch_autoencoder, arch_van_De_Leemput, arch_UNet, arch_VNet, arch_ResUNet
-from Utils import general_utils, spatial_pyramid
+from Architectures import arch_mJNet, arch_PMs_segm, arch_autoencoder, arch_van_De_Leemput, arch_UNet, arch_VNet, arch_ResUNet, arch_mJNetplusplus
+from Utils import general_utils
 
 
 ################################################################################
@@ -36,7 +36,7 @@ def mJNet_LongJ(params, multiInput):
 ################################################################################
 # mJ-Net model version 2
 def mJNet_v2(params, multiInput):
-    return arch_mJNet.mJNet(params, batch=False, drop=True, longJ=True, v2=True)
+    return arch_mJNet.mJNet(params, batch=True, drop=True, longJ=True, v2=True)
 
 
 ################################################################################
@@ -56,6 +56,11 @@ def mJNet_4D(params, multiInput, batch=True, drop=True, leaky=True, attentiongat
 def mJNet_4DWithPMS(params, multiInput, batch=True, drop=True, leaky=True, attentiongate=True):
     return arch_mJNet.mJNet_4D(params, multiInput, usePMs=True, batch=batch, drop=drop, leaky=leaky, attentiongate=attentiongate)
 
+
+################################################################################
+# mJ-Net++ following this: https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=8932614
+def mJNet_plusplus(params, multiInput, batch=True, drop=True):
+    return arch_mJNetplusplus.mJNet_plusplus(params, batch=batch, drop=drop)
 
 ################################################################################
 def PMs_segmentation(params, multiInput):
@@ -98,6 +103,7 @@ def Ronneberger_UNET(params, multiInput):
 # Model from Milletari V-Net (https://arxiv.org/pdf/1606.04797.pdf)
 def VNet_Milletari(params, multiInput):
     return arch_VNet.VNet_Milletari(params)
+
 
 def VNet_Milletari_PMS(params, multiInput):
     return arch_VNet.VNet_Milletari_PMS(params, multiInput)

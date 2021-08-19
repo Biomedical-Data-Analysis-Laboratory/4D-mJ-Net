@@ -547,10 +547,8 @@ class NeuralNetwork(object):
             # evaluate the model with the testing patient (not necessary)
             # if self.supervised: self.evaluateModelWithCategorics(p_id, isAlreadySaved)
 
-            if getVerbose():
-                general_utils.printSeparation("+", 50)
-                print("[INFO] - Executing function: predictAndSaveImages for patient {}".format(p_id))
-
+            general_utils.printSeparation("+", 50)
+            print("[INFO] - Executing function: predictAndSaveImages for patient {}".format(p_id))
             testing.predictAndSaveImages(self, p_id)
 
         return stats

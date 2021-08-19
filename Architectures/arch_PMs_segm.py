@@ -1,5 +1,5 @@
 from Model import constants
-from Utils import general_utils, spatial_pyramid, model_utils
+from Utils import general_utils, model_utils
 
 from tensorflow.keras import layers, models, initializers
 from tensorflow.keras.constraints import max_norm

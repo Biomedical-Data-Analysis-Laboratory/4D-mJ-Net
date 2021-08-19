@@ -20,7 +20,7 @@ def readAndMirrorImages():
 
         print("[INFO] - Analyzing {0}/{1}; patient folder: {2}...".format(numFold + 1, len(patientFolders), relativePatientPath))
 
-        #readAndMirrorGT(relativePatientPath)
+        readAndMirrorGT(relativePatientPath)
 
         #readAndMirrorPM(relativePatientPath)
 

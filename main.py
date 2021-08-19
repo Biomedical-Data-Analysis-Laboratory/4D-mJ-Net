@@ -120,7 +120,6 @@ if __name__ == '__main__':
       -v, --verbose         Increase output verbosity
       -d, --debug           DEBUG mode
       -o, --original        Set the shape of the testing dataset to be compatible with the original shape 
-                            (T,M,N) [time in front]
       -pm, --pm             Set the flag to train the parametric maps as input 
       -t TILE, --tile TILE  Set the tile pixels dimension (MxM) (default = 16)
       -dim DIMENSION, --dimension DIMENSION

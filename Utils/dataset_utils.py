@@ -21,29 +21,33 @@ def loadTrainingDataframe(nn, patients):
     # get the suffix based on the SLICING_PIXELS, the M and N
     suffix = general_utils.getSuffix()  # es == "_4_16x16"
 
-    frames = [train_df]
+    frames = []
 
     suffix_filename = ".pkl"
     if nn.use_hickle: suffix_filename = ".hkl"
     listOfFolders = glob.glob(nn.datasetFolder + "*" + suffix + suffix_filename)
 
-    for filename_train in listOfFolders:
-        # don't load the dataframe if patient_id NOT in the list of patients
-        if not general_utils.isFilenameInListOfPatient(filename_train, patients): continue
+    with multiprocessing.Pool(processes=16) as pool:  # auto closing workers
+        frames = pool.starmap(readSingleDataFrame, list(zip(listOfFolders,[patients]*len(listOfFolders),[nn.use_hickle]*len(listOfFolders))))
 
-        tmp_df = readFromPickleOrHickle(filename_train, nn.use_hickle)
-
-        # Remove the overlapping tiles except if they are labeled as "core"
-        one = tmp_df.x_y.str[0] % constants.getM() == 0
-        two = tmp_df.x_y.str[1] % constants.getN() == 0
-        three = tmp_df.label.values == constants.LABELS[-1]
-        tmp_df = tmp_df[(one & two) | three]
-
-        frames.append(tmp_df)
-
-    train_df = pd.concat(frames, sort=False, ignore_index=True)
+    train_df = train_df.append(frames, sort=False, ignore_index=True)
     return train_df
 
+
+def readSingleDataFrame(filename_train, patients, use_hickle):
+    # don't load the dataframe if patient_id NOT in the list of patients
+    if not general_utils.isFilenameInListOfPatient(filename_train, patients): return
+    start = time.time()
+    tmp_df = readFromPickleOrHickle(filename_train, use_hickle)
+
+    # Remove the overlapping tiles except if they are labeled as "core"
+    one = tmp_df.x_y.str[0] % constants.getM() == 0
+    two = tmp_df.x_y.str[1] % constants.getN() == 0
+    three = tmp_df.label.values == constants.LABELS[-1]
+    tmp_df = tmp_df[(one & two) | three]
+    # frames.append(tmp_df)
+    if constants.getVerbose(): print("{0} - {1}".format(filename_train, round(time.time() - start, 3)))
+    return tmp_df
 
 ################################################################################
 # Return the elements in the filename saved as a pickle or as hickle (depending on the flag)
@@ -68,8 +72,7 @@ def getDataset(nn, listOfPatientsToTrainVal):
 
     train_df = loadTrainingDataframe(nn, patients=listOfPatientsToTrainVal)
 
-    end = time.time()
-    print("[INFO] - Total time to load the Dataset: {0}s".format(round(end - start, 3)))
+    print("[INFO] - Total time to load the Dataset: {0}s".format(round(time.time() - start, 3)))
     if constants.getVerbose(): generateDatasetSummary(train_df, listOfPatientsToTrainVal)  # summary of the dataset
 
     return train_df
@@ -119,8 +122,7 @@ def splitDataset(nn, listOfPatientsToTrainVal, listOfPatientsToTest):
         nn = setValList(nn, validation_list)
         nn = setTrainIndices(nn, validation_list, test_list)
 
-    end = time.time()
-    if constants.getVerbose(): print("[INFO] - Total time to split the Dataset: {}s".format(round(end - start, 3)))
+    if constants.getVerbose(): print("[INFO] - Total time to split the Dataset: {}s".format(round(time.time() - start, 3)))
 
     return nn.dataset, validation_list, test_list
 
@@ -170,8 +172,7 @@ def prepareDataset(nn):
     # DEFINE the data for the dataset TEST
     nn.dataset["test"]["data"] = getDataFromIndex(nn.train_df, nn.dataset["test"]["indices"], "test", nn.mp)
 
-    end = time.time()
-    if constants.getVerbose(): print("[INFO] - Total time to split the Dataset: {}s".format(round(end - start, 3)))
+    if constants.getVerbose(): print("[INFO] - Total time to split the Dataset: {}s".format(round(time.time() - start, 3)))
 
     return nn.dataset
 
@@ -211,7 +212,6 @@ def getTestDataset(dataset, train_df, p_id, use_sequence, mp):
 # Get the data from a list of indices
 def getDataFromIndex(train_df, indices, flag, mp):
     start = time.time()
-
     if constants.get3DFlag() != "":
         data = [a for a in np.array(train_df.pixels.values[indices], dtype=object)]
     else:  # do this when NO 3D flag is set
@@ -221,11 +221,10 @@ def getDataFromIndex(train_df, indices, flag, mp):
     # convert the data into an np.ndarray
     if type(data) is not np.ndarray: data = np.array(data, dtype=object)
 
-    end = time.time()
     if constants.getVerbose():
         setPatients = set(train_df.patient_id.values[indices])
         print("[INFO] - patients: {0}".format(setPatients))
-        print("[INFO] - *getDataFromIndex* Time: {}s".format(round(end - start, 3)))
+        print("[INFO] - *getDataFromIndex* Time: {}s".format(round(time.time() - start, 3)))
         print("[INFO] - {0} shape; # {1}".format(data.shape, flag))
 
     return data
@@ -268,9 +267,8 @@ def getLabelsFromIndex(train_df, dataset, modelname, flag):
         labels = data.astype(np.float32)
         labels /= 255  # convert the label in [0, 1] values
 
-    end = time.time()
     if constants.getVerbose():
-        print("[INFO] - *getLabelsFromIndex* Time: {}s".format(round(end - start, 3)))
+        print("[INFO] - *getLabelsFromIndex* Time: {}s".format(round(time.time() - start, 3)))
         print("[INFO] - {0} shape; # {1}".format(labels.shape, flag))
 
     return labels
@@ -290,7 +288,6 @@ def generateDatasetSummary(train_df, listOfPatientsToTrainVal=None):
     print("\t Tot: {0}".format(N_TOT))
 
     if listOfPatientsToTrainVal is not None: print("\t Patients: {0}".format(listOfPatientsToTrainVal))
-
     general_utils.printSeparation('+', 100)
 
 

@@ -54,12 +54,9 @@ def getCommandLineArguments():
 ################################################################################
 # get the setting file
 def getSettingFile(filename):
-    setting = dict()
-
     # the path of the setting file start from the main.py
     # (= current working directory)
-    with open(os.path.join(os.getcwd(), filename)) as f:
-        setting = json.load(f)
+    with open(os.path.join(os.getcwd(), filename)) as f: setting = json.load(f)
 
     if constants.getVerbose():
         printSeparation("-",50)
@@ -111,7 +108,6 @@ def setupEnvironmentForGPUs(args, setting):
 
     config.gpu_options.per_process_gpu_memory_fraction = setting["init"]["per_process_gpu_memory_fraction"] * N_GPU
     tf.compat.v1.disable_eager_execution()
-
     # session = tf.compat.v1.Session(config=config)
 
     if constants.getVerbose():

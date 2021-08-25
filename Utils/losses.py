@@ -73,4 +73,4 @@ def tanimoto_with_dual_loss(y_true, y_pred):
 # Hybrid loss containing the pixel wise cross-entropy and the soft dice coefficient
 # https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=8932614
 def pixelwise_crossentropy_plus_squared_dice_coeff(y_true, y_pred):
-    return -(metrics.categorical_crossentropy(y_true, y_pred) + metrics.squared_dice_coef(y_true, y_pred))
+    return 1-(metrics.categorical_crossentropy(y_true, y_pred) + metrics.squared_dice_coef(y_true, y_pred))

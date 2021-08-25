@@ -107,7 +107,7 @@ def predictImage(nn, subfolder, p_id, patientFolder, relativePatientFolder, rela
     logsName = nn.saveImagesFolder+relativePatientFolder+idx+"_logs.txt"
     if os.path.isfile(logsName): os.remove(logsName)
 
-    # if constants.getVerbose(): print("[INFO] - Analyzing Patient {0}, image {1}.".format(p_id, idx))
+    if constants.getVerbose(): print("[INFO] - Analyzing Patient {0}, image {1}.".format(p_id, idx))
     checkImageProcessed = getCheckImageProcessed(nn, p_id, idx)
 
     folders = [subfolder]
@@ -136,7 +136,8 @@ def predictImage(nn, subfolder, p_id, patientFolder, relativePatientFolder, rela
             if constants.getTIMELAST(): pixels_shape = (constants.getM(), constants.getN(), constants.NUMBER_OF_IMAGE_PER_SECTION)
             else: pixels_shape = (constants.NUMBER_OF_IMAGE_PER_SECTION, constants.getM(), constants.getN())
 
-            binary_mask = checkImageProcessed!=constants.PIXELVALUES[0]  # np.zeros(shape=(constants.getM(), constants.getN()))
+            # binary_mask = np.zeros(shape=(constants.getM(), constants.getN()))
+            binary_mask = checkImageProcessed!=constants.PIXELVALUES[0]
 
             pixels = np.zeros(shape=pixels_shape)
             is4DModel = True if len(folders) > 1 or (nn.x_label == constants.getList_PMS() or (nn.x_label == "pixels" and nn.is4DModel)) else False

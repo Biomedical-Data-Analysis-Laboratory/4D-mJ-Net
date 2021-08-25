@@ -126,6 +126,7 @@ if __name__ == '__main__':
                             Set the dimension of the input images (width X height) (default = 512)
       -c {2,3,4}, --classes {2,3,4}
                             Set the # of classes involved (default = 4)
+      --isles2018           Flag to use the ISLES2018 dataset
       -w, --weights         Set the weights for the categorical losses
       -e, --exp             Set the number of the experiment
       -j, --jump            Jump the training and go directly on the gradual fine-tuning function

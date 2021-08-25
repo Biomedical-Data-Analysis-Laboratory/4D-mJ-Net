@@ -122,7 +122,7 @@ def setTileDimension(t):
     if t is not None:
         M = int(t)
         N = int(t)
-        SLICING_PIXELS = int(M / 4)
+        SLICING_PIXELS = int(M/4)
 
 
 def setImageDimension(d):
@@ -194,8 +194,9 @@ def setWeights(weights):
 def setISLES2018(isles):
     global isISLES, dataFrameColumns
     isISLES = isles
-    dataFrameColumns = ['patient_id', 'label', 'pixels', 'CBF', 'CBV', 'MTT', 'TMAX', 'ground_truth', 'x_y',
-                        'data_aug_idx', 'timeIndex', 'sliceIndex']
+    setImageDimension(256)
+    dataFrameColumns = ['CBF', 'CBV', 'MTT', 'TMAX', 'data_aug_idx', 'ground_truth', 'label', 'label_code',
+                        'patient_id', 'pixels', 'sliceIndex', 'timeIndex', 'x_y']
 
 
 def setTimeLast(timelast):

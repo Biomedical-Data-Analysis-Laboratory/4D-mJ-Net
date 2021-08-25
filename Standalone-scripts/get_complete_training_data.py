@@ -3,7 +3,7 @@
 
 ################################################################################
 # ### Import libraries
-import cv2, time, glob, os, operator, random, math, argparse, json
+import cv2, time, glob, os, operator, random, math, argparse, json, multiprocessing
 import numpy as np
 import pandas as pd
 import pickle as pkl
@@ -364,8 +364,16 @@ def initializeDataset():
 
     infor_file = ""
     if HASDAYFOLDER: infor_file = pd.read_csv("../nihss_score.csv",index_col=0,sep=";")
+    lpf = len(patientFolders)
+    with multiprocessing.Pool(processes=16) as pool:
+        pool.starmap(runSingleDataframe, list(zip(range(0, lpf), patientFolders, [suffix_filename]*lpf, [infor_file]*lpf, [lpf]*lpf)))
 
-    for numFold, patientFolder in enumerate(patientFolders):  # for each patient
+    # for numFold, patientFolder in enumerate(patientFolders):  # for each patient
+    #     runSingleDataframe(numFold, patientFolder, suffix_filename, infor_file)
+
+
+################################################################################
+def runSingleDataframe(numFold, patientFolder, suffix_filename, infor_file, lpf):
         train_df = pd.DataFrame(columns=COLUMNS)  # reset the dataframe
 
         relativePath = patientFolder.replace(SAVE_REGISTERED_FOLDER, '')
@@ -375,10 +383,10 @@ def initializeDataset():
 
         if os.path.isfile(filename_train):
             print("File {} already exist, continue...".format(filename_train))
-            continue
+            return
 
         subfolders = np.sort(glob.glob(patientFolder+"*/"))
-        print("[INFO] - Analyzing {0}/{1}; patient folder: {2}...".format(numFold+1, len(patientFolders), relativePath))
+        print("[INFO] - Analyzing {0}/{1}; patient folder: {2}...".format(numFold+1, lpf, relativePath))
         # if the manual annotation folder
         if os.path.isdir(LABELED_IMAGES_FOLDER_LOCATION+IMAGE_PREFIX+patientIndex+"/"):
             for count, timeFolder in enumerate(subfolders):  # for each slicing time
@@ -411,7 +419,7 @@ def getSettingFile(filename):
 # Set the setting from the file
 def setSettings():
     global DATASET_NAME, ROOT_PATH, SCRIPT_PATH, SAVE_REGISTERED_FOLDER, LABELED_IMAGES_FOLDER_LOCATION, IMAGE_PREFIX
-    global IMAGE_SUFFIX, NUMBER_OF_IMAGE_PER_SECTION, NUMBER_OF_SLICE_PER_PATIENT, IMAGE_WIDTH, IMAGE_HEIGHT
+    global IMAGE_SUFFIX, NUMBER_OF_IMAGE_PER_SECTION, IMAGE_WIDTH, IMAGE_HEIGHT
     global BINARY_CLASSIFICATION, LABELS, LABELS_THRESHOLDS, LABELS_REALVALUES, TILE_DIVISION, SEQUENCE_DATASET
     global SKIP_TILES, ORIGINAL_SHAPE, DATA_AUGMENTATION, ONE_TIME_POINT, COLUMNS, setting
     global NEW_GROUNDTRUTH_VALUES, M, N, SLICING_PIXELS, MASKS_IMAGES_FOLDER_LOCATION, PM_FOLDER
@@ -426,7 +434,6 @@ def setSettings():
     IMAGE_PREFIX = setting["IMAGE_PREFIX"]
     IMAGE_SUFFIX = setting["IMAGE_SUFFIX"]
     NUMBER_OF_IMAGE_PER_SECTION = setting["NUMBER_OF_IMAGE_PER_SECTION"]
-    NUMBER_OF_SLICE_PER_PATIENT = setting["NUMBER_OF_SLICE_PER_PATIENT"]
     IMAGE_WIDTH = setting["IMAGE_WIDTH"]
     IMAGE_HEIGHT = setting["IMAGE_HEIGHT"]
     BINARY_CLASSIFICATION = setting["BINARY_CLASSIFICATION"]
@@ -459,7 +466,7 @@ def setSettings():
 ################################################################################
 if __name__ == '__main__':
     global DATASET_NAME, ROOT_PATH, SCRIPT_PATH, SAVE_REGISTERED_FOLDER, LABELED_IMAGES_FOLDER_LOCATION, IMAGE_PREFIX
-    global IMAGE_SUFFIX, NUMBER_OF_IMAGE_PER_SECTION, NUMBER_OF_SLICE_PER_PATIENT, IMAGE_WIDTH, IMAGE_HEIGHT
+    global IMAGE_SUFFIX, NUMBER_OF_IMAGE_PER_SECTION, IMAGE_WIDTH, IMAGE_HEIGHT
     global BINARY_CLASSIFICATION, LABELS, LABELS_THRESHOLDS, LABELS_REALVALUES, TILE_DIVISION, SEQUENCE_DATASET
     global SKIP_TILES, ORIGINAL_SHAPE, DATA_AUGMENTATION, ONE_TIME_POINT, COLUMNS, PM_FOLDER
     global NEW_GROUNDTRUTH_VALUES, M, N, SLICING_PIXELS, MASKS_IMAGES_FOLDER_LOCATION, setting

@@ -22,7 +22,7 @@ def readAndMirrorImages():
 
         readAndMirrorGT(relativePatientPath)
 
-        #readAndMirrorPM(relativePatientPath)
+        readAndMirrorPM(relativePatientPath)
 
         readAndMirror4DCTP(relativePatientPath,patientFolder)
 
@@ -73,7 +73,7 @@ def readAndMirrorPM(relativePatientPath):
 ################################################################################
 def savePMImage(relativePatientPath, folder,day_f=""):
     # pmlist = ["CBF", "CBV", "TTP", "TMAX", "Tmax", "MIP", "MTT" ]
-    pmlist = ["CT", "OT"]
+    pmlist = ["CBF", "CBV", "CT", "OT", "MTT", "Tmax"]
     for listpms in glob.glob(folder + "*/"):
         for pm in pmlist:
             if pm in listpms:
@@ -136,9 +136,9 @@ if __name__ == '__main__':
     """
     Example usage for SUS2020 DS (& ISLES2018): 
     
-    python augment_DS.py /home/prosjekt/PerfusionCT/StrokeSUS/ORIGINAL/ FINAL_Najm_v1/ Parametric_Maps/ GT_TIFF/ MASKS_v5/  -d -c
+    python augment_DS.py /home/prosjekt/PerfusionCT/StrokeSUS/ORIGINAL/ FINAL_Najm_v21-0.25/ Parametric_Maps/ GT_TIFF/ MASKS_v6/  -d -c
     
-    python augment_DS.py /home/stud/lucat/PhD_Project/Stroke_segmentation/PATIENTS/ISLES2018/Processed_TRAINING/ FINAL/ Parametric_Maps/ Binary_Ground_Truth/ "" -f 1
+    python augment_DS.py /home/prosjekt/PerfusionCT/StrokeSUS/ISLES2018/Processed_TRAINING/ORIGINAL/ FINAL_v21-0.5/ Parametric_Maps/ Binary_Ground_Truth/ "" -f 0
 
     """
     parser = argparse.ArgumentParser()

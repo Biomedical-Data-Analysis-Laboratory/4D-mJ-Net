@@ -1,13 +1,16 @@
-from tensorflow.keras import layers, models, regularizers, initializers
-from tensorflow.keras.constraints import max_norm
-from tensorflow.keras.layers import Conv2D, Conv3D, Concatenate, Conv2DTranspose, Conv3DTranspose, Dropout, TimeDistributed
-import tensorflow.keras.backend as K
-from tensorflow.keras.applications import VGG16
-
+import cv2
 import glob
 import numpy as np
-from Utils import general_utils
+import tensorflow.keras.backend as K
+from scipy import ndimage
+from tensorflow.keras import layers, models, regularizers, initializers
+from tensorflow.keras.applications import VGG16
+from tensorflow.keras.constraints import max_norm
+from tensorflow.keras.layers import Conv2D, Conv3D, Concatenate, Conv2DTranspose, Conv3DTranspose, Dropout, \
+    TimeDistributed
+
 from Model import constants
+from Utils import general_utils
 
 
 ################################################################################
@@ -122,6 +125,97 @@ def getPMsList(multiInput, params, activ_func, l1_l2_reg, kernel_init, kernel_co
             mip = PM_obj("mip", params, activ_func, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint, batch)
             PMS.append(mip)
     return PMS
+
+
+################################################################################
+# Function to get the input X depending on the correct model
+def getCorrectXForInputModel(nn, current_folder, row, batchIndex, batch_length, X=None, train=False):
+    pms = dict()
+    # Extract the information: coordinates, data_aug_idx, ...
+    coord = row["x_y"] if train else row["x_y"].iloc[0]
+    data_aug_idx = row["data_aug_idx"] if train else row["data_aug_idx"].iloc[0]
+    sliceIndex = row["sliceIndex"] if train else row["sliceIndex"].iloc[0]
+    # Set the folders with the current one
+    folders = [current_folder]
+    if nn.is4DModel and nn.n_slices > 1: folders = getPrevNextFolder(current_folder, sliceIndex)
+    # Get the shape of the input X
+    if not train:
+        x_shape = (constants.getM(), constants.getN(), constants.NUMBER_OF_IMAGE_PER_SECTION) if constants.getTIMELAST() else (constants.NUMBER_OF_IMAGE_PER_SECTION, constants.getM(), constants.getN())
+        x_shape = (1,)+x_shape+(1,)
+        X = np.zeros(shape=x_shape)
+    # Important flag. check if X should be an array or not
+    isXarray = True if len(folders) > 1 or (nn.x_label == constants.getList_PMS() or (nn.x_label == "pixels" and nn.is4DModel)) else False
+    if isXarray and (not train or (train and batchIndex==0)): X = [None] * len(folders)
+
+    for z, folder in enumerate(folders):
+        tmpX = np.empty((batch_length, constants.getM(), constants.getN(), constants.NUMBER_OF_IMAGE_PER_SECTION, 1)) if constants.getTIMELAST() else np.empty((batch_length, constants.NUMBER_OF_IMAGE_PER_SECTION, constants.getM(), constants.getN(), 1))
+        if isXarray and train and batchIndex>0: tmpX = X[z]
+        howmany = len(glob.glob(folder + "*" + constants.SUFFIX_IMG))
+        interpX = np.empty((constants.getM(),constants.getN(),howmany,1)) if constants.getTIMELAST() else np.empty((howmany,constants.getM(),constants.getN(),1))
+
+        for timeIndex, filename in enumerate(np.sort(glob.glob(folder + "*" + constants.SUFFIX_IMG))):
+            totimg = cv2.imread(filename, cv2.IMREAD_GRAYSCALE)
+            assert totimg is not None, "The image {} is None".format(filename)
+            # Get the slice and if we are training, also perform augmentation
+            sliceW = general_utils.getSlicingWindow(totimg, coord[0], coord[1])
+            if train and not constants.getIsISLES2018(): sliceW = general_utils.performDataAugmentationOnTheImage(sliceW, data_aug_idx)
+            if not nn.supervised or nn.patientsFolder != "OLDPREPROC_PATIENTS/":
+                # reshape it for the correct input in the model
+                if constants.getTIMELAST():
+                    if constants.getIsISLES2018(): interpX[:, :, timeIndex, :] = sliceW.reshape(sliceW.shape+(1,)+(1,))  # append the image into a list if ISLES
+                    else:
+                        if isXarray: tmpX[batchIndex, :, :, timeIndex, :] = sliceW.reshape(sliceW.shape+(1,))
+                        else: X[batchIndex, :, :, timeIndex, :] = sliceW.reshape(sliceW.shape+(1,))
+                else:
+                    if constants.getIsISLES2018(): interpX[timeIndex, :, :, :] = sliceW.reshape((1,)+sliceW.shape+(1,))  # append the image into a list if ISLES
+                    else:
+                        if isXarray: tmpX[batchIndex, timeIndex, :, :, :] = sliceW.reshape(sliceW.shape+(1,))
+                        else: X[batchIndex, timeIndex, :, :, :] = sliceW.reshape(sliceW.shape+(1,))
+            else: # here is for the old pre-processing patients (Master 2019)
+                if filename != "01"+constants.SUFFIX_IMG:
+                    if constants.getTIMELAST(): X[:, :, timeIndex] = sliceW
+                    else: X[timeIndex, :, :] = sliceW
+        # Interpolation if we are dealing with the ISLES2018 dataset
+        if constants.getIsISLES2018():
+            axis = -2 if constants.getTIMELAST() else 0
+            zoom_val = constants.NUMBER_OF_IMAGE_PER_SECTION/interpX.shape[axis]
+            arr_zoom = [1,1,zoom_val,1] if constants.getTIMELAST() else [zoom_val,1,1,1]
+            if isXarray: tmpX[batchIndex,:,:,:,:] = ndimage.zoom(interpX, arr_zoom, output=np.float32)
+            else: X[batchIndex,:,:,:,:] = ndimage.zoom(interpX, arr_zoom, output=np.float32)
+        if isXarray:
+            X[z] = tmpX
+        # Check if we are going to add/use the PMs or the additional input (NIHSS, age, gender)
+        if nn.x_label == constants.getList_PMS() or (nn.x_label == "pixels" and nn.is4DModel):
+            for pm in constants.getList_PMS():
+                if pm not in pms.keys(): pms[pm] = []
+                crn_pm = row[pm] if train else row[pm].iloc[0]
+                totimg = cv2.imread(crn_pm, nn.inputImgFlag)
+                assert totimg is not None, "The image {} is None".format(crn_pm)
+                img = general_utils.getSlicingWindow(totimg, coord[0], coord[1], removeColorBar=True)
+                if train: img = general_utils.performDataAugmentationOnTheImage(img, data_aug_idx)
+                channels = 1 if nn.params["convertImgToGray"] else 3
+                img = np.reshape(img, (constants.getM(), constants.getN(), channels)) if nn.params["convertImgToGray"] else img
+                img = np.reshape(img, (1, constants.getM(), constants.getN(), channels)) if nn.params["inflate_network"] and nn.params["concatenate_input"] else img
+                pms[pm].append(img)
+
+            if "cbf" in nn.multiInput.keys() and nn.multiInput["cbf"] == 1: X.append(np.array(pms["CBF"]))
+            if "cbv" in nn.multiInput.keys() and nn.multiInput["cbv"] == 1: X.append(np.array(pms["CBV"]))
+            if "ttp" in nn.multiInput.keys() and nn.multiInput["ttp"] == 1: X.append(np.array(pms["TTP"]))
+            if "mtt" in nn.multiInput.keys() and nn.multiInput["mtt"] == 1: X.append(np.array(pms["MTT"]))
+            if "tmax" in nn.multiInput.keys() and nn.multiInput["tmax"] == 1: X.append(np.array(pms["TMAX"]))
+            if "mip" in nn.multiInput.keys() and nn.multiInput["mip"] == 1: X.append(np.array(pms["MIP"]))
+
+        if "nihss" in nn.multiInput.keys() and nn.multiInput["nihss"] == 1:
+            nihss_row = row["NIHSS"] if train else row["NIHSS"].iloc[0]
+            if nihss_row == "": nihss_row = 0
+            X.append(np.array([int(nihss_row)]))
+        if "age" in nn.multiInput.keys() and nn.multiInput["age"] == 1:
+            age_row = row["age"] if train else row["age"].iloc[0]
+            X.append(np.array([int(age_row)]))
+        if "gender" in nn.multiInput.keys() and nn.multiInput["gender"] == 1:
+            gender_row = row["gender"] if train else row["gender"].iloc[0]
+            X.append(np.array([int(gender_row)]))
+    return X
 
 
 ################################################################################

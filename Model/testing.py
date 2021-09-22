@@ -1,20 +1,22 @@
 # Run the testing function, save the images ..
-import warnings
-warnings.simplefilter(action='ignore', category=FutureWarning)
-
-from Utils import general_utils, dataset_utils, sequence_utils, metrics, model_utils
-from Model import constants, training
-
-import os, time, cv2, glob
-import seaborn as sns
+import cv2
+import glob
 import matplotlib.pyplot as plt
 import multiprocessing
-from scipy import ndimage
 import numpy as np
+import os
+import time
+import warnings
+import pickle as pkl
+import seaborn as sns
 import tensorflow.keras.backend as K
+from scipy import ndimage
 from tensorflow.keras.preprocessing.image import load_img, img_to_array
 
-import pickle as pkl
+from Model import constants, training
+from Utils import general_utils, dataset_utils, sequence_utils, metrics, model_utils
+
+warnings.simplefilter(action='ignore', category=FutureWarning)
 
 
 ################################################################################
@@ -62,20 +64,19 @@ def predictAndSaveImages(nn, p_id):
     for subpath in [relativePatientFolder,relativePatientFolderHeatMap,relativePatientFolderGT,relativePatientFolderTMP]:
         general_utils.createDir(filename_saveImageFolder+"/"+subpath)
 
-    add = "*/"
-    if constants.getIsISLES2018(): add = ""
+    prefix = nn.experimentID + constants.suffix_partial_weights + nn.getNNID() + suffix + "/"
+    subpatientFolder = prefix+relativePatientFolder
+    patientFolderHeatMap = prefix+relativePatientFolderHeatMap
+    patientFolderGT = prefix+relativePatientFolderGT
+    patientFolderTMP = prefix+relativePatientFolderTMP
 
     # for all the slice folders in patientFolder
-    for subfolder in glob.glob(patientFolder+add):
-        prefix = nn.experimentID + constants.suffix_partial_weights + nn.getNNID() + suffix + "/"
-        subpatientFolder = prefix+relativePatientFolder
-        patientFolderHeatMap = prefix+relativePatientFolderHeatMap
-        patientFolderGT = prefix+relativePatientFolderGT
-        patientFolderTMP = prefix+relativePatientFolderTMP
-
+    for subfolder in glob.glob(patientFolder+"*/"):
         # Predict the images
         if constants.getUSE_PM(): predictImagesFromParametricMaps(nn, subfolder, p_id, subpatientFolder, patientFolderHeatMap, patientFolderGT, patientFolderTMP, filename_test)
-        else: predictImage(nn, subfolder, p_id, patientFolder, subpatientFolder, patientFolderHeatMap, patientFolderGT, patientFolderTMP, filename_test)
+        else:
+            if constants.getIsISLES2018(): predictImage(nn, subfolder, p_id, patientFolder, subpatientFolder, patientFolderHeatMap, patientFolderGT, patientFolderTMP, filename_test)
+            else: predictImage(nn, subfolder, p_id, patientFolder, subpatientFolder, patientFolderHeatMap, patientFolderGT, patientFolderTMP, filename_test)
 
 
 ################################################################################
@@ -91,7 +92,7 @@ def predictImage(nn, subfolder, p_id, patientFolder, relativePatientFolder, rela
     - patientFolder                 : folder of the patient
     - relativePatientFolder         : relative name of the patient folder
     - relativePatientFolderHeatMap  : relative name of the patient heatmap folder
-    - relativepatientFolderGT      : relative name of the patient gt folder
+    - relativepatientFolderGT       : relative name of the patient gt folder
     - relativePatientFolderTMP      : relative name of the patient tmp folder
     - filename_test                 : Name of the test pandas dataframe
     """
@@ -109,16 +110,18 @@ def predictImage(nn, subfolder, p_id, patientFolder, relativePatientFolder, rela
 
     if constants.getVerbose(): print("[INFO] - Analyzing Patient {0}, image {1}.".format(p_id, idx))
     checkImageProcessed = getCheckImageProcessed(nn, p_id, idx)
+    # binary_mask = np.zeros(shape=(constants.getM(), constants.getN()))
+    binary_mask = checkImageProcessed != constants.PIXELVALUES[0]
 
-    folders = [subfolder]
-    if nn.is4DModel and nn.n_slices>1: folders = model_utils.getPrevNextFolder(subfolder, idx)
-    for fold in folders:
-        # get the images in a dictionary
-        for imagename in np.sort(glob.glob(fold +"*" + constants.SUFFIX_IMG)):  # sort the images !
-            filename = imagename.replace(fold, '')
-            if not nn.supervised or nn.patientsFolder!="OLDPREPROC_PATIENTS/": imagesDict[imagename] = cv2.imread(imagename, cv2.IMREAD_GRAYSCALE)
-            else:
-                if filename != "01"+ constants.SUFFIX_IMG: imagesDict[imagename] = cv2.imread(imagename, cv2.IMREAD_GRAYSCALE)
+    # folders = [subfolder]
+    # if nn.is4DModel and nn.n_slices>1: folders = model_utils.getPrevNextFolder(subfolder, idx)
+    # for fold in folders:
+    #     # get the images in a dictionary
+    #     for imagename in np.sort(glob.glob(fold +"*" + constants.SUFFIX_IMG)):  # sort the images !
+    #         filename = imagename.replace(fold, '')
+    #         if not nn.supervised or nn.patientsFolder!="OLDPREPROC_PATIENTS/": imagesDict[imagename] = cv2.imread(imagename, cv2.IMREAD_GRAYSCALE)
+    #         else:
+    #             if filename != "01"+ constants.SUFFIX_IMG: imagesDict[imagename] = cv2.imread(imagename, cv2.IMREAD_GRAYSCALE)
 
     # Portion for the prediction of the image
     if constants.get3DFlag()!= "":
@@ -133,75 +136,18 @@ def predictImage(nn, subfolder, p_id, patientFolder, relativePatientFolder, rela
         imagePredicted = generateTimeImagesAndConsensus(nn, test_df, relativepatientFolderGT, relativePatientFolderTMP, idx)
     else:  # usual behaviour
         while True:
-            if constants.getTIMELAST(): pixels_shape = (constants.getM(), constants.getN(), constants.NUMBER_OF_IMAGE_PER_SECTION)
-            else: pixels_shape = (constants.NUMBER_OF_IMAGE_PER_SECTION, constants.getM(), constants.getN())
+            test_df = dataset_utils.readFromPickleOrHickle(filename_test, nn.use_hickle)
+            test_df = test_df[test_df.x_y == (startingX, startingY)]
+            test_df = test_df[test_df.sliceIndex == idx]
+            row = test_df[test_df.data_aug_idx == 0]
+            # Control that the analyzed row is == 1
+            assert len(row) == 1, "The length of the row to analyze should be 1."
+            X = model_utils.getCorrectXForInputModel(nn, subfolder, row, batchIndex=0, batch_length=1)
 
-            # binary_mask = np.zeros(shape=(constants.getM(), constants.getN()))
-            binary_mask = checkImageProcessed!=constants.PIXELVALUES[0]
-
-            pixels = np.zeros(shape=pixels_shape)
-            is4DModel = True if len(folders) > 1 or (nn.x_label == constants.getList_PMS() or (nn.x_label == "pixels" and nn.is4DModel)) else False
-            if is4DModel: pixels = []
-            for z, fold in enumerate(folders):
-                count = 0
-                tmpPixels = np.zeros(shape=pixels_shape)
-                # for each image get the array for prediction
-                for imagename in np.sort(glob.glob(fold +"*" + constants.SUFFIX_IMG)):
-                    filename = imagename.replace(subfolder, '')
-                    if not nn.supervised or nn.patientsFolder!="OLDPREPROC_PATIENTS/":
-                        image = imagesDict[imagename]
-                        if is4DModel:
-                            if constants.getTIMELAST(): tmpPixels[:,:,count] = general_utils.getSlicingWindow(image, startingX, startingY)
-                            else: tmpPixels[count,:,:] = general_utils.getSlicingWindow(image, startingX, startingY)
-                        else:
-                            if constants.getTIMELAST(): pixels[:,:,count] = general_utils.getSlicingWindow(image, startingX, startingY)
-                            else: pixels[count, :, :] = general_utils.getSlicingWindow(image, startingX, startingY)
-                        count+=1
-                    else:
-                        if filename != "01"+ constants.SUFFIX_IMG:
-                            image = imagesDict[imagename]
-                            if constants.getTIMELAST(): pixels[:, :, count] = general_utils.getSlicingWindow(image, startingX, startingY)
-                            else: pixels[count, :, :] = general_utils.getSlicingWindow(image, startingX, startingY)
-                            count+=1
-                if is4DModel:
-                    tmpPixels = tmpPixels.reshape(1,tmpPixels.shape[0],tmpPixels.shape[1],tmpPixels.shape[2],1)
-                    pixels.append(tmpPixels)
-
-            if is4DModel:
-                test_df = dataset_utils.readFromPickleOrHickle(filename_test, nn.use_hickle)
-                test_df = test_df[test_df.x_y == (startingX, startingY)]
-                row_to_analyze = test_df[test_df.sliceIndex == idx]
-
-                assert len(row_to_analyze)==1, "The length of the row to analyze should be 1."
-
-                pms = dict()
-                coord = row_to_analyze["x_y"].iloc[0]
-                if nn.x_label == constants.getList_PMS() or (nn.x_label == "pixels" and nn.is4DModel):
-                    for pm in constants.getList_PMS():
-                        if pm not in pms.keys(): pms[pm] = []
-                        totimg = cv2.imread(row_to_analyze[pm].iloc[0], nn.inputImgFlag)
-                        if totimg is not None:
-                            if np.isnan(np.unique(totimg)).any(): print("getX", totimg.shape, np.isnan(totimg).any())
-                            img = general_utils.getSlicingWindow(totimg, coord[0], coord[1], removeColorBar=True)
-                            img = general_utils.performDataAugmentationOnTheImage(img, row_to_analyze["data_aug_idx"].iloc[0])
-                            pms[pm].append(img)
-                    if "cbf" in nn.multiInput.keys() and nn.multiInput["cbf"] == 1: pixels.append(np.array(pms["CBF"]))
-                    if "cbv" in nn.multiInput.keys() and nn.multiInput["cbv"] == 1: pixels.append(np.array(pms["CBV"]))
-                    if "ttp" in nn.multiInput.keys() and nn.multiInput["ttp"] == 1: pixels.append(np.array(pms["TTP"]))
-                    if "mtt" in nn.multiInput.keys() and nn.multiInput["mtt"] == 1: pixels.append(np.array(pms["MTT"]))
-                    if "tmax" in nn.multiInput.keys() and nn.multiInput["tmax"] == 1: pixels.append(np.array(pms["TMAX"]))
-                    if "mip" in nn.multiInput.keys() and nn.multiInput["mip"] == 1: pixels.append(np.array(pms["MIP"]))
-                if "nihss" in nn.multiInput.keys() and nn.multiInput["nihss"] == 1: pixels.append(np.array([int(row_to_analyze["NIHSS"].iloc[0])]) if row_to_analyze["NIHSS"].iloc[0]!="-" else np.array([0]))
-                if "age" in nn.multiInput.keys() and nn.multiInput["age"] == 1: pixels.append(np.array([int(row_to_analyze["age"].iloc[0])]))
-                if "gender" in nn.multiInput.keys() and nn.multiInput["gender"] == 1: pixels.append(np.array([int(row_to_analyze["gender"].iloc[0])]))
-
-            if not is4DModel:
-                if constants.get3DFlag()== "": pixels = pixels.reshape(1,pixels.shape[0],pixels.shape[1],pixels.shape[2],1)
-                else: pixels = pixels.reshape(1, pixels.shape[0], pixels.shape[1], pixels.shape[2])
-            imagePredicted, categoricalImage = generate2DImage(nn, pixels, (startingX,startingY), imagePredicted, categoricalImage, binary_mask)
+            imagePredicted, categoricalImage = generate2DImage(nn, X, (startingX,startingY), imagePredicted, categoricalImage, binary_mask)
 
             # if we reach the end of the image, break the while loop.
-            if startingX>= constants.IMAGE_WIDTH- constants.getM() and startingY>= constants.IMAGE_HEIGHT- constants.getN(): break
+            if startingX>=constants.IMAGE_WIDTH-constants.getM() and startingY>=constants.IMAGE_HEIGHT-constants.getN(): break
 
             # going to the next slicingWindow
             if startingY< constants.IMAGE_HEIGHT- constants.getN(): startingY+= constants.getN()
@@ -328,6 +274,7 @@ def generate2DImage(nn,pixels,startingXY,imgPredicted,categoricalImage,binary_ma
     - imgPredicted          : the predicted image
     """
     x, y = startingXY
+    print(x,x+constants.getM(),y,y+constants.getN())
     # swp_orig contain only the prediction for the last step
     swp_orig = predictFromModel(nn, pixels)[0]
     if nn.save_images and constants.getTO_CATEG(): categoricalImage[x:x+constants.getM(),y:y+constants.getN()]=swp_orig
@@ -341,12 +288,13 @@ def generate2DImage(nn,pixels,startingXY,imgPredicted,categoricalImage,binary_ma
             # Remove the parts already classified by the model
             binary_mask = np.array(binary_mask, dtype=np.float)
             # force all the predictions to be inside the binary mask defined by the GT
-            slicingWindowPredicted *= binary_mask
+            slicingWindowPredicted *= binary_mask[x:x+constants.getM(),y:y+constants.getN()]
 
             overlapping_pred = np.array(slicingWindowPredicted>0,dtype=np.float)
             overlapping_pred *= 85.
             binary_mask *= 85.  # multiply the binary mask for the brain pixel value
-            slicingWindowPredicted += (binary_mask-overlapping_pred)  # add the brain to the prediction window
+            # add the brain to the prediction window
+            slicingWindowPredicted += (binary_mask[x:x+constants.getM(),y:y+constants.getN()]-overlapping_pred)
         imgPredicted[x:x+constants.getM(),y:y+constants.getN()]=slicingWindowPredicted
     return imgPredicted, categoricalImage
 
@@ -499,8 +447,10 @@ def evaluateModel(nn, p_id, isAlreadySaved):
             flagtype="test",
             back_perc=100,
             loss=nn.loss["name"],
-            is4D=nn.is4DModel,
-            inputImgFlag=nn.inputImgFlag
+            is4DModel=nn.is4DModel,
+            inputImgFlag=nn.inputImgFlag,
+            supervised=nn.supervised,
+            patientsFolder=nn.patientsFolder
         )
 
         testing = nn.model.evaluate_generator(

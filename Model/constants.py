@@ -149,7 +149,7 @@ def setNumberOfClasses(c):
     if c == 2:
         LABELS = ["background", "core"]
         PIXELVALUES = [0, 255]
-        HOT_ONE_WEIGHTS = [[0.1, 10]]
+        HOT_ONE_WEIGHTS = [[0.1, 100]]
         GAMMA = [[2., 2.]]
         ALPHA = [[0.25,0.25]]
     elif c == 3:
@@ -194,9 +194,10 @@ def setWeights(weights):
 def setISLES2018(isles):
     global isISLES, dataFrameColumns
     isISLES = isles
-    setImageDimension(256)
-    dataFrameColumns = ['CBF', 'CBV', 'MTT', 'TMAX', 'data_aug_idx', 'ground_truth', 'label', 'label_code',
-                        'patient_id', 'pixels', 'sliceIndex', 'timeIndex', 'x_y']
+    if isISLES:
+        setImageDimension(256)
+        dataFrameColumns = ['CBF', 'CBV', 'MTT', 'TMAX', 'data_aug_idx', 'ground_truth', 'label', 'label_code',
+                            'patient_id', 'pixels', 'sliceIndex', 'timeIndex', 'x_y']
 
 
 def setTimeLast(timelast):

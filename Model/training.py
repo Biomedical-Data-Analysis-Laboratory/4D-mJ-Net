@@ -1,5 +1,4 @@
 import warnings
-warnings.simplefilter(action='ignore', category=FutureWarning)
 
 import cv2, matplotlib, glob
 
@@ -12,6 +11,8 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.keras import optimizers
 import tensorflow.keras.backend as K
+
+warnings.simplefilter(action='ignore', category=FutureWarning)
 
 
 ################################################################################

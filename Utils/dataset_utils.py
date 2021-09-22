@@ -1,6 +1,4 @@
 import warnings
-warnings.simplefilter(action='ignore', category=FutureWarning)
-
 import glob, random, time
 import multiprocessing
 import pickle as pkl
@@ -13,6 +11,8 @@ from tensorflow.keras import utils
 from Model import constants
 from Utils import general_utils
 
+warnings.simplefilter(action='ignore', category=FutureWarning)
+
 
 ################################################################################
 # Function to load the saved dataframes based on the list of patients
@@ -21,16 +21,14 @@ def loadTrainingDataframe(nn, patients):
     # get the suffix based on the SLICING_PIXELS, the M and N
     suffix = general_utils.getSuffix()  # es == "_4_16x16"
 
-    frames = []
-
     suffix_filename = ".pkl"
     if nn.use_hickle: suffix_filename = ".hkl"
     listOfFolders = glob.glob(nn.datasetFolder + "*" + suffix + suffix_filename)
-
     with multiprocessing.Pool(processes=16) as pool:  # auto closing workers
         frames = pool.starmap(readSingleDataFrame, list(zip(listOfFolders,[patients]*len(listOfFolders),[nn.use_hickle]*len(listOfFolders))))
 
-    train_df = train_df.append(frames, sort=False, ignore_index=True)
+    if constants.getIsISLES2018():  train_df = train_df.append(frames[1:], sort=False, ignore_index=True)
+    else: train_df = train_df.append(frames, sort=False, ignore_index=True)
     return train_df
 
 
@@ -45,9 +43,9 @@ def readSingleDataFrame(filename_train, patients, use_hickle):
     two = tmp_df.x_y.str[1] % constants.getN() == 0
     three = tmp_df.label.values == constants.LABELS[-1]
     tmp_df = tmp_df[(one & two) | three]
-    # frames.append(tmp_df)
-    if constants.getVerbose(): print("{0} - {1}".format(filename_train, round(time.time() - start, 3)))
+    if constants.getVerbose(): print("{0} - {2} - {1}".format(filename_train, round(time.time() - start, 3), tmp_df.shape))
     return tmp_df
+
 
 ################################################################################
 # Return the elements in the filename saved as a pickle or as hickle (depending on the flag)

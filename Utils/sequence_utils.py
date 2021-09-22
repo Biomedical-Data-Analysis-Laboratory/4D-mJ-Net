@@ -7,6 +7,7 @@ from typing import Set, Dict, Any
 import numpy as np
 import pandas as pd
 import tensorflow as tf
+from scipy import ndimage
 from tensorflow.keras.utils import Sequence
 from tensorflow.keras.preprocessing.image import load_img, img_to_array
 
@@ -18,7 +19,7 @@ from Utils import general_utils, dataset_utils, model_utils
 # https://faroit.com/keras-docs/2.1.3/models/sequential/#fit_generator
 class datasetSequence(Sequence):
     def __init__(self, dataframe, indices, sample_weights, x_label, y_label, multiInput, batch_size, params,
-                 back_perc, is4D, inputImgFlag, SVO_focus=False, flagtype="train", loss=None):
+                 back_perc, is4DModel, inputImgFlag, supervised, patientsFolder, SVO_focus=False, flagtype="train", loss=None):
         self.indices = indices
         self.dataframe = dataframe.iloc[self.indices]
 
@@ -31,9 +32,11 @@ class datasetSequence(Sequence):
         self.back_perc = back_perc
         self.flagtype = flagtype
         self.loss = loss
-        self.is4D = is4D
+        self.is4DModel = is4DModel
         self.SVO_focus = SVO_focus
         self.inputImgFlag = inputImgFlag  # only works when the input are the PMs (concatenate)
+        self.supervised = supervised
+        self.patientsFolder = patientsFolder
 
         if self.flagtype != "test":
             # get ALL the rows with label != from background
@@ -60,7 +63,6 @@ class datasetSequence(Sequence):
         start = idx*self.batch_size
         end = (idx+1)*self.batch_size
 
-        # batch_index_list = list(range(start,end))
         current_batch = self.dataframe[start:end]
         self.index_batch = current_batch.index
 
@@ -77,7 +79,7 @@ class datasetSequence(Sequence):
         # path to the folder containing the NUMBER_OF_IMAGE_PER_SECTION time point images
         X, weights = self.getX(X, current_batch, weights)
         # path to the ground truth image
-        if self.y_label=="ground_truth": Y, weights = self.getY(current_batch,weights)
+        if self.y_label=="ground_truth": Y, weights = self.getY(current_batch, weights)
 
         # Check if any value is NaN
         # if np.isnan(np.unique(Y)).any(): print("__getitem__", [gt for gt in current_batch.ground_truth])
@@ -87,75 +89,11 @@ class datasetSequence(Sequence):
     ################################################################################
     # return the X set and the relative weights based on the pixels column
     def getX(self, X, current_batch, weights):
-        pms = dict()
-        nihss, age, gender = [], [], []
-
         for index, (_, row) in enumerate(current_batch.iterrows()):
             current_folder = row[self.x_label]
-            coord = row["x_y"]
-            data_aug_idx = row["data_aug_idx"]
-            if "nihss" in self.multiInput.keys() and self.multiInput["nihss"]==1: nihss.append(int(row["NIHSS"]) if row["NIHSS"]!="-" else 0)
-            if "age" in self.multiInput.keys() and self.multiInput["age"]==1: age.append(int(row["age"]))
-            if "gender" in self.multiInput.keys() and self.multiInput["gender"]==1: gender.append(int(row["gender"]))
             # add the index into the correct set
-            self.index_pd_DA[str(data_aug_idx)].add(index)
-
-            # we are working with the PMs in input
-            if self.x_label == constants.getList_PMS() or (self.x_label=="pixels" and self.is4D):
-                for pm in constants.getList_PMS():
-                    if pm not in pms.keys(): pms[pm] = []
-                    totimg = cv2.imread(row[pm], self.inputImgFlag)
-
-                    assert totimg is not None, "The image {} is None".format(row[pm])
-
-                    # if np.isnan(np.unique(totimg)).any(): print("getX", totimg.shape, np.isnan(totimg).any())
-                    img = general_utils.getSlicingWindow(totimg, coord[0], coord[1], removeColorBar=True)
-                    img = general_utils.performDataAugmentationOnTheImage(img, data_aug_idx)
-
-                    channels = 1 if self.params["convertImgToGray"] else 3
-                    img = np.reshape(img, (constants.getM(), constants.getN(), channels)) if self.params["convertImgToGray"] else img
-                    img = np.reshape(img, (1, constants.getM(), constants.getN(), channels)) if self.params["inflate_network"] and self.params["concatenate_input"] else img
-                    pms[pm].append(img)
-
-            folders = [current_folder]
-            if self.is4D and self.n_slices>1: folders = model_utils.getPrevNextFolder(current_folder, row["sliceIndex"])
-            isXarray = True if len(folders) > 1 or (self.x_label == constants.getList_PMS() or (self.x_label == "pixels" and self.is4D)) else False
-            if isXarray: X = []
-
-            #  we are working with the 4D raw dataset
-            if self.x_label != constants.getList_PMS():
-                for folder in folders:
-                    tmpX = np.empty((len(current_batch), constants.getM(), constants.getN(), constants.NUMBER_OF_IMAGE_PER_SECTION, 1)) if constants.getTIMELAST() else np.empty((len(current_batch), constants.NUMBER_OF_IMAGE_PER_SECTION, constants.getM(), constants.getN(), 1))
-                    for timeIndex, filename in enumerate(np.sort(glob.glob(folder + "*" + constants.SUFFIX_IMG))):
-                        # TODO: for ISLES2018 (to change in the future) --> if the number of time-points per slice
-                        #  is > constants.NUMBER_OF_IMAGE_PER_SECTION
-                        if timeIndex >= constants.NUMBER_OF_IMAGE_PER_SECTION: break
-
-                        totimg = cv2.imread(filename,cv2.IMREAD_GRAYSCALE)
-                        assert totimg is not None, "The image {} is None".format(filename)
-
-                        sliceW = general_utils.getSlicingWindow(totimg,coord[0],coord[1])
-                        sliceW = general_utils.performDataAugmentationOnTheImage(sliceW, data_aug_idx)
-
-                        # reshape it for the correct input in the model
-                        if constants.getTIMELAST():
-                            if isXarray: tmpX[index, :, :, timeIndex, :] = sliceW.reshape(sliceW.shape + (1,))
-                            else: X[index, :, :, timeIndex, :] = sliceW.reshape(sliceW.shape + (1,))
-                        else:
-                            if isXarray: tmpX[index, timeIndex, :, :, :] = sliceW.reshape(sliceW.shape + (1,))
-                            else: X[index, timeIndex, :, :, :] = sliceW.reshape(sliceW.shape + (1,))
-                    if isXarray: X.append(tmpX)
-
-        if self.x_label == constants.getList_PMS() or (self.x_label == "pixels" and self.is4D):
-            if "cbf" in self.multiInput.keys() and self.multiInput["cbf"] == 1: X.append(np.array(pms["CBF"]))
-            if "cbv" in self.multiInput.keys() and self.multiInput["cbv"] == 1: X.append(np.array(pms["CBV"]))
-            if "ttp" in self.multiInput.keys() and self.multiInput["ttp"] == 1: X.append(np.array(pms["TTP"]))
-            if "mtt" in self.multiInput.keys() and self.multiInput["mtt"] == 1: X.append(np.array(pms["MTT"]))
-            if "tmax" in self.multiInput.keys() and self.multiInput["tmax"] == 1: X.append(np.array(pms["TMAX"]))
-            if "mip" in self.multiInput.keys() and self.multiInput["mip"] == 1: X.append(np.array(pms["MIP"]))
-        if "nihss" in self.multiInput.keys() and self.multiInput["nihss"]==1: X.append(np.array(nihss))
-        if "age" in self.multiInput.keys() and self.multiInput["age"]==1: X.append(np.array(age))
-        if "gender" in self.multiInput.keys() and self.multiInput["gender"]==1: X.append(np.array(gender))
+            self.index_pd_DA[str(row["data_aug_idx"])].add(index)
+            X = model_utils.getCorrectXForInputModel(self, current_folder, row, batchIndex=index, batch_length=len(current_batch), X=X, train=True)
 
         return X, weights
 
@@ -171,8 +109,6 @@ class datasetSequence(Sequence):
                 coord = current_batch.loc[row_index]["x_y"]  # coordinates of the slice window
                 if not isinstance(filename,str): print(filename)
                 img = cv2.imread(filename,cv2.IMREAD_GRAYSCALE)
-
-                # if np.isnan(np.unique(img)).any(): print("getY", img.shape, np.isnan(img).any())
 
                 img = general_utils.getSlicingWindow(img, coord[0], coord[1], isgt=True)
 

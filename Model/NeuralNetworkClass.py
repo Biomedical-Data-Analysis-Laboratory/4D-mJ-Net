@@ -1,5 +1,4 @@
 import warnings
-warnings.simplefilter(action='ignore', category=FutureWarning)
 
 from Utils import general_utils, dataset_utils, sequence_utils, architectures, losses
 from Model import training, testing, constants
@@ -9,6 +8,8 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.keras.models import model_from_json
 from tensorflow.keras.utils import plot_model  # multi_gpu_model
+
+warnings.simplefilter(action='ignore', category=FutureWarning)
 
 
 ################################################################################
@@ -347,9 +348,11 @@ class NeuralNetwork(object):
             batch_size=self.batch_size,
             back_perc=1 if not constants.getUSE_PM() and (constants.getM() != constants.IMAGE_WIDTH and constants.getN() != constants.IMAGE_HEIGHT) else 100,
             loss=self.loss["name"],
-            is4D=self.is4DModel,
+            is4DModel=self.is4DModel,
             SVO_focus=self.SVO_focus,
-            inputImgFlag=self.inputImgFlag
+            inputImgFlag=self.inputImgFlag,
+            supervised=self.supervised,
+            patientsFolder=self.patientsFolder
         )
 
         # validation data sequence
@@ -365,8 +368,10 @@ class NeuralNetwork(object):
             back_perc=1 if not constants.getUSE_PM() and (constants.getM() != constants.IMAGE_WIDTH and constants.getN() != constants.IMAGE_HEIGHT) else 100,
             flagtype="val",
             loss=self.loss["name"],
-            is4D=self.is4DModel,
-            inputImgFlag=self.inputImgFlag
+            is4DModel=self.is4DModel,
+            inputImgFlag=self.inputImgFlag,
+            supervised=self.supervised,
+            patientsFolder=self.patientsFolder
         )
 
     ################################################################################
@@ -543,6 +548,7 @@ class NeuralNetwork(object):
     # Call the function located in testing for predicting and saved the images
     def predictAndSaveImages(self, listPatients, isAlreadySaved):
         stats = {}
+        if constants.getVerbose: print("[INFO] - List of patients to predict: {}".format(listPatients))
         for p_id in listPatients:
             # evaluate the model with the testing patient (not necessary)
             # if self.supervised: self.evaluateModelWithCategorics(p_id, isAlreadySaved)

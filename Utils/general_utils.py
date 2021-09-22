@@ -1,6 +1,5 @@
 # DO NOT import dataset_utils here!
 import warnings
-warnings.simplefilter(action='ignore', category=FutureWarning)
 
 from Model import constants
 from Utils import metrics, losses
@@ -10,6 +9,9 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 import tensorflow.keras.backend as K
+
+warnings.simplefilter(action='ignore', category=FutureWarning)
+
 
 ################################################################################
 ######################## UTILS FUNCTIONS #######################################
@@ -170,15 +172,15 @@ def getLoss(modelInfo):
     hyperparameters = modelInfo[name] if name in modelInfo.keys() else {}
     if name=="focal_tversky_loss": constants.setFocal_Tversky(hyperparameters)
 
-    general_losses = [
-        "binary_crossentropy",
-        "categorical_crossentropy",
-        "sparse_categorical_crossentropy",
-        "mean_squared_error"
-    ]
+    general_losses = {
+        "binary_crossentropy": tf.keras.losses.BinaryCrossentropy(from_logits=True),
+        "categorical_crossentropy": tf.keras.losses.CategoricalCrossentropy(),
+        "sparse_categorical_crossentropy": tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+        "mean_squared_error": tf.keras.losses.MeanSquaredError()
+    }
     loss = {}
 
-    if name in general_losses: loss["loss"] = name
+    if name in general_losses.keys(): loss["loss"] = general_losses[name]
     else: loss["loss"] = getattr(losses, name)
     loss["name"] = name
 

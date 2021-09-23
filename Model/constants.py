@@ -1,4 +1,5 @@
 import socket
+import os
 
 verbose = False
 USE_PM = False
@@ -41,8 +42,8 @@ dataFrameColumns = ['patient_id', 'label', 'pixels', 'CBF', 'CBV', 'TTP', 'TMAX'
                     'data_aug_idx','timeIndex', 'sliceIndex', 'severity', "age", "gender", 'label_code']
 
 ENABLE_WATCHDOG = True
-PID_WATCHDOG_PICKLE_PATH = '../PID_list_{}.obj'.format(socket.gethostname())
-PID_WATCHDOG_FINISHED_PICKLE_PATH = '../PID_finished_list_{}.obj'.format(socket.gethostname())
+PID_WATCHDOG_PICKLE_PATH = os.getcwd()+'../PID_list_{}.obj'.format(socket.gethostname())
+PID_WATCHDOG_FINISHED_PICKLE_PATH = os.getcwd()+'../PID_finished_list_{}.obj'.format(socket.gethostname())
 
 
 ################################################################################

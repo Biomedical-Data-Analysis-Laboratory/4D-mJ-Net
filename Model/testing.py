@@ -40,7 +40,7 @@ def getCheckImageProcessed(nn, p_id, idx):
 ################################################################################
 # Predict the model based on the input
 def predictFromModel(nn, x_input):
-    return nn.model.predict(x=x_input, batch_size=1, use_multiprocessing=nn.mp)
+    return nn.model.predict(x=x_input, batch_size=1, use_multiprocessing=nn.mp_in_nn)
 
 
 ################################################################################
@@ -427,7 +427,7 @@ def evaluateModel(nn, p_id, isAlreadySaved):
 
         nn.train_df = dataset_utils.readFromPickleOrHickle(filename_train, nn.use_hickle)
 
-        nn.dataset = dataset_utils.getTestDataset(nn.dataset, nn.train_df, p_id, nn.use_sequence, nn.mp)
+        nn.dataset = dataset_utils.getTestDataset(nn.dataset, nn.train_df, p_id, nn.use_sequence, nn.mp_in_nn)
         if not nn.use_sequence: nn.dataset["test"]["labels"] = dataset_utils.getLabelsFromIndex(train_df=nn.train_df, dataset=nn.dataset["test"], modelname=nn.name, flag="test")
         nn.compileModel()  # compile the model and then evaluate it
 
@@ -457,7 +457,7 @@ def evaluateModel(nn, p_id, isAlreadySaved):
             generator=nn.test_sequence,
             max_queue_size=10*multiplier,
             workers=1*multiplier,
-            use_multiprocessing=nn.mp
+            use_multiprocessing=nn.mp_in_nn
         )
 
     else:
@@ -468,7 +468,7 @@ def evaluateModel(nn, p_id, isAlreadySaved):
             sample_weight=sample_weights,
             verbose=constants.getVerbose(),
             batch_size=nn.batch_size,
-            use_multiprocessing=nn.mp
+            use_multiprocessing=nn.mp_in_nn
         )
 
     general_utils.printSeparation("-",50)

@@ -108,6 +108,7 @@ class NeuralNetwork(object):
         self.train = None
         self.train_sequence, self.val_sequence = None, None
         self.mp = False
+        self.mp_in_nn = False
 
         # change the prefix if SUS2020_v2 is in the dataset name
         if "SUS2020" in self.datasetFolder: constants.setPrefixImagesSUS2020_v2()
@@ -135,6 +136,7 @@ class NeuralNetwork(object):
         self.train = None
         self.train_sequence, self.val_sequence = None, None
         self.mp = False
+        self.mp_in_nn = False
 
     ################################################################################
     # Set model ID
@@ -323,7 +325,7 @@ class NeuralNetwork(object):
             initial_epoch=self.initial_epoch,
             save_activation_filter=self.save_activation_filter,
             intermediate_activation_path=self.intermediateActivationFolder,
-            use_multiprocessing=self.mp)
+            use_multiprocessing=self.mp_in_nn)
 
         # plot the loss and accuracy of the training
         training.plotLossAndAccuracy(self)
@@ -388,7 +390,7 @@ class NeuralNetwork(object):
             initial_epoch=self.initial_epoch,
             save_activation_filter=self.save_activation_filter,
             intermediate_activation_path=self.intermediateActivationFolder,
-            use_multiprocessing=self.mp
+            use_multiprocessing=self.mp_in_nn
         )
 
     ################################################################################
@@ -572,6 +574,7 @@ class NeuralNetwork(object):
     # set the flag for single/multi PROCESSING
     def setProcessingEnv(self, mp):
         self.mp = mp
+        self.mp_in_nn = False
 
     ################################################################################
     # return the saved model or weight (based on the suffix)

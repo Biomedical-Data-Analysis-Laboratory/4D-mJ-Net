@@ -303,7 +303,6 @@ def addPIDToWatchdog():
             PID_list_for_watchdog = [dict(pid=os.getpid())]
 
         # Save list
-        print(constants.PID_WATCHDOG_PICKLE_PATH)
         pickle_save(PID_list_for_watchdog, constants.PID_WATCHDOG_PICKLE_PATH)
 
         # Create a empty list for saving to when the model finishes

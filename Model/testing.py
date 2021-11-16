@@ -274,7 +274,6 @@ def generate2DImage(nn,pixels,startingXY,imgPredicted,categoricalImage,binary_ma
     - imgPredicted          : the predicted image
     """
     x, y = startingXY
-    print(x,x+constants.getM(),y,y+constants.getN())
     # swp_orig contain only the prediction for the last step
     swp_orig = predictFromModel(nn, pixels)[0]
     if nn.save_images and constants.getTO_CATEG(): categoricalImage[x:x+constants.getM(),y:y+constants.getN()]=swp_orig

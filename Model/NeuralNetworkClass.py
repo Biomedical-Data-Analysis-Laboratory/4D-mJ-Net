@@ -574,7 +574,7 @@ class NeuralNetwork(object):
     # set the flag for single/multi PROCESSING
     def setProcessingEnv(self, mp):
         self.mp = mp
-        self.mp_in_nn = False
+        self.mp_in_nn = mp
 
     ################################################################################
     # return the saved model or weight (based on the suffix)

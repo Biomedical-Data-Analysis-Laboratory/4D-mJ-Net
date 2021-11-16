@@ -53,6 +53,12 @@ def mJNet_4D(params, multiInput, batch=True, drop=True, leaky=True, attentiongat
 
 ################################################################################
 # mJ-Net model version 3D
+def mJNet_4D_noDrop(params, multiInput, batch=True, drop=False, leaky=True, attentiongate=True):
+    return arch_mJNet.mJNet_4D(params, multiInput, usePMs=False, batch=batch, drop=drop, leaky=leaky, attentiongate=attentiongate)
+
+
+################################################################################
+# mJ-Net model version 3D
 def mJNet_4DWithPMS(params, multiInput, batch=True, drop=True, leaky=True, attentiongate=True):
     return arch_mJNet.mJNet_4D(params, multiInput, usePMs=True, batch=batch, drop=drop, leaky=leaky, attentiongate=attentiongate)
 

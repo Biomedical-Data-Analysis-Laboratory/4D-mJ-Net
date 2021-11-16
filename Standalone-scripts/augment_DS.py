@@ -6,9 +6,76 @@
 import cv2, time, glob, os, operator, random, math, argparse
 import numpy as np
 from scipy import ndimage
+import statistics
 
 ################################################################################
 IMAGE_PREFIX = "PA"
+
+
+################################################################################
+def verticalAlignment():
+    patientFolders = glob.glob(ORIGINAL_FOLDER + "*/")
+
+    for numFold, patientFolder in enumerate(patientFolders):  # for each patient
+        relativePatientPath = patientFolder.replace(ORIGINAL_FOLDER, '')
+        print("[INFO] - Analyzing {0}/{1}; patient folder: {2}...".format(numFold + 1, len(patientFolders), relativePatientPath))
+
+        readAndAlignGT(relativePatientPath)
+
+        # readAndAlignPM(relativePatientPath)
+        #
+        # readAndAlign4DCTP(relativePatientPath, patientFolder)
+        #
+        # if MASK_NAME != "": readAndAlignMask(relativePatientPath)
+
+
+################################################################################
+def readAndAlignGT(relativePatientPath):
+    if not os.path.isdir(ALIGNED_GT_FOLDER + relativePatientPath): os.mkdir(ALIGNED_GT_FOLDER + relativePatientPath)
+    # else:
+    #     print("GT for {} already exists, continue...".format(ALIGNED_GT_FOLDER + relativePatientPath))
+    #     return
+    angles = []
+    for image_name in np.sort(glob.glob(GT_FOLDER+relativePatientPath + "*")):
+        print(image_name)
+        image_idx = image_name.replace(GT_FOLDER+relativePatientPath, '')
+        img = cv2.imread(image_name, cv2.IMREAD_GRAYSCALE)
+        center = (img.shape[0]/2,img.shape[1]/2)
+
+        _, bw = cv2.threshold(img, 50, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
+        contours, _ = cv2.findContours(bw, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
+
+        if len(contours)>1: print(image_idx)
+
+        area = cv2.contourArea(contours[0])
+        print(area)
+
+        [vx, vy, x, y] = cv2.fitLine(contours[0], cv2.DIST_L2, 0, 0.01, 0.01)
+        # Now find two extreme points on the line to draw line
+        lefty = int((-x * vy / vx) + y)
+        righty = int(((img.shape[1] - x) * vy / vx) + y)
+
+        print(lefty, righty, vx, vy, x, y)
+
+        cv2.line(img, (img.shape[1] - 1, righty), (0, lefty), 255, 2)
+        yy = righty
+        xx = img.shape[1]-1
+        angle = np.arctan2(yy,xx) * (180/np.pi)
+        print(np.abs(angle))
+        angles.append(90-np.abs(angle))
+        # cv2.imwrite(ALIGNED_GT_FOLDER + relativePatientPath + image_idx, img)
+
+    print(angles)
+    med_angle = statistics.median(angles[4:-4])
+    print(med_angle)
+    rot_matrix = cv2.getRotationMatrix2D(center=center, angle=med_angle, scale=1)
+    for image_name in glob.glob(GT_FOLDER + relativePatientPath + "*"):
+        image_idx = image_name.replace(GT_FOLDER + relativePatientPath, '')
+        img = cv2.imread(image_name, cv2.IMREAD_GRAYSCALE)
+        orig_height, orig_width = img.shape[:2]
+        rot_img = cv2.warpAffine(src=img, M=rot_matrix, dsize=(orig_width,orig_height))
+
+        cv2.imwrite(ALIGNED_GT_FOLDER + relativePatientPath + image_idx, rot_img)
 
 
 ################################################################################
@@ -136,7 +203,7 @@ if __name__ == '__main__':
     """
     Example usage for SUS2020 DS (& ISLES2018): 
     
-    python augment_DS.py /home/prosjekt/PerfusionCT/StrokeSUS/ORIGINAL/ FINAL_Najm_v21-0.25/ Parametric_Maps/ GT_TIFF/ MASKS_v6/  -d -c
+    python augment_DS.py /home/prosjekt/PerfusionCT/StrokeSUS/ORIGINAL/ FINAL_Najm_v21-0.5/ Parametric_Maps/ GT_TIFF/ MASKS_v6/  -d -c
     
     python augment_DS.py /home/prosjekt/PerfusionCT/StrokeSUS/ISLES2018/Processed_TRAINING/ORIGINAL/ FINAL_v21-0.5/ Parametric_Maps/ Binary_Ground_Truth/ "" -f 0
 
@@ -186,3 +253,21 @@ if __name__ == '__main__':
     readAndMirrorImages()
     end = time.time()
     print("Total time: {0}s".format(round(end-start, 3)))
+    print("Rotate the dataset to be vertically aligned.")
+
+    ROOT_PATH = ROOT_PATH.replace("MIRRORED", "ALIGNED")
+    if not os.path.isdir(ROOT_PATH): os.mkdir(ROOT_PATH)
+
+    ALIGNED_REGISTERED_FOLDER = ROOT_PATH + DS_NAME
+    ALIGNED_PM_FOLDER = ROOT_PATH + PM_NAME
+    ALIGNED_GT_FOLDER = ROOT_PATH + GT_NAME
+    if MASK_NAME != "": ALIGNED_MASK_FOLDER = ROOT_PATH + MASK_NAME
+
+    if not os.path.isdir(ALIGNED_REGISTERED_FOLDER): os.mkdir(ALIGNED_REGISTERED_FOLDER)
+    if not os.path.isdir(ALIGNED_PM_FOLDER): os.mkdir(ALIGNED_PM_FOLDER)
+    if not os.path.isdir(ALIGNED_GT_FOLDER): os.mkdir(ALIGNED_GT_FOLDER)
+    if MASK_NAME!="" and not os.path.isdir(ALIGNED_MASK_FOLDER): os.mkdir(ALIGNED_MASK_FOLDER)
+
+    verticalAlignment()
+    newend = time.time()
+    print("Total time: {0}s".format(round(newend-end,3)))

@@ -20,9 +20,9 @@ def readAndMirrorImages():
 
         print("[INFO] - Analyzing {0}/{1}; patient folder: {2}...".format(numFold + 1, len(patientFolders), relativePatientPath))
 
-        #readAndMirrorGT(relativePatientPath)
+        readAndMirrorGT(relativePatientPath)
 
-        #readAndMirrorPM(relativePatientPath)
+        readAndMirrorPM(relativePatientPath)
 
         readAndMirror4DCTP(relativePatientPath,patientFolder)
 
@@ -54,9 +54,9 @@ def readAndMirror4DCTP(relativePatientPath,patientFolder):
 ################################################################################
 def readAndMirrorPM(relativePatientPath):
     if not os.path.isdir(MIRRORED_PM_FOLDER + relativePatientPath): os.mkdir(MIRRORED_PM_FOLDER + relativePatientPath)
-    # else:
-    #     print("PMs for {} already exists, continue...".format(MIRRORED_PM_FOLDER + relativePatientPath))
-    #     return
+    else:
+        print("PMs for {} already exists, continue...".format(MIRRORED_PM_FOLDER + relativePatientPath))
+        return
 
     if HASDAYFOLDER:  # SUS2020 dataset
         for dayfolder in glob.glob(PM_FOLDER + relativePatientPath + "*/"):
@@ -73,7 +73,7 @@ def readAndMirrorPM(relativePatientPath):
 ################################################################################
 def savePMImage(relativePatientPath, folder,day_f=""):
     # pmlist = ["CBF", "CBV", "TTP", "TMAX", "Tmax", "MIP", "MTT" ]
-    pmlist = ["CT", "OT"]
+    pmlist = ["CBF", "CBV", "CT", "OT", "MTT", "Tmax"]
     for listpms in glob.glob(folder + "*/"):
         for pm in pmlist:
             if pm in listpms:
@@ -116,9 +116,8 @@ def readAndMirrorGT(relativePatientPath):
 def readAndMirrorMask(relativePatientPath):
     if not os.path.isdir(MIRRORED_MASK_FOLDER + relativePatientPath): os.mkdir(MIRRORED_MASK_FOLDER + relativePatientPath)
     else:
-        print("MAsk for {} already exists, continue...".format(MIRRORED_MASK_FOLDER + relativePatientPath))
+        print("Mask for {} already exists, continue...".format(MIRRORED_MASK_FOLDER + relativePatientPath))
         return
-
     for image_name in glob.glob(MASK_FOLDER + relativePatientPath + "*"):
         image_idx = image_name.replace(MASK_FOLDER + relativePatientPath, '')
         img = cv2.imread(image_name, cv2.IMREAD_GRAYSCALE)
@@ -137,9 +136,9 @@ if __name__ == '__main__':
     """
     Example usage for SUS2020 DS (& ISLES2018): 
     
-    python augment_DS.py /home/prosjekt/PerfusionCT/StrokeSUS/ORIGINAL/ FINAL_Najm_v1/ Parametric_Maps/ GT_TIFF/ MASKS_HU_Najm/  -d -c
+    python augment_DS.py /home/prosjekt/PerfusionCT/StrokeSUS/ORIGINAL/ FINAL_Najm_v21-0.25/ Parametric_Maps/ GT_TIFF/ MASKS_v6/  -d -c
     
-    python augment_DS.py /home/stud/lucat/PhD_Project/Stroke_segmentation/PATIENTS/ISLES2018/Processed_TRAINING/ FINAL/ Parametric_Maps/ Binary_Ground_Truth/ "" -f 1
+    python augment_DS.py /home/prosjekt/PerfusionCT/StrokeSUS/ISLES2018/Processed_TRAINING/ORIGINAL/ FINAL_v21-0.5/ Parametric_Maps/ Binary_Ground_Truth/ "" -f 0
 
     """
     parser = argparse.ArgumentParser()
@@ -165,12 +164,12 @@ if __name__ == '__main__':
     if not os.path.isdir(ROOT_PATH): os.mkdir(ROOT_PATH)
 
     MIRRORED_REGISTERED_FOLDER = ROOT_PATH + "MIRRORED_" + DS_NAME
-    PM_FOLDER = ROOT_PATH + PM_NAME
+    PM_FOLDER = args.root + PM_NAME
     MIRRORED_PM_FOLDER = ROOT_PATH + "MIRRORED_" + PM_NAME
-    GT_FOLDER = ROOT_PATH + GT_NAME
+    GT_FOLDER = args.root + GT_NAME
     MIRRORED_GT_FOLDER = ROOT_PATH + "MIRRORED_" + GT_NAME
     if MASK_NAME!="":
-        MASK_FOLDER = ROOT_PATH + MASK_NAME
+        MASK_FOLDER = args.root + MASK_NAME
         MIRRORED_MASK_FOLDER = ROOT_PATH + "MIRRORED_" + MASK_NAME
 
     FLIP = args.flip

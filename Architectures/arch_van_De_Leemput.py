@@ -1,5 +1,5 @@
 from Model import constants
-from Utils import general_utils, spatial_pyramid
+from Utils import general_utils
 
 from keras import layers, models, regularizers, initializers
 import tensorflow.keras.backend as K
@@ -8,7 +8,7 @@ import tensorflow.keras.backend as K
 # Model from Van De Leemput (https://doi.org/10.1109/ACCESS.2019.2910348)
 # TODO: change input accordly to the paper
 # convolutional layers loose 2 voxels (in this case pixels) each layer...
-def van_De_Leemput(params, to_categ):
+def van_De_Leemput(params):
     l1_l2_reg = None # regularizers.l1_l2(l1=1e-6, l2=1e-5)
 
     # Hu initializer = [0, sqrt(9/5*fan_in)]

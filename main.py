@@ -1,7 +1,6 @@
 #!/usr/bin/python
 
 import os
-import pickle
 from Utils import general_utils, dataset_utils
 from Model import training, constants
 from Model.NeuralNetworkClass import NeuralNetwork
@@ -59,6 +58,7 @@ def main():
         # if DEBUG mode: use only 5 patients in the list
         if constants.getDEBUG():
             listOfPatientsToTrainVal = listOfPatientsToTrainVal[:5]
+            listOfPatientsToTest = listOfPatientsToTest[:3]
             nn.setDebugDataset()
 
         listOfPatientsToTrainVal.sort()  # sort the list
@@ -70,11 +70,13 @@ def main():
         # loop over all the list of patients.
         # Useful for creating a model for each patient (if cross-validation is set)
         # else, it will create a unique model
-        #
-        n_rep = 1
-        if nn.cross_validation["use"]: n_rep = nn.cross_validation["split"]
+        starting_rep, n_rep = 1, 1
+        if nn.cross_validation["use"]:
+            n_rep = nn.cross_validation["split"]
+            starting_rep = nn.cross_validation["starting"] if "starting" in nn.cross_validation.keys() else 1
 
-        for split_id in range(1,n_rep+1):
+        for split_id in range(starting_rep,n_rep+1):
+            nn.resetVars()
             model_split = general_utils.getStringFromIndex(split_id)
             nn.setModelSplit(model_split)
 
@@ -118,15 +120,16 @@ if __name__ == '__main__':
       -v, --verbose         Increase output verbosity
       -d, --debug           DEBUG mode
       -o, --original        Set the shape of the testing dataset to be compatible with the original shape 
-                            (T,M,N) [time in front]
       -pm, --pm             Set the flag to train the parametric maps as input 
       -t TILE, --tile TILE  Set the tile pixels dimension (MxM) (default = 16)
       -dim DIMENSION, --dimension DIMENSION
                             Set the dimension of the input images (width X height) (default = 512)
       -c {2,3,4}, --classes {2,3,4}
                             Set the # of classes involved (default = 4)
+      --isles2018           Flag to use the ISLES2018 dataset
       -w, --weights         Set the weights for the categorical losses
       -e, --exp             Set the number of the experiment
       -j, --jump            Jump the training and go directly on the gradual fine-tuning function
+      --timelast           Set the time dimension in the last channel of the input model          
     """
     main()

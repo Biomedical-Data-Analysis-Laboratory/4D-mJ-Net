@@ -1,5 +1,4 @@
 import warnings
-warnings.simplefilter(action='ignore', category=FutureWarning)
 
 import cv2, matplotlib, glob
 
@@ -13,11 +12,15 @@ import tensorflow as tf
 from tensorflow.keras import optimizers
 import tensorflow.keras.backend as K
 
+warnings.simplefilter(action='ignore', category=FutureWarning)
+
 
 ################################################################################
 # Return the optimizer based on the setting
 def getOptimizer(optInfo):
+    if optInfo["name"].lower() not in ["adam","sgd","rmsprop","adadelta"]: raise Exception("The optimizer is not in the predefined list")
     optimizer = None
+
     if optInfo["name"].lower() == "adam":
         optimizer = optimizers.Adam(
             lr=optInfo["lr"],
@@ -58,7 +61,7 @@ def getOptimizer(optInfo):
 # Return the callbacks defined in the setting
 def getCallbacks(info, root_path, filename, textFolderPath, dataset, sample_weights, nn_id, add_for_finetuning):
     # add by default the TerminateOnNaN callback
-    cbs = [callback.TerminateOnNaN()]
+    cbs = [callback.TerminateOnNaN()]  #, callback.SavePrediction()]
 
     for key in info.keys():
         # save the weights
@@ -85,10 +88,8 @@ def getCallbacks(info, root_path, filename, textFolderPath, dataset, sample_weig
             validation_data = (dataset["val"]["data"], dataset["val"]["labels"])
             # # TODO: no model passed!
             # # TODO: filename is different (is the TMP_MODELS not MODELS folder)
-            cbs.append(
-                callback.RocCallback(training_data, validation_data, model, sample_weights, filename, textFolderPath))
-        # elif key=="TensorBoard":
-        #     cbs.append(callback.TensorBoard(log_dir=textFolderPath, update_freq=info[key]["update_freq"], histogram_freq=info[key]["histogram_freq"]))
+            cbs.append(callback.RocCallback(training_data, validation_data, model, sample_weights, filename, textFolderPath))
+        # elif key=="TensorBoard": cbs.append(callback.TensorBoard(log_dir=textFolderPath, update_freq=info[key]["update_freq"], histogram_freq=info[key]["histogram_freq"]))
 
     return cbs
 
@@ -121,7 +122,7 @@ def fitModel(model, dataset, batch_size, epochs, listOfCallbacks, sample_weights
 ################################################################################
 # Function that call a fit_generator to load the training dataset on the fly
 def fit_generator(model, train_sequence, val_sequence, steps_per_epoch, validation_steps, epochs, listOfCallbacks,
-                  initial_epoch, save_activation_filter, intermediate_activation_path, use_multiprocessing, clear):
+                  initial_epoch, save_activation_filter, intermediate_activation_path, use_multiprocessing):
     multiplier = 16
     # steps_per_epoch is given by the len(train_sequence)*steps_per_epoch_ratio rounded to the nearest integer
     training = model.fit_generator(
@@ -139,8 +140,6 @@ def fit_generator(model, train_sequence, val_sequence, steps_per_epoch, validati
         use_multiprocessing=use_multiprocessing)
 
     if save_activation_filter: saveIntermediateLayers(model, intermediate_activation_path=intermediate_activation_path)
-
-    if clear: K.clear_session()
 
     return training
 

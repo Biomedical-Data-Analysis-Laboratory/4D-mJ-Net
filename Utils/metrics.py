@@ -2,7 +2,7 @@ import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 from Model import constants
-
+from Utils import callback, general_utils
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras import metrics, utils
@@ -21,7 +21,10 @@ def _squared_dice_coef(y_true, y_pred, class_weights):
     ref: https://arxiv.org/pdf/1606.04797v1.pdf
     """
 
-    axis_to_reduce = list(range(1, K.ndim(y_pred)))  # Reduce all axis but first (batch)
+    y_pred = K.clip(y_pred,0,1)
+
+    axis_to_reduce = -1 if not constants.getTO_CATEG() else list(range(1, K.ndim(y_pred)))  # Reduce all axis but first (batch)
+    class_weights = tf.constant(1, dtype=tf.float32) if not constants.getTO_CATEG() else class_weights
     numerator = y_true * y_pred * class_weights  # Broadcasting
     numerator = 2. * K.sum(numerator, axis=axis_to_reduce)
 
@@ -36,23 +39,17 @@ def squared_dice_coef(y_true, y_pred):
 
 
 def sdc_rest(y_true, y_pred):
-    class_weights = tf.constant([[1,1,0,0]], dtype=tf.float32)
-    if constants.N_CLASSES == 3: class_weights = tf.constant([[1, 0, 0]], dtype=tf.float32)
-    elif constants.N_CLASSES == 2: class_weights = tf.constant([[1, 0]], dtype=tf.float32)
+    class_weights = general_utils.getClassWeights("rest")
     return _squared_dice_coef(y_true, y_pred, class_weights)
 
 
 def sdc_p(y_true, y_pred):
-    class_weights = tf.constant([[0,0,1,0]], dtype=tf.float32)
-    if constants.N_CLASSES == 3: class_weights = tf.constant([[0, 1, 0]], dtype=tf.float32)
-    elif constants.N_CLASSES == 2: class_weights = tf.constant([[0, 1]], dtype=tf.float32)
+    class_weights = general_utils.getClassWeights("penumbra")
     return _squared_dice_coef(y_true, y_pred, class_weights)
 
 
 def sdc_c(y_true, y_pred):
-    class_weights = tf.constant([[0, 0, 0, 1]], dtype=tf.float32)
-    if constants.N_CLASSES == 3: class_weights = tf.constant([[0, 0, 1]], dtype=tf.float32)
-    elif constants.N_CLASSES == 2: class_weights = tf.constant([[0, 1]], dtype=tf.float32)
+    class_weights = general_utils.getClassWeights("core")
     return _squared_dice_coef(y_true, y_pred, class_weights)
 
 
@@ -62,10 +59,12 @@ def sdc_c(y_true, y_pred):
 # but it returns lower values than the other dice_coef + lower specificity and precision
 # == to F1 score for boolean values
 def dice_coef(y_true, y_pred):
+    y_pred = K.clip(y_pred, 0, 1)
     class_weights = tf.constant(constants.HOT_ONE_WEIGHTS, dtype=tf.float32)
     """ Compute weighted Dice loss. """
 
-    axis_to_reduce = list(range(1, K.ndim(y_pred)))  # Reduce all axis but first (batch)
+    axis_to_reduce = -1 if not constants.getTO_CATEG() else list(range(1, K.ndim(y_pred)))
+    class_weights = tf.constant(1, dtype=tf.float32) if not constants.getTO_CATEG() else class_weights
     numerator = y_true * y_pred * class_weights  # Broadcasting
     numerator = 2. * K.sum(numerator, axis=axis_to_reduce)
 
@@ -78,10 +77,12 @@ def dice_coef(y_true, y_pred):
 # Implementation of the Tversky Index (TI),
 # which is a asymmetric similarity measure that is a generalisation of the dice coefficient and the Jaccard index.
 def _tversky_coef(y_true, y_pred, class_weights):
+    y_pred = K.clip(y_pred, 0, 1)
     alpha = constants.focal_tversky_loss["alpha"]
     beta = 1-alpha
 
-    axis_to_reduce = list(range(1, K.ndim(y_pred)))  # All axis but first (batch)
+    axis_to_reduce = -1 if not constants.getTO_CATEG() else list(range(1, K.ndim(y_pred)))  # All axis but first (batch)
+    class_weights = tf.constant(1, dtype=tf.float32) if not constants.getTO_CATEG() else class_weights
     numerator = (y_true * y_pred) * class_weights  # Broadcasting
     numerator = K.sum(numerator, axis=axis_to_reduce)
     denominator = (y_true * y_pred) + alpha * (y_true * (1 - y_pred)) + beta * ((1 - y_true) * y_pred)
@@ -97,23 +98,17 @@ def tversky_coef(y_true, y_pred):
 
 
 def tversky_rest(y_true, y_pred):
-    class_weights = tf.constant([[1,1,0,0]], dtype=tf.float32)
-    if constants.N_CLASSES == 3: class_weights = tf.constant([[1, 0, 0]], dtype=tf.float32)
-    elif constants.N_CLASSES == 2: class_weights = tf.constant([[1, 0]], dtype=tf.float32)
+    class_weights = general_utils.getClassWeights("rest")
     return _tversky_coef(y_true, y_pred, class_weights)
 
 
 def tversky_p(y_true, y_pred):
-    class_weights = tf.constant([[0,0,1,0]], dtype=tf.float32)
-    if constants.N_CLASSES == 3: class_weights = tf.constant([[0, 1, 0]], dtype=tf.float32)
-    elif constants.N_CLASSES == 2: class_weights = tf.constant([[0, 1]], dtype=tf.float32)
+    class_weights = general_utils.getClassWeights("penumbra")
     return _tversky_coef(y_true, y_pred, class_weights)
 
 
 def tversky_c(y_true, y_pred):
-    class_weights = tf.constant([[0, 0, 0, 1]], dtype=tf.float32)
-    if constants.N_CLASSES == 3: class_weights = tf.constant([[0, 0, 1]], dtype=tf.float32)
-    elif constants.N_CLASSES == 2: class_weights = tf.constant([[0, 1]], dtype=tf.float32)
+    class_weights = general_utils.getClassWeights("core")
     return _tversky_coef(y_true, y_pred, class_weights)
 
 
@@ -127,6 +122,7 @@ def tversky_c(y_true, y_pred):
 #
 # http://www.bmva.org/bmvc/2013/Papers/paper0032/paper0032.pdf
 def jaccard_distance(y_true, y_pred):
+    y_pred = K.clip(y_pred, 0, 1)
     intersection = K.sum(K.abs(y_true * y_pred), axis=-1)
     sum_ = K.sum(K.abs(y_true) + K.abs(y_pred), axis=-1)
     jac = intersection / (sum_ - intersection + K.epsilon())
@@ -136,13 +132,17 @@ def jaccard_distance(y_true, y_pred):
 ################################################################################
 # Function that calculate the metrics for the CATEGORICAL CROSS ENTROPY
 def categorical_crossentropy(y_true, y_pred):
+    y_true = K.flatten(y_true)
+    y_pred = K.flatten(y_pred)
+    y_pred = K.clip(y_pred, 0, 1)
     return metrics.categorical_accuracy(y_true, y_pred)
 
 
 ################################################################################
 # Function that calculate the metrics for the WEIGHTED CATEGORICAL CROSS ENTROPY
 def weighted_categorical_cross_entropy(y_true, y_pred):
-    class_weights = tf.constant(constants.HOT_ONE_WEIGHTS, dtype=tf.float32)
+    y_pred = K.clip(y_pred, 0, 1)
+    class_weights = tf.constant(1, dtype=tf.float32) if not constants.getTO_CATEG() else tf.constant(constants.HOT_ONE_WEIGHTS, dtype=tf.float32)
     lambda_0 = 1
     lambda_1 = 1e-6
     lambda_2 = 1e-5
@@ -152,7 +152,6 @@ def weighted_categorical_cross_entropy(y_true, y_pred):
     wcce = (weights * cce)/weights
     l1_norm = K.sum(K.abs(y_true - y_pred))+K.epsilon()
     l2_norm = K.sum(K.square(y_true - y_pred))+K.epsilon()
-
     return (lambda_0 * wcce) + (lambda_1 * l1_norm) + (lambda_2 * l2_norm)
 
 
@@ -160,9 +159,9 @@ def weighted_categorical_cross_entropy(y_true, y_pred):
 # Implementation of the Focal loss.
 # first proposed here: https://openaccess.thecvf.com/content_ICCV_2017/papers/Lin_Focal_Loss_for_ICCV_2017_paper.pdf
 def _focal_loss(y_true, y_pred, alpha):
-    """ Compute focal loss. """
+    y_pred = K.clip(y_pred, 0, 1)
     gamma = tf.constant(constants.GAMMA, dtype=y_pred.dtype)
-    axis_to_reduce = list(range(1, K.ndim(y_pred)))
+    axis_to_reduce = -1 if not constants.getTO_CATEG() else list(range(1, K.ndim(y_pred)))
     # Clip the prediction value to prevent NaN's and Inf's
     y_pred = K.clip(y_pred, K.epsilon(), 1. - K.epsilon())
     # Calculate Cross Entropy
@@ -203,14 +202,16 @@ def focal_c(y_true, y_pred):
 ################################################################################
 # Function that computes the Tanimoto loss
 def tanimoto(y_true, y_pred):
-    class_weights = tf.constant(constants.HOT_ONE_WEIGHTS, dtype=tf.float32)
     """
     Compute weighted Tanimoto loss.
     Defined in the paper "ResUNet-a: a deep learning framework for semantic segmentation of remotely sensed data",
     under 3.2.4. Generalization to multiclass imbalanced problems. See https://arxiv.org/pdf/1904.00592.pdf
     """
+    y_pred = K.clip(y_pred, 0, 1)
+    class_weights = tf.constant(1, dtype=tf.float32) if not constants.getTO_CATEG() else tf.constant(constants.HOT_ONE_WEIGHTS, dtype=tf.float32)
 
-    axis_to_reduce = list(range(1, K.ndim(y_pred)))  # All axis but first (batch)
+
+    axis_to_reduce = -1 if not constants.getTO_CATEG() else list(range(1, K.ndim(y_pred)))  # All axis but first (batch)
     numerator = y_true * y_pred * class_weights
     numerator = K.sum(numerator, axis=axis_to_reduce)
 
@@ -222,46 +223,44 @@ def tanimoto(y_true, y_pred):
 ################################################################################
 # Return precision as a metric
 def prec_p(y_true, y_pred):
-    class_weights = tf.constant([[0, 0, 1, 0]], dtype=tf.float32)
-    if constants.N_CLASSES == 3: class_weights = tf.constant([[0, 1, 0]], dtype=tf.float32)
-    elif constants.N_CLASSES == 2: class_weights = tf.constant([[0, 1]], dtype=tf.float32)
+    class_weights = general_utils.getClassWeights("penumbra")
     return _precision(y_true, y_pred, class_weights)
 
 
 def prec_c(y_true, y_pred):
-    class_weights = tf.constant([[0, 0, 0, 1]], dtype=tf.float32)
-    if constants.N_CLASSES == 3: class_weights = tf.constant([[0, 0, 1]], dtype=tf.float32)
-    elif constants.N_CLASSES == 2: class_weights = tf.constant([[0, 1]], dtype=tf.float32)
+    class_weights = general_utils.getClassWeights("core")
     return _precision(y_true, y_pred, class_weights)
 
 
-def _precision(y_true, y_pred, class_weights):
-    axis_to_reduce = list(range(1, K.ndim(y_pred)))  # All axis but first (batch)
-    numerator = y_true * tf.math.rint(y_pred) * class_weights
+def _precision(y_true, y_pred, class_weights, thres=0.5):
+    y_pred = K.clip(y_pred, 0, 1)
+    axis_to_reduce = -1 if not constants.getTO_CATEG() else list(range(1, K.ndim(y_pred)))  # All axis but first (batch)
+    class_weights = tf.constant(1, dtype=tf.float32) if not constants.getTO_CATEG() else class_weights
+    # y_pred_bin = K.clip(K.round(y_pred + thres), 0, 1)
+    numerator = y_true * y_pred * class_weights
     numerator = K.sum(numerator, axis=axis_to_reduce)
-    denominator = K.sum(tf.math.rint(y_pred) * class_weights, axis=axis_to_reduce)
+    denominator = K.sum(y_pred * class_weights, axis=axis_to_reduce)
     return numerator / (denominator + K.epsilon())
 
 
 ################################################################################
 # Return recall as a metric
 def rec_p(y_true, y_pred):
-    class_weights = tf.constant([[0, 0, 1, 0]], dtype=tf.float32)
-    if constants.N_CLASSES == 3: class_weights = tf.constant([[0, 1, 0]], dtype=tf.float32)
-    elif constants.N_CLASSES == 2: class_weights = tf.constant([[0, 1]], dtype=tf.float32)
+    class_weights = general_utils.getClassWeights("penumbra")
     return _recall(y_true, y_pred, class_weights)
 
 
 def rec_c(y_true, y_pred):
-    class_weights = tf.constant([[0, 0, 0, 1]], dtype=tf.float32)
-    if constants.N_CLASSES == 3: class_weights = tf.constant([[0, 0, 1]], dtype=tf.float32)
-    elif constants.N_CLASSES == 2: class_weights = tf.constant([[0, 1]], dtype=tf.float32)
+    class_weights = general_utils.getClassWeights("core")
     return _recall(y_true, y_pred, class_weights)
 
 
-def _recall(y_true, y_pred, class_weights):
-    axis_to_reduce = list(range(1, K.ndim(y_pred)))  # All axis but first (batch)
-    numerator = y_true * tf.math.rint(y_pred) * class_weights
+def _recall(y_true, y_pred, class_weights, thres=0.5):
+    y_pred = K.clip(y_pred, 0, 1)
+    axis_to_reduce = -1 if not constants.getTO_CATEG() else list(range(1, K.ndim(y_pred)))  # All axis but first (batch)
+    class_weights = tf.constant(1, dtype=tf.float32) if not constants.getTO_CATEG() else class_weights
+    # y_pred_bin = K.clip(K.round(y_pred + thres), 0, 1)
+    numerator = y_true * y_pred * class_weights
     numerator = K.sum(numerator, axis=axis_to_reduce)
     denominator = y_true * class_weights
     denominator = K.sum(denominator, axis=axis_to_reduce)

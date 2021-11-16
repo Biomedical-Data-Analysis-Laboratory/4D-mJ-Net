@@ -1,6 +1,5 @@
 # DO NOT import dataset_utils here!
 import warnings
-warnings.simplefilter(action='ignore', category=FutureWarning)
 
 from Model import constants
 from Utils import metrics, losses
@@ -10,6 +9,9 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 import tensorflow.keras.backend as K
+
+warnings.simplefilter(action='ignore', category=FutureWarning)
+
 
 ################################################################################
 ######################## UTILS FUNCTIONS #######################################
@@ -32,6 +34,7 @@ def getCommandLineArguments():
     parser.add_argument("-w", "--weights", help="Set the weights for the categorical losses", type=float, nargs='+')
     parser.add_argument("-e", "--exp", help="Set the number of the experiment", type=float)
     parser.add_argument("-j", "--jump", help="Jump the training and go directly on the gradual fine-tuning function", action="store_true")
+    parser.add_argument("--timelast", help="Set the time dimension in the last channel of the input model", action="store_true")
     parser.add_argument("gpu", help="Give the id of gpu (or a list of the gpus) to use")
     parser.add_argument("sname", help="Select the setting filename")
     args = parser.parse_args()
@@ -45,6 +48,7 @@ def getCommandLineArguments():
     constants.setImageDimension(args.dimension)
     constants.setNumberOfClasses(args.classes)
     constants.setWeights(args.weights)
+    constants.setTimeLast(args.timelast)
 
     return args
 
@@ -52,12 +56,9 @@ def getCommandLineArguments():
 ################################################################################
 # get the setting file
 def getSettingFile(filename):
-    setting = dict()
-
     # the path of the setting file start from the main.py
     # (= current working directory)
-    with open(os.path.join(os.getcwd(), filename)) as f:
-        setting = json.load(f)
+    with open(os.path.join(os.getcwd(), filename)) as f: setting = json.load(f)
 
     if constants.getVerbose():
         printSeparation("-",50)
@@ -108,7 +109,8 @@ def setupEnvironmentForGPUs(args, setting):
         for physical_device in physical_devices: tf.config.experimental.set_memory_growth(physical_device, True)
 
     config.gpu_options.per_process_gpu_memory_fraction = setting["init"]["per_process_gpu_memory_fraction"] * N_GPU
-    session = tf.compat.v1.Session(config=config)
+    tf.compat.v1.disable_eager_execution()
+    # session = tf.compat.v1.Session(config=config)
 
     if constants.getVerbose():
         printSeparation("-",50)
@@ -160,8 +162,7 @@ def performDataAugmentationOnTheImage(img, data_aug_idx):
 ################################################################################
 # Get the epoch number from the partial weight filename
 def getEpochFromPartialWeightFilename(partialWeightsPath):
-    return int(partialWeightsPath[partialWeightsPath.index(constants.suffix_partial_weights) +
-                                  len(constants.suffix_partial_weights):partialWeightsPath.index(".h5")])
+    return int(partialWeightsPath[partialWeightsPath.index(constants.suffix_partial_weights)+len(constants.suffix_partial_weights):partialWeightsPath.index(".h5")])
 
 
 ################################################################################
@@ -171,21 +172,19 @@ def getLoss(modelInfo):
     hyperparameters = modelInfo[name] if name in modelInfo.keys() else {}
     if name=="focal_tversky_loss": constants.setFocal_Tversky(hyperparameters)
 
-    general_losses = [
-        "binary_crossentropy",
-        "categorical_crossentropy",
-        "sparse_categorical_crossentropy",
-        "mean_squared_error"
-    ]
+    general_losses = {
+        "binary_crossentropy": tf.keras.losses.BinaryCrossentropy(from_logits=True),
+        "categorical_crossentropy": tf.keras.losses.CategoricalCrossentropy(),
+        "sparse_categorical_crossentropy": tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+        "mean_squared_error": tf.keras.losses.MeanSquaredError()
+    }
     loss = {}
 
-    if name in general_losses: loss["loss"] = name
+    if name in general_losses.keys(): loss["loss"] = general_losses[name]
     else: loss["loss"] = getattr(losses, name)
-
     loss["name"] = name
 
     if constants.getVerbose(): print("[INFO] - Use {} Loss".format(name))
-
     return loss
 
 
@@ -201,12 +200,9 @@ def getMetricFunctions(listStats):
     ]
 
     statisticFuncs = []
-    for m in listStats:
-        if m in general_metrics: statisticFuncs.append(m)
-        else: statisticFuncs.append(getattr(metrics, m))
+    for m in listStats: statisticFuncs.append(m) if m in general_metrics else statisticFuncs.append(getattr(metrics, m))
 
     if constants.getVerbose(): print("[INFO] - Getting {} functions".format(listStats))
-
     if len(statisticFuncs)==0: statisticFuncs = None
 
     return statisticFuncs
@@ -223,6 +219,20 @@ def isFilenameInListOfPatient(filename, patients):
     if patient_id in patients: ret = True
 
     return ret
+
+
+################################################################################
+# Get the correct class weights for the metrics
+def getClassWeights(type):
+    four_cat = [[1,1,0,0]] if type=="rest" else [[0,0,1,0]] if type=="penumbra" else [[0,0,0,1]]
+    three_cat = [[1,0,0]] if type=="rest" else [[0,1,0]] if type=="penumbra" else [[0,0,1]]
+    two_cat = [[1,0]] if type=="rest" else [[0,1]]
+
+    class_weights = tf.constant(four_cat, dtype=tf.float32)
+    if constants.N_CLASSES == 3: class_weights = tf.constant(three_cat, dtype=tf.float32)
+    elif constants.N_CLASSES == 2: class_weights = tf.constant(two_cat, dtype=tf.float32)
+    return class_weights
+
 
 ################################################################################
 ################################################################################
@@ -245,9 +255,7 @@ def getStringFromIndex(index):
 ################################################################################
 # return the suffix for the model and the patient dataset
 def getSuffix():
-    return "_" + str(constants.SLICING_PIXELS) +\
-           "_" + str(constants.getM()) + "x" + str(constants.getN()) + \
-           constants.get3DFlag() + constants.getONETIMEPOINT()
+    return "_" + str(constants.SLICING_PIXELS) + "_" + str(constants.getM()) + "x" + str(constants.getN()) + constants.get3DFlag() + constants.getONETIMEPOINT()
 
 
 ################################################################################

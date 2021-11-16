@@ -2,7 +2,10 @@ from Model import constants
 from Utils import general_utils
 
 import os, glob, json
+import numpy as np
+import tensorflow as tf
 from tensorflow.keras import callbacks
+import tensorflow.keras.backend as K
 from sklearn.metrics import roc_auc_score
 
 
@@ -157,3 +160,45 @@ def TerminateOnNaN():
 # Callback that streams epoch results to a CSV file.
 def CSVLogger(textFolderPath, nn_id, filename, separator):
     return callbacks.CSVLogger(textFolderPath+nn_id+general_utils.getSuffix()+filename, separator=separator, append=True)
+
+
+################################################################################
+#
+class SavePrediction(callbacks.Callback):
+    def __init__(self):
+        super().__init__()
+        self._get_pred = None
+        self.preds = dict()
+        self.n_pxl = 0
+
+    def _pred_callback(self, preds):
+        batch = K.eval((K.argmax(preds)*255)/(constants.N_CLASSES-1))
+        for val_idx in range(batch.shape[0]):
+            vals = dict(zip(*np.unique(batch[val_idx, :, :], return_counts=True)))
+            for key in vals.keys():
+                if key not in self.preds.keys(): self.preds[key] = 0
+                self.preds[key] += vals[key]
+                self.n_pxl += vals[key]
+
+    def set_model(self, model):
+        super().set_model(model)
+        if self._get_pred is None: self._get_pred = self.model.outputs[0]
+        # if self._get_inp is None: self._get_inp = self.model.inputs[0]
+        # if self._get_target is None: self._get_target = self.model._targets[0]
+
+    def on_test_begin(self, logs):
+        # pylint: disable=protected-access
+        self.model._make_test_function()
+        # pylint: enable=protected-access
+        if self._get_pred not in self.model.test_function.fetches:
+            self.model.test_function.fetches.append(self._get_pred)
+            self.model.test_function.fetch_callbacks[self._get_pred] = self._pred_callback
+
+    def on_test_end(self, logs):
+        if self._get_pred in self.model.test_function.fetches: self.model.test_function.fetches.remove(self._get_pred)
+        if self._get_pred in self.model.test_function.fetch_callbacks: self.model.test_function.fetch_callbacks.pop(self._get_pred)
+
+        print("\n {0} - {1}".format(self.preds, self.n_pxl/(constants.IMAGE_HEIGHT*constants.IMAGE_WIDTH)))
+        self.preds = dict()
+        self.n_pxl = 0
+

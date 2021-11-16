@@ -1,6 +1,4 @@
 import warnings
-warnings.simplefilter(action='ignore', category=FutureWarning)
-
 import glob, random, time
 import multiprocessing
 import pickle as pkl
@@ -13,6 +11,8 @@ from tensorflow.keras import utils
 from Model import constants
 from Utils import general_utils
 
+warnings.simplefilter(action='ignore', category=FutureWarning)
+
 
 ################################################################################
 # Function to load the saved dataframes based on the list of patients
@@ -21,31 +21,36 @@ def loadTrainingDataframe(nn, patients):
     # get the suffix based on the SLICING_PIXELS, the M and N
     suffix = general_utils.getSuffix()  # es == "_4_16x16"
 
-    frames = [train_df]
-
     suffix_filename = ".pkl"
     if nn.use_hickle: suffix_filename = ".hkl"
     listOfFolders = glob.glob(nn.datasetFolder + "*" + suffix + suffix_filename)
+    with multiprocessing.Pool(processes=16) as pool:  # auto closing workers
+        frames = pool.starmap(readSingleDataFrame, list(zip(listOfFolders,[patients]*len(listOfFolders),[nn.use_hickle]*len(listOfFolders))))
 
-    idx = 1
-    for filename_train in listOfFolders:
-        # don't load the dataframe if patient_id NOT in the list of patients
-        if not general_utils.isFilenameInListOfPatient(filename_train, patients): continue
-
-        tmp_df = readFromPickleOrHickle(filename_train, nn.use_hickle)
-        frames.append(tmp_df)
-
-        idx += 1
-
-    train_df = pd.concat(frames, sort=False, ignore_index=True)
+    if constants.getIsISLES2018():  train_df = train_df.append(frames[1:], sort=False, ignore_index=True)
+    else: train_df = train_df.append(frames, sort=False, ignore_index=True)
     return train_df
+
+
+def readSingleDataFrame(filename_train, patients, use_hickle):
+    # don't load the dataframe if patient_id NOT in the list of patients
+    if not general_utils.isFilenameInListOfPatient(filename_train, patients): return
+    start = time.time()
+    tmp_df = readFromPickleOrHickle(filename_train, use_hickle)
+
+    # Remove the overlapping tiles except if they are labeled as "core"
+    one = tmp_df.x_y.str[0] % constants.getM() == 0
+    two = tmp_df.x_y.str[1] % constants.getN() == 0
+    three = tmp_df.label.values == constants.LABELS[-1]
+    tmp_df = tmp_df[(one & two) | three]
+    if constants.getVerbose(): print("{0} - {2} - {1}".format(filename_train, round(time.time() - start, 3), tmp_df.shape))
+    return tmp_df
 
 
 ################################################################################
 # Return the elements in the filename saved as a pickle or as hickle (depending on the flag)
 def readFromPickleOrHickle(filename, flagHickle):
-    if flagHickle:
-        return sklearn.utils.shuffle(hkl.load(filename))
+    if flagHickle: return sklearn.utils.shuffle(hkl.load(filename))
     else:
         file = open(filename, "rb")
         return sklearn.utils.shuffle(pkl.load(file))
@@ -65,8 +70,7 @@ def getDataset(nn, listOfPatientsToTrainVal):
 
     train_df = loadTrainingDataframe(nn, patients=listOfPatientsToTrainVal)
 
-    end = time.time()
-    print("[INFO] - Total time to load the Dataset: {0}s".format(round(end - start, 3)))
+    print("[INFO] - Total time to load the Dataset: {0}s".format(round(time.time() - start, 3)))
     if constants.getVerbose(): generateDatasetSummary(train_df, listOfPatientsToTrainVal)  # summary of the dataset
 
     return train_df
@@ -85,18 +89,15 @@ def splitDataset(nn, listOfPatientsToTrainVal, listOfPatientsToTest):
         # We have set a number of testing patient(s) and we are inside a supervised learning
         if nn.supervised:
             if nn.val["number_patients_for_testing"] > 0 or len(listOfPatientsToTest) > 0:
+                random.seed(nn.val["seed"])
                 # if we already set the patient list in the setting file
                 if len(listOfPatientsToTest) > 0: test_list = listOfPatientsToTest
-                else:
-                    random.seed(nn.val["seed"])
-                    test_list = random.sample(listOfPatientsToTrainVal, nn.val["number_patients_for_testing"])
+                else: test_list = random.sample(listOfPatientsToTrainVal, nn.val["number_patients_for_testing"])
                 # remove the test_list elements from the list
                 listOfPatientsToTrainVal = list(set(listOfPatientsToTrainVal).difference(test_list))
                 if constants.getVerbose(): print("[INFO] - TEST list: {}".format(test_list))
 
-                for test_p in test_list:
-                    test_pid = general_utils.getStringFromIndex(test_p)
-                    nn.dataset["test"]["indices"].extend(np.nonzero((nn.train_df.patient_id.values == test_pid))[0])
+                for test_p in test_list: nn.dataset["test"]["indices"].extend(np.nonzero((nn.train_df.patient_id.values == general_utils.getStringFromIndex(test_p)))[0])
         # We have set a number of validation patient(s)
         if nn.val["number_patients_for_validation"] > 0:
             listOfPatientsToTrainVal.sort(reverse=False)  # sort the list and then...
@@ -119,8 +120,7 @@ def splitDataset(nn, listOfPatientsToTrainVal, listOfPatientsToTest):
         nn = setValList(nn, validation_list)
         nn = setTrainIndices(nn, validation_list, test_list)
 
-    end = time.time()
-    if constants.getVerbose(): print("[INFO] - Total time to split the Dataset: {}s".format(round(end - start, 3)))
+    if constants.getVerbose(): print("[INFO] - Total time to split the Dataset: {}s".format(round(time.time() - start, 3)))
 
     return nn.dataset, validation_list, test_list
 
@@ -129,15 +129,15 @@ def splitDataset(nn, listOfPatientsToTrainVal, listOfPatientsToTest):
 # Print info regarding the validation list and set the indices in the nn dataset
 def setValList(nn, validation_list):
     if constants.getVerbose():
-        if constants.PREFIX_IMAGES=="CTP_":
-            print("[INFO] - VALIDATION list LVO: {}".format([v for v in validation_list if "01_" in v or "00_" in v or "21_" in v or "20_" in v]))
-            print("[INFO] - VALIDATION list Non-LVO: {}".format([v for v in validation_list if "02_" in v or "22_" in v]))
-            print("[INFO] - VALIDATION list WIS: {}".format([v for v in validation_list if "03_" in v or "23_" in v]))
-        elif constants.PREFIX_IMAGES=="PA":
-            print("[INFO] - VALIDATION list {}".format(validation_list))
-    for val_p in validation_list:
-        val_pid = general_utils.getStringFromIndex(val_p)
-        nn.dataset["val"]["indices"].extend(np.nonzero((nn.train_df.patient_id.values == val_pid))[0])
+        if constants.getM()== constants.IMAGE_WIDTH and constants.getN()== constants.IMAGE_HEIGHT:
+            if constants.PREFIX_IMAGES=="CTP_":
+                print("[INFO] - VALIDATION list LVO: {}".format([v for v in validation_list if "01_" in v or "00_" in v or "21_" in v or "20_" in v]))
+                print("[INFO] - VALIDATION list Non-LVO: {}".format([v for v in validation_list if "02_" in v or "22_" in v]))
+                print("[INFO] - VALIDATION list WIS: {}".format([v for v in validation_list if "03_" in v or "23_" in v]))
+            elif constants.PREFIX_IMAGES=="PA":
+                print("[INFO] - VALIDATION list {}".format(validation_list))
+    for val_p in validation_list: nn.dataset["val"]["indices"].extend(np.nonzero((nn.train_df.patient_id.values == general_utils.getStringFromIndex(val_p)))[0])
+
     return nn
 
 
@@ -170,8 +170,7 @@ def prepareDataset(nn):
     # DEFINE the data for the dataset TEST
     nn.dataset["test"]["data"] = getDataFromIndex(nn.train_df, nn.dataset["test"]["indices"], "test", nn.mp)
 
-    end = time.time()
-    if constants.getVerbose(): print("[INFO] - Total time to split the Dataset: {}s".format(round(end - start, 3)))
+    if constants.getVerbose(): print("[INFO] - Total time to split the Dataset: {}s".format(round(time.time() - start, 3)))
 
     return nn.dataset
 
@@ -211,7 +210,6 @@ def getTestDataset(dataset, train_df, p_id, use_sequence, mp):
 # Get the data from a list of indices
 def getDataFromIndex(train_df, indices, flag, mp):
     start = time.time()
-
     if constants.get3DFlag() != "":
         data = [a for a in np.array(train_df.pixels.values[indices], dtype=object)]
     else:  # do this when NO 3D flag is set
@@ -221,11 +219,10 @@ def getDataFromIndex(train_df, indices, flag, mp):
     # convert the data into an np.ndarray
     if type(data) is not np.ndarray: data = np.array(data, dtype=object)
 
-    end = time.time()
     if constants.getVerbose():
         setPatients = set(train_df.patient_id.values[indices])
         print("[INFO] - patients: {0}".format(setPatients))
-        print("[INFO] - *getDataFromIndex* Time: {}s".format(round(end - start, 3)))
+        print("[INFO] - *getDataFromIndex* Time: {}s".format(round(time.time() - start, 3)))
         print("[INFO] - {0} shape; # {1}".format(data.shape, flag))
 
     return data
@@ -245,7 +242,7 @@ def getSingleLabelFromIndexCateg(singledata):
 
 ################################################################################
 # Return the labels given the indices
-def getLabelsFromIndex(train_df, dataset, modelname, to_categ, flag):
+def getLabelsFromIndex(train_df, dataset, modelname, flag):
     start = time.time()
     labels = None
     indices = dataset["indices"]
@@ -255,7 +252,7 @@ def getLabelsFromIndex(train_df, dataset, modelname, to_categ, flag):
 
     data = [a for a in np.array(train_df.ground_truth.values[indices])]
 
-    if to_categ:
+    if constants.getTO_CATEG():
         with multiprocessing.Pool(processes=1) as pool:  # auto closing workers
             labels = pool.map(getSingleLabelFromIndexCateg, data)
         if type(labels) is not np.array: labels = np.array(labels)
@@ -268,9 +265,8 @@ def getLabelsFromIndex(train_df, dataset, modelname, to_categ, flag):
         labels = data.astype(np.float32)
         labels /= 255  # convert the label in [0, 1] values
 
-    end = time.time()
     if constants.getVerbose():
-        print("[INFO] - *getLabelsFromIndex* Time: {}s".format(round(end - start, 3)))
+        print("[INFO] - *getLabelsFromIndex* Time: {}s".format(round(time.time() - start, 3)))
         print("[INFO] - {0} shape; # {1}".format(labels.shape, flag))
 
     return labels
@@ -290,7 +286,6 @@ def generateDatasetSummary(train_df, listOfPatientsToTrainVal=None):
     print("\t Tot: {0}".format(N_TOT))
 
     if listOfPatientsToTrainVal is not None: print("\t Patients: {0}".format(listOfPatientsToTrainVal))
-
     general_utils.printSeparation('+', 100)
 
 

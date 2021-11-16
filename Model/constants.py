@@ -1,9 +1,11 @@
 import socket
+import os
 
 verbose = False
 USE_PM = False
 DEBUG = False
 ORIGINAL_SHAPE = False
+TIME_LAST = False
 isISLES = False
 
 root_path = ""
@@ -17,6 +19,7 @@ LABELS = ["background", "brain", "penumbra", "core"]  # background:0, brain:85, 
 PIXELVALUES = [0, 85, 170, 255]
 # weights for the various weighted losses: 1) position: background, 2) brain, 3) penumbra, 4) core
 HOT_ONE_WEIGHTS = [[0, 0.1, 50, 440]]  # [[0.1, 0.1, 2, 15]]
+TO_CATEG = False
 
 # hyperparameters for the multi focal loss
 ALPHA = [[0.25,0.25,0.25,0.25]]
@@ -34,13 +37,13 @@ colorbar_coord = (129, 435)
 suffix_partial_weights = "__"
 threeD_flag, ONE_TIME_POINT = "", ""
 
-list_PMS = list()
+list_PMS = ["CBF", "CBV", "TTP", "TMAX", "MIP"]
 dataFrameColumns = ['patient_id', 'label', 'pixels', 'CBF', 'CBV', 'TTP', 'TMAX', "MIP", "NIHSS", 'ground_truth', 'x_y',
                     'data_aug_idx','timeIndex', 'sliceIndex', 'severity', "age", "gender", 'label_code']
 
 ENABLE_WATCHDOG = True
-PID_WATCHDOG_PICKLE_PATH = '../PID_list_{}.obj'.format(socket.gethostname())
-PID_WATCHDOG_FINISHED_PICKLE_PATH = '../PID_finished_list_{}.obj'.format(socket.gethostname())
+PID_WATCHDOG_PICKLE_PATH = os.getcwd()+'/PID_list_{}.obj'.format(socket.gethostname())
+PID_WATCHDOG_FINISHED_PICKLE_PATH = os.getcwd()+'/PID_finished_list_{}.obj'.format(socket.gethostname())
 
 
 ################################################################################
@@ -87,6 +90,15 @@ def getList_PMS():
 def getIsISLES2018():
     return isISLES
 
+
+def getTIMELAST():
+    return TIME_LAST
+
+
+def getTO_CATEG():
+    return TO_CATEG
+
+
 ################################################################################
 ################################################################################
 # Functions used to set the various GLOBAl variables
@@ -111,7 +123,7 @@ def setTileDimension(t):
     if t is not None:
         M = int(t)
         N = int(t)
-        SLICING_PIXELS = int(M / 4)
+        SLICING_PIXELS = int(M/4)
 
 
 def setImageDimension(d):
@@ -138,9 +150,9 @@ def setNumberOfClasses(c):
     if c == 2:
         LABELS = ["background", "core"]
         PIXELVALUES = [0, 255]
-        HOT_ONE_WEIGHTS = [[0.1, 10]]
+        HOT_ONE_WEIGHTS = [[0.1, 100]]
         GAMMA = [[2., 2.]]
-        ALPHA = [[.25,.25]]
+        ALPHA = [[0.25,0.25]]
     elif c == 3:
         LABELS = ["background", "penumbra", "core"]
         PIXELVALUES = [0, 170, 255]
@@ -167,9 +179,7 @@ def setPrefixImagesSUS2020_v2():
 def setUSE_PM(pm):
     global USE_PM, list_PMS
     USE_PM = pm
-    if USE_PM:
-        list_PMS = ["CBF", "CBV", "TTP", "TMAX", "MIP"]
-        if getIsISLES2018(): list_PMS = ["CBF", "CBV", "MTT", "TMAX"]
+    if USE_PM and getIsISLES2018(): list_PMS = ["CBF", "CBV", "MTT", "TMAX"]
 
 
 def setFocal_Tversky(hyperparameters):
@@ -185,5 +195,17 @@ def setWeights(weights):
 def setISLES2018(isles):
     global isISLES, dataFrameColumns
     isISLES = isles
-    dataFrameColumns = ['patient_id', 'label', 'pixels', 'CBF', 'CBV', 'MTT', 'TMAX', 'ground_truth', 'x_y',
-                        'data_aug_idx', 'timeIndex', 'sliceIndex']
+    if isISLES:
+        setImageDimension(256)
+        dataFrameColumns = ['CBF', 'CBV', 'MTT', 'TMAX', 'data_aug_idx', 'ground_truth', 'label', 'label_code',
+                            'patient_id', 'pixels', 'sliceIndex', 'timeIndex', 'x_y']
+
+
+def setTimeLast(timelast):
+    global TIME_LAST
+    TIME_LAST = timelast
+
+
+def setTO_CATEG(flag):
+    global TO_CATEG
+    TO_CATEG = flag

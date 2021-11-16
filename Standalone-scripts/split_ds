@@ -1,0 +1,5 @@
+#!/usr/local/bin/bash
+name_ds='ORIGINAL_Najm_v20/'
+mkdir $name_ds
+cd $name_ds || exit
+ln -s ../COMBINED_Najm_v20/patient0* .

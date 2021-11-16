@@ -1,0 +1,10 @@
+#!/usr/local/bin/bash
+name_ds='FINAL_Najm_v27/'
+mkdir $name_ds
+cd $name_ds || exit
+ln -s ../../MIRRORED/MIRRORED_FINAL_Najm_v27/* .
+rename.ul -v CTP_00 CTP_20 *
+rename.ul -v CTP_01 CTP_21 *
+rename.ul -v CTP_02 CTP_22 *
+rename.ul -v CTP_03 CTP_23 *
+ln -s ../../ORIGINAL/FINAL_Najm_v27/* .

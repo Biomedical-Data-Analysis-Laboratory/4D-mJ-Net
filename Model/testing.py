@@ -446,6 +446,7 @@ def evaluateModel(nn, p_id, isAlreadySaved):
             flagtype="test",
             back_perc=100,
             loss=nn.loss["name"],
+            is3dot5DModel=nn.is3dot5DModel,
             is4DModel=nn.is4DModel,
             inputImgFlag=nn.inputImgFlag,
             supervised=nn.supervised,

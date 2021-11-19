@@ -72,6 +72,7 @@ class NeuralNetwork(object):
         self.save_activation_filter = True if modelInfo["save_activation_filter"]==1 else False
         self.use_hickle = True if "use_hickle" in modelInfo.keys() and modelInfo["use_hickle"]==1 else False
         self.SVO_focus = True if "SVO_focus" in modelInfo.keys() and modelInfo["SVO_focus"] == 1 else False
+        self.is3dot5DModel = True if "3dot5D" in self.name else False
         self.is4DModel = True if "4D" in self.name else False
 
         # paths
@@ -350,6 +351,7 @@ class NeuralNetwork(object):
             batch_size=self.batch_size,
             back_perc=1 if not constants.getUSE_PM() and (constants.getM() != constants.IMAGE_WIDTH and constants.getN() != constants.IMAGE_HEIGHT) else 100,
             loss=self.loss["name"],
+            is3dot5DModel=self.is3dot5DModel,
             is4DModel=self.is4DModel,
             SVO_focus=self.SVO_focus,
             inputImgFlag=self.inputImgFlag,
@@ -370,6 +372,7 @@ class NeuralNetwork(object):
             back_perc=1 if not constants.getUSE_PM() and (constants.getM() != constants.IMAGE_WIDTH and constants.getN() != constants.IMAGE_HEIGHT) else 100,
             flagtype="val",
             loss=self.loss["name"],
+            is3dot5DModel=self.is3dot5DModel,
             is4DModel=self.is4DModel,
             inputImgFlag=self.inputImgFlag,
             supervised=self.supervised,

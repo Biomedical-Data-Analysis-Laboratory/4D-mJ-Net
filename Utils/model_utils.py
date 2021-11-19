@@ -10,7 +10,7 @@ from tensorflow.keras.layers import Conv2D, Conv3D, Concatenate, Conv2DTranspose
     TimeDistributed
 
 from Model import constants
-from Utils import general_utils
+from Utils import general_utils, Conv4D
 
 
 ################################################################################
@@ -137,14 +137,14 @@ def getCorrectXForInputModel(nn, current_folder, row, batchIndex, batch_length, 
     sliceIndex = row["sliceIndex"] if train else row["sliceIndex"].iloc[0]
     # Set the folders with the current one
     folders = [current_folder]
-    if nn.is4DModel and nn.n_slices > 1: folders = getPrevNextFolder(current_folder, sliceIndex)
+    if (nn.is4DModel or nn.is3dot5DModel) and nn.n_slices > 1: folders = getPrevNextFolder(current_folder, sliceIndex)
     # Get the shape of the input X
     if not train:
         x_shape = (constants.getM(), constants.getN(), constants.NUMBER_OF_IMAGE_PER_SECTION) if constants.getTIMELAST() else (constants.NUMBER_OF_IMAGE_PER_SECTION, constants.getM(), constants.getN())
         x_shape = (1,)+x_shape+(1,)
         X = np.zeros(shape=x_shape)
     # Important flag. check if X should be an array or not
-    isXarray = True if len(folders) > 1 or (nn.x_label == constants.getList_PMS() or (nn.x_label == "pixels" and nn.is4DModel)) else False
+    isXarray = True if len(folders) > 1 or (nn.x_label == constants.getList_PMS() or (nn.x_label == "pixels" and (nn.is4DModel or nn.is3dot5DModel))) else False
     if isXarray and (not train or (train and batchIndex==0)): X = [None] * len(folders)
 
     for z, folder in enumerate(folders):
@@ -175,6 +175,7 @@ def getCorrectXForInputModel(nn, current_folder, row, batchIndex, batch_length, 
                 if filename != "01"+constants.SUFFIX_IMG:
                     if constants.getTIMELAST(): X[:, :, timeIndex] = sliceW
                     else: X[timeIndex, :, :] = sliceW
+        ### ISLES2018
         # Interpolation if we are dealing with the ISLES2018 dataset
         if constants.getIsISLES2018():
             axis = -2 if constants.getTIMELAST() else 0
@@ -182,10 +183,10 @@ def getCorrectXForInputModel(nn, current_folder, row, batchIndex, batch_length, 
             arr_zoom = [1,1,zoom_val,1] if constants.getTIMELAST() else [zoom_val,1,1,1]
             if isXarray: tmpX[batchIndex,:,:,:,:] = ndimage.zoom(interpX, arr_zoom, output=np.float32)
             else: X[batchIndex,:,:,:,:] = ndimage.zoom(interpX, arr_zoom, output=np.float32)
-        if isXarray:
-            X[z] = tmpX
+
+        if isXarray: X[z] = tmpX
         # Check if we are going to add/use the PMs or the additional input (NIHSS, age, gender)
-        if nn.x_label == constants.getList_PMS() or (nn.x_label == "pixels" and nn.is4DModel):
+        if nn.x_label == constants.getList_PMS() or (nn.x_label == "pixels" and (nn.is4DModel or nn.is3dot5DModel)):
             for pm in constants.getList_PMS():
                 if pm not in pms.keys(): pms[pm] = []
                 crn_pm = row[pm] if train else row[pm].iloc[0]
@@ -215,6 +216,7 @@ def getCorrectXForInputModel(nn, current_folder, row, batchIndex, batch_length, 
         if "gender" in nn.multiInput.keys() and nn.multiInput["gender"] == 1:
             gender_row = row["gender"] if train else row["gender"].iloc[0]
             X.append(np.array([int(gender_row)]))
+
     return X
 
 
@@ -283,7 +285,7 @@ def upLayers(input, block, channels, kernel_size, strides_size, activ_func, l1_l
                            kernel_constraint=kernel_constraint, bias_constraint=bias_constraint)(conv)
     if leaky: transp = layers.LeakyReLU(alpha=0.33)(transp)
 
-    if params["concatenate_input"] and not params["inflate_network"]: block_conc = block[0]
+    if (params["concatenate_input"] and not params["inflate_network"]) or len(block)==1: block_conc = block[0]
     else: block_conc = Concatenate(-1)(block)
     return Concatenate(-1)([transp, block_conc])
 
@@ -488,3 +490,26 @@ def ASSP(input, k_reg, k_init, k_constraint, bias_constraint, filter, r_scale=1)
                   kernel_constraint=k_constraint, bias_constraint=bias_constraint)(add)
 
 
+################################################################################
+#
+def block4DConv(input, channels, kernel_size, activ_func, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint,
+              leaky, batch, stride_size):
+    conv_1 = Conv4D.Conv4D(input, channels[0], kernel_size=kernel_size, kernel_initializer=kernel_init,
+                           activation=activ_func, kernel_regularizer=l1_l2_reg, kernel_constraint=kernel_constraint,
+                           bias_constraint=bias_constraint)
+    if leaky: conv_1 = layers.LeakyReLU(alpha=0.33)(conv_1)
+    if batch: conv_1 = layers.BatchNormalization()(conv_1)
+
+    conv_2 = Conv4D.Conv4D(conv_1, channels[1], kernel_size=kernel_size, kernel_initializer=kernel_init,
+                           activation=activ_func, kernel_regularizer=l1_l2_reg, kernel_constraint=kernel_constraint,
+                           bias_constraint=bias_constraint)
+    if leaky: conv_2 = layers.LeakyReLU(alpha=0.33)(conv_2)
+    if batch: conv_2 = layers.BatchNormalization()(conv_2)
+
+    conv_3 = Conv4D.Conv4D(conv_2, channels[2], kernel_size=kernel_size, kernel_initializer=kernel_init,
+                           activation=activ_func, kernel_regularizer=l1_l2_reg, kernel_constraint=kernel_constraint,
+                           bias_constraint=bias_constraint, strides=stride_size)
+    if leaky: conv_3 = layers.LeakyReLU(alpha=0.33)(conv_3)
+    if batch: conv_3 = layers.BatchNormalization()(conv_3)
+
+    return conv_3

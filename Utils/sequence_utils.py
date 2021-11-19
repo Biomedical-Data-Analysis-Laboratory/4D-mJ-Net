@@ -18,8 +18,8 @@ from Utils import general_utils, dataset_utils, model_utils
 ################################################################################
 # https://faroit.com/keras-docs/2.1.3/models/sequential/#fit_generator
 class datasetSequence(Sequence):
-    def __init__(self, dataframe, indices, sample_weights, x_label, y_label, multiInput, batch_size, params,
-                 back_perc, is4DModel, inputImgFlag, supervised, patientsFolder, SVO_focus=False, flagtype="train", loss=None):
+    def __init__(self, dataframe, indices, sample_weights, x_label, y_label, multiInput, batch_size, params, back_perc, is3dot5DModel,
+                 is4DModel, inputImgFlag, supervised, patientsFolder, SVO_focus=False, flagtype="train", loss=None):
         self.indices = indices
         self.dataframe = dataframe.iloc[self.indices]
 
@@ -32,6 +32,7 @@ class datasetSequence(Sequence):
         self.back_perc = back_perc
         self.flagtype = flagtype
         self.loss = loss
+        self.is3dot5DModel = is3dot5DModel
         self.is4DModel = is4DModel
         self.SVO_focus = SVO_focus
         self.inputImgFlag = inputImgFlag  # only works when the input are the PMs (concatenate)

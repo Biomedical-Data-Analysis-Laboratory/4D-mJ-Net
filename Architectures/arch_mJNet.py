@@ -76,30 +76,23 @@ def mJNet(params, batch=True, drop=False, longJ=False, v2=False):
         general_utils.print_int_shape(pool_drop_1)  # (None, 1, M, N, 128)
         if drop: pool_drop_1 = Dropout(params["dropout"]["1"])(pool_drop_1)
 
-    # from (1,M,N) to (1,M/2,N/2)
-    conv_2 = model_utils.convolutionLayer(pool_drop_1,channels[7],kernel_size,activ_func,l1_l2_reg,kernel_init,'same',kernel_constraint,bias_constraint,leaky=v2,timedistr=v2,is2D=v2)
-    if batch: conv_2 = layers.BatchNormalization()(conv_2)
-    general_utils.print_int_shape(conv_2)  # (None, 1, M, N, 32)
-    conv_2 = model_utils.convolutionLayer(conv_2,channels[8],kernel_size,activ_func,l1_l2_reg,kernel_init,'same',kernel_constraint,bias_constraint,leaky=v2,timedistr=v2,is2D=v2)
-    if batch: conv_2 = layers.BatchNormalization()(conv_2)
-    general_utils.print_int_shape(conv_2)  # (None, 1, M, N, 64)
-    pool_drop_2 = layers.MaxPooling3D(size_two)(conv_2)
-    general_utils.print_int_shape(pool_drop_2)  # (None, 1, M/2, N/2, 64)
-    if drop: pool_drop_2 = Dropout(params["dropout"]["2"])(pool_drop_2)
+    conv_list = []
+    input_conv_layer = pool_drop_1
+    loop = 1
+    while K.int_shape(input_conv_layer)[2]>32 and K.int_shape(input_conv_layer)[3]>32:
+        conv_x = model_utils.convolutionLayer(input_conv_layer, channels[7] * loop, kernel_size, activ_func, l1_l2_reg, kernel_init, 'same', kernel_constraint, bias_constraint, leaky=v2, timedistr=v2, is2D=v2)
+        if batch: conv_x = layers.BatchNormalization()(conv_x)
+        general_utils.print_int_shape(conv_x)  # (None, 1, M, N, 32)
+        conv_x = model_utils.convolutionLayer(conv_x,channels[8]*loop,kernel_size,activ_func,l1_l2_reg,kernel_init,'same',kernel_constraint,bias_constraint,leaky=v2,timedistr=v2,is2D=v2)
+        if batch: conv_x = layers.BatchNormalization()(conv_x)
+        general_utils.print_int_shape(conv_x)  # (None, 1, M, N, 64)
+        input_conv_layer = layers.MaxPooling3D(size_two)(conv_x)
+        general_utils.print_int_shape(input_conv_layer)  # (None, 1, M/2, N/2, 64)
+        if drop: input_conv_layer = Dropout(params["dropout"]["loop"])(input_conv_layer)
+        conv_list.append(conv_x)
+        loop+=loop
 
-    # from (1,M/2,N/2) to (1,M/4,N/4)
-    conv_3 = model_utils.convolutionLayer(pool_drop_2,channels[9],kernel_size,activ_func,l1_l2_reg,kernel_init,'same',kernel_constraint,bias_constraint,leaky=v2,timedistr=v2,is2D=v2)
-    if batch: conv_3 = layers.BatchNormalization()(conv_3)
-    general_utils.print_int_shape(conv_3)  # (None, 1, M/2, N/2, 128)
-    conv_3 = model_utils.convolutionLayer(conv_3,channels[10],kernel_size,activ_func,l1_l2_reg,kernel_init,'same',kernel_constraint,bias_constraint,leaky=v2,timedistr=v2,is2D=v2)
-    if batch: conv_3 = layers.BatchNormalization()(conv_3)
-    general_utils.print_int_shape(conv_3)  # (None, 1, M/2, N/2, 256)
-    pool_drop_3 = layers.MaxPooling3D(size_two)(conv_3)
-    general_utils.print_int_shape(pool_drop_3)  # (None, 1, M/4, N/4, 256)
-    if drop: pool_drop_3 = Dropout(params["dropout"]["3"])(pool_drop_3)
-
-    # from (1,M/4,N/4) to (1,M/8,N/8)
-    conv_4 = model_utils.convolutionLayer(pool_drop_3,channels[11],kernel_size,activ_func,l1_l2_reg,kernel_init,'same',kernel_constraint,bias_constraint,leaky=v2,timedistr=v2,is2D=v2)
+    conv_4 = model_utils.convolutionLayer(input_conv_layer, channels[11], kernel_size, activ_func, l1_l2_reg, kernel_init, 'same', kernel_constraint, bias_constraint, leaky=v2, timedistr=v2, is2D=v2)
     if batch: conv_4 = layers.BatchNormalization()(conv_4)
     general_utils.print_int_shape(conv_4)  # (None, 1, M/4, N/4, 512)
     conv_4 = model_utils.convolutionLayer(conv_4,channels[12],kernel_size,activ_func,l1_l2_reg,kernel_init,'same',kernel_constraint,bias_constraint,leaky=v2,timedistr=v2,is2D=v2)
@@ -117,12 +110,6 @@ def mJNet(params, batch=True, drop=False, longJ=False, v2=False):
         if batch: conv_5_1 = layers.BatchNormalization()(conv_5_1)
         if drop: conv_5_1 = Dropout(params["dropout"]["3.1"])(conv_5_1)
         general_utils.print_int_shape(conv_5_1)  # (None, 1, M/8, N/8, 1024)
-        # add_1 = layers.add([pool_drop_3_1, conv_5_1])
-        # general_utils.print_int_shape(add_1)  # (None, 1, M/8, N/8, 1024)
-        # up_01 = layers.UpSampling3D(size=size_two)(add_1)
-        # general_utils.print_int_shape(up_01)  # (None, 1, M/4, N/4, 1024)
-        # conc_1 = layers.concatenate([up_01, conv_4], axis=-1)
-        # general_utils.print_int_shape(conc_1)  # (None, 1, M/4, N/4, 1024)
 
         attGate_1 = model_utils.attentionGateBlock(x=conv_4, g=conv_5_1, inter_shape=128, l1_l2_reg=l1_l2_reg, kernel_init=kernel_init,
                                  kernel_constraint=kernel_constraint, bias_constraint=bias_constraint)
@@ -134,65 +121,52 @@ def mJNet(params, batch=True, drop=False, longJ=False, v2=False):
         conv_7_1 = model_utils.convolutionLayer(conv_6_1,channels[16],3,activ_func,l1_l2_reg,kernel_init,'same',kernel_constraint,bias_constraint,leaky=v2)
         if batch: conv_7_1 = layers.BatchNormalization()(conv_7_1)
         general_utils.print_int_shape(conv_7_1)  # (None, 1, M/4, N/4, 1024)
-        # add_2 = layers.add([conv_4, conv_7_1])
-        # general_utils.print_int_shape(add_2)  # (None, 1, M/4, N/4, 1024)
-        # up_02 = layers.UpSampling3D(size=size_two)(add_2)
-        # general_utils.print_int_shape(up_02)  # (None, 1, M/2, N/2, 1024)
-        # up_1 = layers.concatenate([up_02, conv_3])
 
         attGate_2 = model_utils.attentionGateBlock(x=conv_3, g=conv_7_1, inter_shape=128, l1_l2_reg=l1_l2_reg, kernel_init=kernel_init,
                                  kernel_constraint=kernel_constraint, bias_constraint=bias_constraint)
         up_1 = layers.concatenate([layers.UpSampling3D(size=size_two)(conv_7_1), attGate_2], axis=-1)
     else:
         # first UP-convolutional layer: from (1,M/4,N/4) to (2M/2,N/2)
-        axis = 3 if constants.getTIMELAST() else 1
+        axis = 3 if constants.getTIMELAST() else -1
         up_1 = layers.concatenate([
             Conv3DTranspose(channels[17], kernel_size=size_two, strides=size_two, activation=activ_func,
                             padding='same', kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init,
                             kernel_constraint=kernel_constraint, bias_constraint=bias_constraint)(conv_4),
-            conv_3], axis=axis)
+            conv_list.pop()], axis=axis)
 
-    general_utils.print_int_shape(up_1)  # (None, 1, M/2, N/2, 1024)
-    conv_5 = model_utils.convolutionLayer(up_1,channels[18],kernel_size,activ_func,l1_l2_reg,kernel_init,'same',kernel_constraint,bias_constraint,leaky=v2)
-    if batch: conv_5 = layers.BatchNormalization()(conv_5)
-    general_utils.print_int_shape(conv_5)  # (None, 1, M/2, N/2, 512)
-    conv_5 = model_utils.convolutionLayer(conv_5,channels[19],kernel_size,activ_func,l1_l2_reg,kernel_init,'same',kernel_constraint,bias_constraint,leaky=v2)
-    if batch: conv_5 = layers.BatchNormalization()(conv_5)
-    general_utils.print_int_shape(conv_5)  # (None, 1, M/2, N/2, 256)
+    input_conv_layer = up_1
+    loop = 1
+    while K.int_shape(input_conv_layer)[2]<constants.getM() and K.int_shape(input_conv_layer)[3]<constants.getN():
+        general_utils.print_int_shape(input_conv_layer)  # (None, 1, M/2, N/2, 1024)
+        conv_x = model_utils.convolutionLayer(input_conv_layer, channels[18] * loop, kernel_size, activ_func, l1_l2_reg, kernel_init, 'same', kernel_constraint, bias_constraint, leaky=v2)
+        if batch: conv_x = layers.BatchNormalization()(conv_x)
+        general_utils.print_int_shape(conv_x)  # (None, 1, M/2, N/2, 512)
+        conv_x = model_utils.convolutionLayer(conv_x,channels[19]*loop,kernel_size,activ_func,l1_l2_reg,kernel_init,'same',kernel_constraint,bias_constraint,leaky=v2)
+        if batch: conv_x = layers.BatchNormalization()(conv_x)
+        general_utils.print_int_shape(conv_x)  # (None, 1, M/2, N/2, 256)
 
-    if v2:
-        attGate_3 = model_utils.attentionGateBlock(x=conv_2, g=conv_5, inter_shape=128, l1_l2_reg=l1_l2_reg, kernel_init=kernel_init,
-                                 kernel_constraint=kernel_constraint, bias_constraint=bias_constraint)
-        up_2 = layers.concatenate([layers.UpSampling3D(size=size_two)(conv_5), attGate_3], axis=-1)
+        # TODO: check v2!
+        if v2:
+            attGate_3 = model_utils.attentionGateBlock(x=conv_list.pop(), g=conv_x, inter_shape=128, l1_l2_reg=l1_l2_reg, kernel_init=kernel_init,
+                                     kernel_constraint=kernel_constraint, bias_constraint=bias_constraint)
+            up_2 = layers.concatenate([layers.UpSampling3D(size=size_two)(conv_x), attGate_3], axis=-1)
+        else:
+            # pool_shape = (1,1,2) if constants.getTIMELAST() else (2,1,1)
+            # pool_drop_4 = layers.MaxPooling3D(pool_shape)(conv_x)
+            # general_utils.print_int_shape(pool_drop_4)  # (None, 1, M/2, N/2, 512)
+            if drop: conv_x = Dropout(params["dropout"]["loop"])(conv_x)
+            # second UP-convolutional layer: from (2,M/2,N/2,2) to (2,M,N)
+            axis = 3 if constants.getTIMELAST() else -1
+            up_2 = layers.concatenate([
+                Conv3DTranspose(channels[20], kernel_size=size_two, strides=size_two, activation=activ_func,
+                                padding='same', kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init,
+                                kernel_constraint=kernel_constraint, bias_constraint=bias_constraint)(conv_x),
+                conv_list.pop()], axis=axis)
+            input_conv_layer = up_2
+            loop += loop
 
-
-        # if batch: addconv_5 = layers.concatenate([conv_5, conv_5])
-        # while K.int_shape(addconv_5)[-1] != K.int_shape(up_1)[-1]:
-        #     addconv_5 = layers.concatenate([addconv_5, addconv_5])
-        # add_3 = layers.add([up_1, addconv_5])
-        # general_utils.print_int_shape(add_3)  # (None, 1, M/2, N/4, 1024)
-        # up_03 = layers.UpSampling3D(size=size_two)(add_3)
-        # general_utils.print_int_shape(up_03)  # (None, 1, M, N, 1024)
-        #
-        # addconv_2 = layers.concatenate([conv_2, conv_2])
-        # while K.int_shape(addconv_2)[-1] != K.int_shape(up_03)[-1]:
-        #     addconv_2 = layers.concatenate([addconv_2, addconv_2])
-        # up_2 = layers.concatenate([up_03, addconv_2])
-    else:
-        pool_shape = (1,1,2) if constants.getTIMELAST() else (2,1,1)
-        pool_drop_4 = layers.MaxPooling3D(pool_shape)(conv_5)
-        general_utils.print_int_shape(pool_drop_4)  # (None, 1, M/2, N/2, 512)
-        if drop: pool_drop_4 = Dropout(params["dropout"]["4"])(pool_drop_4)
-        # second UP-convolutional layer: from (2,M/2,N/2,2) to (2,M,N)
-        axis = 3 if constants.getTIMELAST() else 1
-        up_2 = layers.concatenate([
-            Conv3DTranspose(channels[20], kernel_size=size_two, strides=size_two, activation=activ_func,
-                            padding='same', kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init,
-                            kernel_constraint=kernel_constraint, bias_constraint=bias_constraint)(pool_drop_4),
-            conv_2], axis=axis)
-
-    general_utils.print_int_shape(up_2)  # (None, X, M, N, 1024)
-    conv_6 = model_utils.convolutionLayer(up_2,channels[21],kernel_size,activ_func,l1_l2_reg,kernel_init,'same',kernel_constraint,bias_constraint,leaky=v2)
+    general_utils.print_int_shape(input_conv_layer)  # (None, X, M, N, 1024)
+    conv_6 = model_utils.convolutionLayer(input_conv_layer,channels[21],kernel_size,activ_func,l1_l2_reg,kernel_init,'same',kernel_constraint,bias_constraint,leaky=v2)
     if batch: conv_6 = layers.BatchNormalization()(conv_6)
     general_utils.print_int_shape(conv_6)  # (None, X, M, N, 128)
     conv_6 = model_utils.convolutionLayer(conv_6,channels[22],kernel_size,activ_func,l1_l2_reg,kernel_init,'same',kernel_constraint,bias_constraint,leaky=v2)
@@ -201,9 +175,9 @@ def mJNet(params, batch=True, drop=False, longJ=False, v2=False):
 
     if not v2:
         # from (2,M,N)  to (1,M,N)
-        pool_shape = (1,1,2) if constants.getTIMELAST() else (2,1,1)
-        pool_drop_5 = layers.MaxPooling3D(pool_shape)(pool_drop_5)
-        general_utils.print_int_shape(pool_drop_5)  # (None, 1, M, N, 16)
+        # pool_shape = (1,1,2) if constants.getTIMELAST() else (2,1,1)
+        # pool_drop_5 = layers.MaxPooling3D(pool_shape)(pool_drop_5)
+        # general_utils.print_int_shape(pool_drop_5)  # (None, 1, M, N, 16)
         if drop: pool_drop_5 = Dropout(params["dropout"]["5"])(pool_drop_5)
 
     # set the softmax activation function if the flag is set

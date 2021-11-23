@@ -112,7 +112,7 @@ class NeuralNetwork(object):
         self.mp_in_nn = False
 
         # change the prefix if SUS2020_v2 is in the dataset name
-        if "SUS2020" in self.datasetFolder: constants.setPrefixImagesSUS2020_v2()
+        if "SUS2020" in self.datasetFolder: constants.setPrefix("CTP_")
 
     ################################################################################
     # Set model ID

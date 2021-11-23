@@ -148,18 +148,19 @@ def fit_generator(model, train_sequence, val_sequence, steps_per_epoch, validati
 # Save the intermediate layers
 def saveIntermediateLayers(model, intermediate_activation_path):
     count = 0
-    pixels = np.zeros(shape=(constants.getM(), constants.getN(), constants.NUMBER_OF_IMAGE_PER_SECTION))
-    path = "/home/prosjekt/PerfusionCT/StrokeSUS/ORIGINAL/FINAL_Najm_v1/CTP_01_010/10/*."
+    shape_pxl = (constants.getM(), constants.getN(), constants.NUMBER_OF_IMAGE_PER_SECTION) if constants.getTIMELAST() else (constants.NUMBER_OF_IMAGE_PER_SECTION, constants.getM(), constants.getN())
+    pixels = np.zeros(shape=shape_pxl)
+    # path = "/home/prosjekt/PerfusionCT/StrokeSUS/ORIGINAL/FINAL_Najm_v1/CTP_01_010/10/*."
+    path = "/home/prosjekt/PerfusionCT/StrokeSUS/TOY-DATASET/4D-Studies/case54/05/*."
     for imagename in np.sort(glob.glob(path + constants.SUFFIX_IMG)):
         img = cv2.imread(imagename, cv2.IMREAD_GRAYSCALE)
         pixels[:, :, count] = general_utils.getSlicingWindow(img, 0, 0)
         count += 1
 
-    pixels = pixels.reshape(1, constants.getM(), constants.getN(), constants.NUMBER_OF_IMAGE_PER_SECTION, 1)
+    pixels = pixels.reshape((1,)+shape_pxl+(1,))
 
     for layer in model.layers:
-        if layer.name != "input_1" and layer.name != "reshape":
-            visualizeLayer(model, pixels, layer.name, intermediate_activation_path)
+        if layer.name != "input_1" and layer.name != "reshape": visualizeLayer(model, pixels, layer.name, intermediate_activation_path)
 
 
 ################################################################################

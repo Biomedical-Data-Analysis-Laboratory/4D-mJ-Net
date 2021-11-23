@@ -110,7 +110,7 @@ class datasetSequence(Sequence):
                 coord = current_batch.loc[row_index]["x_y"]  # coordinates of the slice window
                 if not isinstance(filename,str): print(filename)
                 img = cv2.imread(filename,cv2.IMREAD_GRAYSCALE)
-
+                assert img is not None, "The image {} is None".format(filename)
                 img = general_utils.getSlicingWindow(img, coord[0], coord[1], isgt=True)
 
                 # remove the brain from the image ==> it becomes background

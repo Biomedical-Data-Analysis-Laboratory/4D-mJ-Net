@@ -109,7 +109,7 @@ def main():
 if __name__ == '__main__':
     """
     Usage: python main.py gpu sname
-                [-h] [-v] [-d] [-o] [-pm] [-t TILE] [-dim DIMENSION] [-c {2,3,4}] [-w ...] [-e EXP] [-j]
+                [-h] [-v] [-d] [-o] [-pm] [-t TILE] [-dim DIMENSION] [-c {2,3,4}] [-w ...] [-e EXP] [-j]  [--timelast] [--prefix PREFIX]
 
     positional arguments:
       gpu                   Give the id of gpu (or a list of the gpus) to use
@@ -130,6 +130,8 @@ if __name__ == '__main__':
       -w, --weights         Set the weights for the categorical losses
       -e, --exp             Set the number of the experiment
       -j, --jump            Jump the training and go directly on the gradual fine-tuning function
-      --timelast           Set the time dimension in the last channel of the input model          
+      --timelast            Set the time dimension in the last channel of the input model          
+      --prefix              Set the prefix different from the default
+      --limcols             Set the columns without additional info 
     """
     main()

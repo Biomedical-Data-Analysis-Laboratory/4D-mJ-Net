@@ -171,9 +171,9 @@ def setONETIMEPOINT(timepoint):
     ONE_TIME_POINT = "_" + timepoint
 
 
-def setPrefixImagesSUS2020_v2():
+def setPrefix(prefix):
     global PREFIX_IMAGES
-    PREFIX_IMAGES = "CTP_"
+    if prefix is not None: PREFIX_IMAGES = prefix
 
 
 def setUSE_PM(pm):
@@ -193,13 +193,17 @@ def setWeights(weights):
 
 
 def setISLES2018(isles):
-    global isISLES, dataFrameColumns
+    global isISLES
     isISLES = isles
     if isISLES:
         setImageDimension(256)
-        dataFrameColumns = ['CBF', 'CBV', 'MTT', 'TMAX', 'data_aug_idx', 'ground_truth', 'label', 'label_code',
-                            'patient_id', 'pixels', 'sliceIndex', 'timeIndex', 'x_y']
+        setLimitedColumns(True)
 
+
+def setLimitedColumns(limcols):
+    global dataFrameColumns
+    if limcols: dataFrameColumns = ['CBF', 'CBV', 'MTT', 'TMAX', 'data_aug_idx', 'ground_truth', 'label', 'label_code',
+                                    'patient_id', 'pixels', 'sliceIndex', 'timeIndex', 'x_y']
 
 def setTimeLast(timelast):
     global TIME_LAST

@@ -27,7 +27,7 @@ def loadTrainingDataframe(nn, patients):
     with multiprocessing.Pool(processes=16) as pool:  # auto closing workers
         frames = pool.starmap(readSingleDataFrame, list(zip(listOfFolders,[patients]*len(listOfFolders),[nn.use_hickle]*len(listOfFolders))))
 
-    if constants.getIsISLES2018():  train_df = train_df.append(frames[1:], sort=False, ignore_index=True)
+    if constants.getIsISLES2018(): train_df = train_df.append(frames[1:], sort=False, ignore_index=True)
     else: train_df = train_df.append(frames, sort=False, ignore_index=True)
     return train_df
 
@@ -134,8 +134,7 @@ def setValList(nn, validation_list):
                 print("[INFO] - VALIDATION list LVO: {}".format([v for v in validation_list if "01_" in v or "00_" in v or "21_" in v or "20_" in v]))
                 print("[INFO] - VALIDATION list Non-LVO: {}".format([v for v in validation_list if "02_" in v or "22_" in v]))
                 print("[INFO] - VALIDATION list WIS: {}".format([v for v in validation_list if "03_" in v or "23_" in v]))
-            elif constants.PREFIX_IMAGES=="PA":
-                print("[INFO] - VALIDATION list {}".format(validation_list))
+            else: print("[INFO] - VALIDATION list {}".format(validation_list))
     for val_p in validation_list: nn.dataset["val"]["indices"].extend(np.nonzero((nn.train_df.patient_id.values == general_utils.getStringFromIndex(val_p)))[0])
 
     return nn

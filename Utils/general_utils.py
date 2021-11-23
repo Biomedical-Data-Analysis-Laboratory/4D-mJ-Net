@@ -35,6 +35,8 @@ def getCommandLineArguments():
     parser.add_argument("-e", "--exp", help="Set the number of the experiment", type=float)
     parser.add_argument("-j", "--jump", help="Jump the training and go directly on the gradual fine-tuning function", action="store_true")
     parser.add_argument("--timelast", help="Set the time dimension in the last channel of the input model", action="store_true")
+    parser.add_argument("--prefix", help="Set the prefix different from the default", type=str)
+    parser.add_argument("--limcols", help="Set the columns without additional info", action="store_true")
     parser.add_argument("gpu", help="Give the id of gpu (or a list of the gpus) to use")
     parser.add_argument("sname", help="Select the setting filename")
     args = parser.parse_args()
@@ -49,6 +51,8 @@ def getCommandLineArguments():
     constants.setNumberOfClasses(args.classes)
     constants.setWeights(args.weights)
     constants.setTimeLast(args.timelast)
+    constants.setPrefix(args.prefix)
+    constants.setLimitedColumns(args.limcols)
 
     return args
 
@@ -211,13 +215,12 @@ def getMetricFunctions(listStats):
 ################################################################################
 # Return a flag to check if the filename (partial) is inside the list of patients
 def isFilenameInListOfPatient(filename, patients):
-    ret = False
-    start_index = filename.rfind("/") + len(constants.DATASET_PREFIX) + 1
-    patient_id = filename[start_index:start_index+len(str(patients[-1]))]
+    start_idx = filename.rfind("/") + len(constants.DATASET_PREFIX) + 1
+    end_idx = filename.find(getSuffix())
+    patient_id = filename[start_idx:end_idx]
     # don't load the dataframe if patient_id NOT in the list of patients
-    if constants.PREFIX_IMAGES== "PA": patient_id = int(patient_id)
-    if patient_id in patients: ret = True
-
+    if patient_id.find("_")==-1: patient_id = int(patient_id)
+    ret = True if patient_id in patients else False
     return ret
 
 

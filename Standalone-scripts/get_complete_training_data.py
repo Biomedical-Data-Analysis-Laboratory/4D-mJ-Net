@@ -278,16 +278,16 @@ def fillDatasetOverTime(relativePath, patientIndex, timeFolder, infor_file):
                 if SEQUENCE_DATASET:
                     pixels_zoom = otherInforList[d][x][y]["pixels"]
                     if HASDAYFOLDER:
-                        cbf = otherInforList[d][x][y]["CBF"]
-                        cbv = otherInforList[d][x][y]["CBV"]
-                        ttp = otherInforList[d][x][y]["TTP"]
-                        tmax = otherInforList[d][x][y]["TMAX"]
-                        mip = otherInforList[d][x][y]["MIP"]
+                        cbf = otherInforList[d][x][y]["CBF"] if "CBF" in otherInforList[d][x][y].keys() else ""
+                        cbv = otherInforList[d][x][y]["CBV"] if "CBV" in otherInforList[d][x][y].keys() else ""
+                        ttp = otherInforList[d][x][y]["TTP"] if "TTP" in otherInforList[d][x][y].keys() else ""
+                        tmax = otherInforList[d][x][y]["TMAX"] if "TMAX" in otherInforList[d][x][y].keys() else ""
+                        mip = otherInforList[d][x][y]["MIP"] if "MIP" in otherInforList[d][x][y].keys() else ""
                     else:
-                        cbf = otherInforList[d][x][y]["CBF"]
-                        cbv = otherInforList[d][x][y]["CBV"]
-                        mtt = otherInforList[d][x][y]["MTT"]
-                        tmax = otherInforList[d][x][y]["TMAX"]
+                        cbf = otherInforList[d][x][y]["CBF"] if "CBF" in otherInforList[d][x][y].keys() else ""
+                        cbv = otherInforList[d][x][y]["CBV"] if "CBV" in otherInforList[d][x][y].keys() else ""
+                        mtt = otherInforList[d][x][y]["MTT"] if "MTT" in otherInforList[d][x][y].keys() else ""
+                        tmax = otherInforList[d][x][y]["TMAX"] if "TMAX" in otherInforList[d][x][y].keys() else ""
 
                 else:
                     if ORIGINAL_SHAPE: totalVol = np.empty((1,M,N))
@@ -311,7 +311,7 @@ def fillDatasetOverTime(relativePath, patientIndex, timeFolder, infor_file):
                     if ORIGINAL_SHAPE: pixels_zoom = ndimage.zoom(totalVol,[zoom_val,1,1],output=np.uint8)
                     else: pixels_zoom = ndimage.zoom(totalVol,[1,1,zoom_val],output=np.uint8)
 
-                ## USE THIS TO CHECK THE VALIDITIY OF THE INTERPOLATION
+                # # USE THIS TO CHECK THE VALIDITIY OF THE INTERPOLATION
                 # print(pixels_zoom.shape)
                 # for z in range(0,pixels_zoom.shape[0]):
                 #     print(ROOT_PATH+"Test/img_{0}_{1}_{2}_{3}.png".format(d,x,y,z))

@@ -90,7 +90,7 @@ def mJNet(params, batch=True, drop=False, longJ=False, v2=False):
         general_utils.print_int_shape(input_conv_layer)  # (None, 1, M/2, N/2, 64)
         if drop: input_conv_layer = Dropout(params["dropout"]["loop"])(input_conv_layer)
         conv_list.append(conv_x)
-        loop+=loop
+        loop+=1
 
     conv_4 = model_utils.convolutionLayer(input_conv_layer, channels[11], kernel_size, activ_func, l1_l2_reg, kernel_init, 'same', kernel_constraint, bias_constraint, leaky=v2, timedistr=v2, is2D=v2)
     if batch: conv_4 = layers.BatchNormalization()(conv_4)
@@ -163,7 +163,7 @@ def mJNet(params, batch=True, drop=False, longJ=False, v2=False):
                                 kernel_constraint=kernel_constraint, bias_constraint=bias_constraint)(conv_x),
                 conv_list.pop()], axis=axis)
             input_conv_layer = up_2
-            loop += loop
+            loop += 1
 
     general_utils.print_int_shape(input_conv_layer)  # (None, X, M, N, 1024)
     conv_6 = model_utils.convolutionLayer(input_conv_layer,channels[21],kernel_size,activ_func,l1_l2_reg,kernel_init,'same',kernel_constraint,bias_constraint,leaky=v2)
@@ -474,13 +474,22 @@ def mJNet_4D(params, multiInput, usePMs=True, batch=True, drop=False, leaky=True
     out_4 = model_utils.blockConv3D(out_3,[8,16],(n_slices,3,3),activ_func,l1_l2_reg,kernel_init,kernel_constraint,
                                     bias_constraint,leaky,batch,(n_slices,1,1))
     general_utils.print_int_shape(out_4)
+
     # reduce (x,y) dimension
-    out_5 = model_utils.blockConv3D(out_4,[16,32],kernel_size,activ_func,l1_l2_reg,kernel_init,kernel_constraint,bias_constraint,leaky,batch,size_two)
-    general_utils.print_int_shape(out_5)
-    out_6 = model_utils.blockConv3D(out_5,[32,64],kernel_size,activ_func,l1_l2_reg,kernel_init,kernel_constraint,bias_constraint,leaky,batch,size_two)
-    general_utils.print_int_shape(out_6)
-    out_7 = model_utils.blockConv3D(out_6,[64,128],kernel_size,activ_func,l1_l2_reg,kernel_init,kernel_constraint,bias_constraint,leaky,batch,size_two)
-    general_utils.print_int_shape(out_7)
+    conv_list = [out_4]
+    input_conv_layer = out_4
+    loop = 1
+    while K.int_shape(input_conv_layer)[2]>32 and K.int_shape(input_conv_layer)[3]>32:
+        conv_x = model_utils.blockConv3D(input_conv_layer,[16*loop,32*loop],kernel_size,activ_func,l1_l2_reg,kernel_init,kernel_constraint,bias_constraint,leaky,batch,size_two)
+        general_utils.print_int_shape(conv_x)
+        input_conv_layer = conv_x
+        if K.int_shape(conv_x)[2]!=32 and K.int_shape(conv_x)[2]!=32: conv_list.append(conv_x)
+        loop += 1
+    out_7 = input_conv_layer
+    # out_6 = model_utils.blockConv3D(out_5,[32,64],kernel_size,activ_func,l1_l2_reg,kernel_init,kernel_constraint,bias_constraint,leaky,batch,size_two)
+    # general_utils.print_int_shape(out_6)
+    # out_7 = model_utils.blockConv3D(out_6,[64,128],kernel_size,activ_func,l1_l2_reg,kernel_init,kernel_constraint,bias_constraint,leaky,batch,size_two)
+    # general_utils.print_int_shape(out_7)
     if drop: out_7 = Dropout(params["dropout"]["1"])(out_7)
 
     transp_1 = Conv3DTranspose(128, kernel_size=size_two, strides=size_two, activation=activ_func,
@@ -488,19 +497,24 @@ def mJNet_4D(params, multiInput, usePMs=True, batch=True, drop=False, leaky=True
                                kernel_constraint=kernel_constraint, bias_constraint=bias_constraint)(out_7)
     if leaky: transp_1 = layers.LeakyReLU(alpha=0.33)(transp_1)
     general_utils.print_int_shape(transp_1)
-    up_1 = layers.Concatenate(-1)([transp_1, out_6])
+    up_1 = layers.Concatenate(-1)([transp_1, conv_list.pop()])
     general_utils.print_int_shape(up_1)
-    up_2 = model_utils.upLayers(up_1,[out_5],[64,64,64],kernel_size,size_two,activ_func,l1_l2_reg,kernel_init,kernel_constraint,bias_constraint,params,leaky=leaky)
-    general_utils.print_int_shape(up_2)
-    up_3 = model_utils.upLayers(up_2,[out_4],[32,32,32],kernel_size,size_two,activ_func,l1_l2_reg,kernel_init,kernel_constraint,bias_constraint,params,leaky=leaky)
-    general_utils.print_int_shape(up_3)
+
+    input_conv_layer = up_1
+    while K.int_shape(input_conv_layer)[2] < constants.getM() and K.int_shape(input_conv_layer)[3] < constants.getN():
+        up_x = model_utils.upLayers(input_conv_layer,[conv_list.pop()],[16*loop,16*loop,16*loop],kernel_size,size_two,activ_func,l1_l2_reg,kernel_init,kernel_constraint,bias_constraint,params,leaky=leaky)
+        general_utils.print_int_shape(up_x)
+        input_conv_layer = up_x
+        loop-=1
+    # up_3 = model_utils.upLayers(up_2,[out_4],[32,32,32],kernel_size,size_two,activ_func,l1_l2_reg,kernel_init,kernel_constraint,bias_constraint,params,leaky=leaky)
+    # general_utils.print_int_shape(up_3)
     # set the softmax activation function if the flag is set
     act_name = "softmax" if constants.getTO_CATEG() else "sigmoid"
     n_chann = len(constants.LABELS) if constants.getTO_CATEG() else 1
     shape_output = (constants.getM(), constants.getN(), n_chann) if constants.getTO_CATEG() else (constants.getM(), constants.getN())
 
     final_conv = Conv3D(n_chann, kernel_size=(1,1,1), activation=act_name, padding='same', kernel_regularizer=l1_l2_reg,
-                        kernel_initializer=kernel_init,kernel_constraint=kernel_constraint, bias_constraint=bias_constraint)(up_3)
+                        kernel_initializer=kernel_init,kernel_constraint=kernel_constraint, bias_constraint=bias_constraint)(up_x)
     y = layers.Reshape(shape_output)(final_conv)
     general_utils.print_int_shape(y)
     model = models.Model(inputs=inputs, outputs=[y])

@@ -557,7 +557,6 @@ class NeuralNetwork(object):
         for p_id in listPatients:
             # evaluate the model with the testing patient (not necessary)
             # if self.supervised: self.evaluateModelWithCategorics(p_id, isAlreadySaved)
-
             general_utils.printSeparation("+", 50)
             print("[INFO] - Executing function: predictAndSaveImages for patient {}".format(p_id))
             testing.predictAndSaveImages(self, p_id)

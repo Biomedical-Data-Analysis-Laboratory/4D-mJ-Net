@@ -55,6 +55,8 @@ def predictAndSaveImages(nn, p_id):
     if nn.use_hickle: suffix_filename = ".hkl"
     filename_test = nn.datasetFolder + constants.DATASET_PREFIX + str(p_id) + suffix + suffix_filename
 
+    if not os.path.exists(filename_test): return
+
     relativePatientFolder = constants.getPrefixImages() + str(p_id) + "/"
     relativePatientFolderHeatMap = relativePatientFolder + "HEATMAP/"
     relativePatientFolderGT = relativePatientFolder + "GT/"
@@ -77,9 +79,7 @@ def predictAndSaveImages(nn, p_id):
     for subfolder in glob.glob(patientFolder+"*/"):
         # Predict the images
         if constants.getUSE_PM(): predictImagesFromParametricMaps(nn, subfolder, p_id, subpatientFolder, patientFolderHeatMap, patientFolderGT, patientFolderTMP, filename_test)
-        else:
-            if constants.getIsISLES2018(): predictImage(nn, subfolder, p_id, patientFolder, subpatientFolder, patientFolderHeatMap, patientFolderGT, patientFolderTMP, filename_test)
-            else: predictImage(nn, subfolder, p_id, patientFolder, subpatientFolder, patientFolderHeatMap, patientFolderGT, patientFolderTMP, filename_test)
+        else: predictImage(nn, subfolder, p_id, patientFolder, subpatientFolder, patientFolderHeatMap, patientFolderGT, patientFolderTMP, filename_test)
 
 
 ################################################################################
@@ -121,7 +121,7 @@ def predictImage(nn, subfolder, p_id, patientFolder, relativePatientFolder, rela
         # get only the rows with data_aug_idx==0 (no rotation or any data augmentation)
         test_df = test_df[test_df.data_aug_idx==0]
         print(test_df.shape)
-        test_df = test_df[test_df.timeIndex==idx]  # todo: why timeindex?
+        test_df = test_df[test_df.sliceIndex==idx]
         print(test_df.shape)
         imagePredicted = generateTimeImagesAndConsensus(nn, test_df, relativepatientFolderGT, relativePatientFolderTMP, idx)
     else:  # usual behaviour
@@ -248,7 +248,7 @@ def saveImage(nn, relativePatientFolder, idx, imagePredicted, categoricalImage, 
 
 ################################################################################
 # Helpful function that return the 2D image from the pixel and the starting coordinates
-def generate2DImage(nn,pixels,startingXY,imgPredicted,categoricalImage,binary_mask):
+def generate2DImage(nn, pixels, startingXY, imgPredicted, categoricalImage, binary_mask):
     """
     Generate a 2D image from the test_df
 
@@ -273,7 +273,8 @@ def generate2DImage(nn,pixels,startingXY,imgPredicted,categoricalImage,binary_ma
     else: slicingWindowPredicted = swp_orig * 255
     # save the predicted images
     if nn.save_images:
-        if not constants.getIsISLES2018():
+        print(np.unique(slicingWindowPredicted))
+        if not constants.hasLimitedColumns() and constants.N_CLASSES>2:
             # Remove the parts already classified by the model
             binary_mask = np.array(binary_mask, dtype=np.float)
             # force all the predictions to be inside the binary mask defined by the GT

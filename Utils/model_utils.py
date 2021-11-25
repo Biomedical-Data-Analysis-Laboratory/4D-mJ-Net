@@ -496,23 +496,23 @@ def ASSP(input, k_reg, k_init, k_constraint, bias_constraint, filter, r_scale=1)
 
 ################################################################################
 #
-def block4DConv(input, channels, kernel_size, activ_func, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint,
-              leaky, batch, stride_size):
-    conv_1 = Conv4D.Conv4D(input, channels[0], kernel_size=kernel_size, kernel_initializer=kernel_init,
-                           activation=activ_func, kernel_regularizer=l1_l2_reg, kernel_constraint=kernel_constraint,
-                           bias_constraint=bias_constraint)
+def block4DConv(inp, channels, kernel_size, activ_func, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint,
+                leaky, batch, reduce_dim, stride_size):
+    conv_1 = Conv4D.Conv4D(inp, channels[0], kernel_size=kernel_size, activation=activ_func, reduce_dim=reduce_dim,
+                           kernel_initializer=kernel_init, kernel_regularizer=l1_l2_reg,
+                           kernel_constraint=kernel_constraint, bias_constraint=bias_constraint)
     if leaky: conv_1 = layers.LeakyReLU(alpha=0.33)(conv_1)
     if batch: conv_1 = layers.BatchNormalization()(conv_1)
 
-    conv_2 = Conv4D.Conv4D(conv_1, channels[1], kernel_size=kernel_size, kernel_initializer=kernel_init,
-                           activation=activ_func, kernel_regularizer=l1_l2_reg, kernel_constraint=kernel_constraint,
-                           bias_constraint=bias_constraint)
+    conv_2 = Conv4D.Conv4D(conv_1, channels[1], kernel_size=kernel_size, activation=activ_func, reduce_dim=reduce_dim,
+                           kernel_initializer=kernel_init, kernel_regularizer=l1_l2_reg,
+                           kernel_constraint=kernel_constraint, bias_constraint=bias_constraint)
     if leaky: conv_2 = layers.LeakyReLU(alpha=0.33)(conv_2)
     if batch: conv_2 = layers.BatchNormalization()(conv_2)
 
-    conv_3 = Conv4D.Conv4D(conv_2, channels[2], kernel_size=kernel_size, kernel_initializer=kernel_init,
-                           activation=activ_func, kernel_regularizer=l1_l2_reg, kernel_constraint=kernel_constraint,
-                           bias_constraint=bias_constraint, strides=stride_size)
+    conv_3 = Conv4D.Conv4D(conv_2, channels[2], kernel_size=kernel_size, strides=stride_size, activation=activ_func,
+                           kernel_initializer=kernel_init, kernel_regularizer=l1_l2_reg, reduce_dim=reduce_dim,
+                           kernel_constraint=kernel_constraint, bias_constraint=bias_constraint)
     if leaky: conv_3 = layers.LeakyReLU(alpha=0.33)(conv_3)
     if batch: conv_3 = layers.BatchNormalization()(conv_3)
 

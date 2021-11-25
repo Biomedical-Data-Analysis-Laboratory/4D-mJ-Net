@@ -421,6 +421,10 @@ def mJNet_4D(params, multiInput, usePMs=True, batch=True, drop=False, leaky=True
     size_two = (2,2,1) if constants.getTIMELAST() else (1,2,2)
     kernel_size = (3,3,1) if constants.getTIMELAST() else (1,3,3)
     n_slices = params["n_slices"]
+    reduce_dim = params["reduce_dim"] if "reduce_dim" in params.keys() else 2
+
+    assert reduce_dim in [1, 2], "reduce_dim can only be 1 or 2"
+
     l1_l2_reg = None if "regularizer" not in params.keys() else model_utils.getRegularizer(params["regularizer"])
     activ_func = None if leaky else 'relu'
     input_shape = (constants.getM(), constants.getN(), constants.NUMBER_OF_IMAGE_PER_SECTION, 1) \
@@ -440,21 +444,19 @@ def mJNet_4D(params, multiInput, usePMs=True, batch=True, drop=False, leaky=True
         conc_inputs.append(layers.Reshape(reshape_input_shape)(inp))
     conc_inputs = layers.Concatenate(axis=z_axis)(conc_inputs)
     general_utils.print_int_shape(conc_inputs)
-    kernel_shape = (3,3,n_slices,3) if constants.getTIMELAST() else (3,n_slices,3,3)
+    if reduce_dim==2: kernel_shape = (3,3,n_slices,constants.NUMBER_OF_IMAGE_PER_SECTION) if constants.getTIMELAST() else (constants.NUMBER_OF_IMAGE_PER_SECTION,n_slices,3,3)
+    else: kernel_shape = (3,3,n_slices,constants.NUMBER_OF_IMAGE_PER_SECTION) if constants.getTIMELAST() else (constants.NUMBER_OF_IMAGE_PER_SECTION,n_slices,3,3)
     stride_size = (1,1,params["stride"]["long.1"]) if constants.getTIMELAST() else (params["stride"]["long.1"],1,1)
     out_1 = model_utils.block4DConv(conc_inputs,[8,8,8],kernel_shape,activ_func, l1_l2_reg, kernel_init, kernel_constraint,
-                                    bias_constraint, leaky, batch, stride_size)
+                                    bias_constraint, leaky, batch, reduce_dim, stride_size)
     general_utils.print_int_shape(out_1)
-
-    kernel_shape = (3,3,n_slices,3) if constants.getTIMELAST() else (3,n_slices,3,3)
     stride_size = (1,1,params["stride"]["long.2"]) if constants.getTIMELAST() else (params["stride"]["long.2"],1,1)
     out_2 = model_utils.block4DConv(out_1,[16,16,16],kernel_shape,activ_func, l1_l2_reg, kernel_init, kernel_constraint,
-                                    bias_constraint, leaky, batch, stride_size)
+                                    bias_constraint, leaky, batch, reduce_dim, stride_size)
     general_utils.print_int_shape(out_2)
-    kernel_shape = (3,3,n_slices,3) if constants.getTIMELAST() else (3,n_slices,3,3)
     stride_size = (1,1,params["stride"]["long.3"]) if constants.getTIMELAST() else (params["stride"]["long.3"],1,1)
     out_3 = model_utils.block4DConv(out_2,[32,32,32],kernel_shape,activ_func, l1_l2_reg, kernel_init, kernel_constraint,
-                                    bias_constraint, leaky, batch, stride_size)
+                                    bias_constraint, leaky, batch, reduce_dim, stride_size)
     general_utils.print_int_shape(out_3)
 
     out_shape = (n_slices,constants.getM(),constants.getN(),32)
@@ -463,9 +465,22 @@ def mJNet_4D(params, multiInput, usePMs=True, batch=True, drop=False, leaky=True
     general_utils.print_int_shape(out_3)
 
     # reduce z dimension
-    out_4 = model_utils.blockConv3D(out_3,[8,16],(n_slices,3,3),activ_func,l1_l2_reg,kernel_init,kernel_constraint,
-                                    bias_constraint,leaky,batch,(n_slices,1,1))
-    general_utils.print_int_shape(out_4)
+    if reduce_dim==2:
+        out_4 = model_utils.blockConv3D(out_3,[8,16],(n_slices,3,3),activ_func,l1_l2_reg,kernel_init,kernel_constraint,
+                                        bias_constraint,leaky,batch,(n_slices,1,1))
+        general_utils.print_int_shape(out_4)
+    else:
+        out_4 = model_utils.blockConv3D(out_3,[8,16],(constants.NUMBER_OF_IMAGE_PER_SECTION,3,3),activ_func,l1_l2_reg,kernel_init,kernel_constraint,
+                                        bias_constraint,leaky,batch,(params["max_pool"]["long.1"],1,1))
+        general_utils.print_int_shape(out_4)
+        new_z = int(constants.NUMBER_OF_IMAGE_PER_SECTION / params["max_pool"]["long.1"])
+        out_4 = model_utils.blockConv3D(out_3,[8,16],(new_z,3,3),activ_func,l1_l2_reg,kernel_init,kernel_constraint,
+                                        bias_constraint,leaky,batch,(params["max_pool"]["long.2"],1,1))
+        general_utils.print_int_shape(out_4)
+        new_z = int(constants.NUMBER_OF_IMAGE_PER_SECTION / params["max_pool"]["long.2"])
+        out_4 = model_utils.blockConv3D(out_3,[8,16],(new_z,3,3),activ_func,l1_l2_reg,kernel_init,kernel_constraint,
+                                        bias_constraint,leaky,batch,(params["max_pool"]["long.2"],1,1))
+        general_utils.print_int_shape(out_4)
 
     # reduce (x,y) dimension
     conv_list = [out_4]

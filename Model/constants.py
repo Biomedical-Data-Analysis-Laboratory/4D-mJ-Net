@@ -40,7 +40,7 @@ threeD_flag, ONE_TIME_POINT = "", ""
 list_PMS = ["CBF", "CBV", "TTP", "TMAX", "MIP"]
 dataFrameColumns = ['patient_id', 'label', 'pixels', 'CBF', 'CBV', 'TTP', 'TMAX', "MIP", "NIHSS", 'ground_truth', 'x_y',
                     'data_aug_idx','timeIndex', 'sliceIndex', 'severity', "age", "gender", 'label_code']
-
+limitedColumns = False
 ENABLE_WATCHDOG = True
 PID_WATCHDOG_PICKLE_PATH = os.getcwd()+'/PID_list_{}.obj'.format(socket.gethostname())
 PID_WATCHDOG_FINISHED_PICKLE_PATH = os.getcwd()+'/PID_finished_list_{}.obj'.format(socket.gethostname())
@@ -89,6 +89,10 @@ def getList_PMS():
 
 def getIsISLES2018():
     return isISLES
+
+
+def hasLimitedColumns():
+    return limitedColumns
 
 
 def getTIMELAST():
@@ -201,9 +205,11 @@ def setISLES2018(isles):
 
 
 def setLimitedColumns(limcols):
-    global dataFrameColumns
-    if limcols: dataFrameColumns = ['CBF', 'CBV', 'MTT', 'TMAX', 'data_aug_idx', 'ground_truth', 'label', 'label_code',
-                                    'patient_id', 'pixels', 'sliceIndex', 'timeIndex', 'x_y']
+    global dataFrameColumns, limitedColumns
+    if limcols:
+        limitedColumns = True
+        dataFrameColumns = ["patient_id", "label", "pixels", "CBF", "CBV", "MTT", "TMAX", "ground_truth", "label_code",
+                            "x_y", "data_aug_idx", "timeIndex", "sliceIndex"]
 
 def setTimeLast(timelast):
     global TIME_LAST

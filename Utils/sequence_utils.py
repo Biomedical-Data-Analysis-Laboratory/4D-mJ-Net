@@ -82,9 +82,6 @@ class datasetSequence(Sequence):
         # path to the ground truth image
         if self.y_label=="ground_truth": Y, weights = self.getY(current_batch, weights)
 
-        # Check if any value is NaN
-        # if np.isnan(np.unique(Y)).any(): print("__getitem__", [gt for gt in current_batch.ground_truth])
-
         return X, Y, weights
 
     ################################################################################

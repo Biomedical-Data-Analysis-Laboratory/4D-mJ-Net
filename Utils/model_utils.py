@@ -150,10 +150,10 @@ def getCorrectXForInputModel(nn, current_folder, row, batchIndex, batch_length, 
     for z, folder in enumerate(folders):
         tmpX = np.empty((batch_length, constants.getM(), constants.getN(), constants.NUMBER_OF_IMAGE_PER_SECTION, 1)) if constants.getTIMELAST() else np.empty((batch_length, constants.NUMBER_OF_IMAGE_PER_SECTION, constants.getM(), constants.getN(), 1))
         if isXarray and train and batchIndex>0: tmpX = X[z]
-        howmany = len(glob.glob(folder + "*" + constants.SUFFIX_IMG))
+        howmany = len(glob.glob(folder + "*.*"))
         interpX = np.empty((constants.getM(),constants.getN(),howmany,1)) if constants.getTIMELAST() else np.empty((howmany,constants.getM(),constants.getN(),1))
 
-        for timeIndex, filename in enumerate(np.sort(glob.glob(folder + "*" + constants.SUFFIX_IMG))):
+        for timeIndex, filename in enumerate(np.sort(glob.glob(folder + "*.*"))):
             totimg = cv2.imread(filename, cv2.IMREAD_GRAYSCALE)
             assert totimg is not None, "The image {} is None".format(filename)
             # Get the slice and if we are training, also perform augmentation
@@ -172,7 +172,7 @@ def getCorrectXForInputModel(nn, current_folder, row, batchIndex, batch_length, 
                         if isXarray: tmpX[batchIndex, timeIndex, :, :, :] = sliceW.reshape(sliceW.shape+(1,))
                         else: X[batchIndex, timeIndex, :, :, :] = sliceW.reshape(sliceW.shape+(1,))
             else: # here is for the old pre-processing patients (Master 2019)
-                if filename != "01"+constants.SUFFIX_IMG:
+                if filename != "01.png":
                     if constants.getTIMELAST(): X[:, :, timeIndex] = sliceW
                     else: X[timeIndex, :, :] = sliceW
         ### ISLES2018

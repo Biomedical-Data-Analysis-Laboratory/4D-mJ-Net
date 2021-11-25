@@ -28,8 +28,11 @@ def getCheckImageProcessed(nn, p_id, idx):
         filename = nn.labeledImagesFolder + constants.PREFIX_IMAGES + p_id + "/" + idx + constants.SUFFIX_IMG
         if not os.path.exists(filename):
             print("[WARNING] - {0} does NOT exists, try another...".format(filename))
-            filename = nn.labeledImagesFolder + constants.PREFIX_IMAGES + p_id + "/" + p_id + idx + constants.SUFFIX_IMG
-            assert os.path.exists(filename), "[ERROR] - {0} does NOT exist".format(filename)
+            filename = nn.labeledImagesFolder + constants.PREFIX_IMAGES + p_id + "/" + idx + ".png"
+            if not os.path.exists(filename):
+                print("[WARNING] - {0} does NOT exists, try another...".format(filename))
+                filename = nn.labeledImagesFolder + constants.PREFIX_IMAGES + p_id + "/" + p_id + idx + constants.SUFFIX_IMG
+                assert os.path.exists(filename), "[ERROR] - {0} does NOT exist".format(filename)
 
         checkImageProcessed = cv2.imread(filename, cv2.COLOR_BGR2RGB)
         if len(checkImageProcessed.shape)==3: checkImageProcessed=cv2.cvtColor(checkImageProcessed, cv2.COLOR_BGR2GRAY)
@@ -96,8 +99,6 @@ def predictImage(nn, subfolder, p_id, patientFolder, relativePatientFolder, rela
     - relativePatientFolderTMP      : relative name of the patient tmp folder
     - filename_test                 : Name of the test pandas dataframe
     """
-
-    imagesDict = {}  # faster access to the images
     startingX, startingY = 0, 0
     imagePredicted = np.zeros(shape=(constants.IMAGE_WIDTH, constants.IMAGE_HEIGHT))
     categoricalImage = np.zeros(shape=(constants.IMAGE_WIDTH, constants.IMAGE_HEIGHT, constants.N_CLASSES))
@@ -110,18 +111,7 @@ def predictImage(nn, subfolder, p_id, patientFolder, relativePatientFolder, rela
 
     if constants.getVerbose(): print("[INFO] - Analyzing Patient {0}, image {1}.".format(p_id, idx))
     checkImageProcessed = getCheckImageProcessed(nn, p_id, idx)
-    # binary_mask = np.zeros(shape=(constants.getM(), constants.getN()))
     binary_mask = checkImageProcessed != constants.PIXELVALUES[0]
-
-    # folders = [subfolder]
-    # if nn.is4DModel and nn.n_slices>1: folders = model_utils.getPrevNextFolder(subfolder, idx)
-    # for fold in folders:
-    #     # get the images in a dictionary
-    #     for imagename in np.sort(glob.glob(fold +"*" + constants.SUFFIX_IMG)):  # sort the images !
-    #         filename = imagename.replace(fold, '')
-    #         if not nn.supervised or nn.patientsFolder!="OLDPREPROC_PATIENTS/": imagesDict[imagename] = cv2.imread(imagename, cv2.IMREAD_GRAYSCALE)
-    #         else:
-    #             if filename != "01"+ constants.SUFFIX_IMG: imagesDict[imagename] = cv2.imread(imagename, cv2.IMREAD_GRAYSCALE)
 
     # Portion for the prediction of the image
     if constants.get3DFlag()!= "":

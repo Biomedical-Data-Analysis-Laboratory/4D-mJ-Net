@@ -527,8 +527,8 @@ class NeuralNetwork(object):
     ################################################################################
     # Set the debug set
     def setDebugDataset(self):
-        self.val["validation_perc"] = 1
-        self.val["number_patients_for_validation"] = 1
+        self.val["validation_perc"] = 2
+        self.val["number_patients_for_validation"] = 2
         self.val["number_patients_for_testing"] = 0
         self.val["random_validation_selection"] = 0
 

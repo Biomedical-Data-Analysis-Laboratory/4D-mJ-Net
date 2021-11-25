@@ -57,7 +57,7 @@ def main():
 
         # if DEBUG mode: use only 5 patients in the list
         if constants.getDEBUG():
-            listOfPatientsToTrainVal = listOfPatientsToTrainVal[:5]
+            listOfPatientsToTrainVal = listOfPatientsToTrainVal[:20]
             listOfPatientsToTest = listOfPatientsToTest[:3]
             nn.setDebugDataset()
 

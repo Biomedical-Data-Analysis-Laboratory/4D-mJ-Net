@@ -151,9 +151,6 @@ def mJNet(params, batch=True, drop=False, longJ=False, v2=False):
                                      kernel_constraint=kernel_constraint, bias_constraint=bias_constraint)
             up_2 = layers.concatenate([layers.UpSampling3D(size=size_two)(conv_x), attGate_3], axis=-1)
         else:
-            # pool_shape = (1,1,2) if constants.getTIMELAST() else (2,1,1)
-            # pool_drop_4 = layers.MaxPooling3D(pool_shape)(conv_x)
-            # general_utils.print_int_shape(pool_drop_4)  # (None, 1, M/2, N/2, 512)
             if drop: conv_x = Dropout(params["dropout"]["loop"])(conv_x)
             # second UP-convolutional layer: from (2,M/2,N/2,2) to (2,M,N)
             axis = 3 if constants.getTIMELAST() else -1
@@ -173,12 +170,7 @@ def mJNet(params, batch=True, drop=False, longJ=False, v2=False):
     pool_drop_5 = layers.BatchNormalization()(conv_6) if batch else conv_6
     general_utils.print_int_shape(pool_drop_5)  # (None, X, M, N, 64)
 
-    if not v2:
-        # from (2,M,N)  to (1,M,N)
-        # pool_shape = (1,1,2) if constants.getTIMELAST() else (2,1,1)
-        # pool_drop_5 = layers.MaxPooling3D(pool_shape)(pool_drop_5)
-        # general_utils.print_int_shape(pool_drop_5)  # (None, 1, M, N, 16)
-        if drop: pool_drop_5 = Dropout(params["dropout"]["5"])(pool_drop_5)
+    if not v2 and drop: pool_drop_5 = Dropout(params["dropout"]["5"])(pool_drop_5)
 
     # set the softmax activation function if the flag is set
     act_name = "softmax" if constants.getTO_CATEG() else "sigmoid"
@@ -297,7 +289,7 @@ def mJNet_2D_with_VGG16(params, multiInput, batch=True, drop=True, leaky=True, a
     if batch: final_conv_2 = layers.BatchNormalization()(final_conv_2)
     general_utils.print_int_shape(final_conv_2)
 
-     # set the softmax activation function if the flag is set
+    # set the softmax activation function if the flag is set
     act_name = "softmax" if constants.getTO_CATEG() else  "sigmoid"
     n_chann = len(constants.LABELS) if constants.getTO_CATEG() else 1
     shape_output = (constants.getM(), constants.getN(), n_chann) if constants.getTO_CATEG() else (constants.getM(), constants.getN())
@@ -486,10 +478,6 @@ def mJNet_4D(params, multiInput, usePMs=True, batch=True, drop=False, leaky=True
         if K.int_shape(conv_x)[2]!=32 and K.int_shape(conv_x)[2]!=32: conv_list.append(conv_x)
         loop += 1
     out_7 = input_conv_layer
-    # out_6 = model_utils.blockConv3D(out_5,[32,64],kernel_size,activ_func,l1_l2_reg,kernel_init,kernel_constraint,bias_constraint,leaky,batch,size_two)
-    # general_utils.print_int_shape(out_6)
-    # out_7 = model_utils.blockConv3D(out_6,[64,128],kernel_size,activ_func,l1_l2_reg,kernel_init,kernel_constraint,bias_constraint,leaky,batch,size_two)
-    # general_utils.print_int_shape(out_7)
     if drop: out_7 = Dropout(params["dropout"]["1"])(out_7)
 
     transp_1 = Conv3DTranspose(128, kernel_size=size_two, strides=size_two, activation=activ_func,
@@ -506,8 +494,6 @@ def mJNet_4D(params, multiInput, usePMs=True, batch=True, drop=False, leaky=True
         general_utils.print_int_shape(up_x)
         input_conv_layer = up_x
         loop-=1
-    # up_3 = model_utils.upLayers(up_2,[out_4],[32,32,32],kernel_size,size_two,activ_func,l1_l2_reg,kernel_init,kernel_constraint,bias_constraint,params,leaky=leaky)
-    # general_utils.print_int_shape(up_3)
     # set the softmax activation function if the flag is set
     act_name = "softmax" if constants.getTO_CATEG() else "sigmoid"
     n_chann = len(constants.LABELS) if constants.getTO_CATEG() else 1

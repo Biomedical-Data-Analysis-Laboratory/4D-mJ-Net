@@ -32,6 +32,8 @@ def loadTrainingDataframe(nn, patients):
     return train_df
 
 
+################################################################################
+# Useful function to lead a single pandas DataFrame
 def readSingleDataFrame(filename_train, patients, use_hickle):
     # don't load the dataframe if patient_id NOT in the list of patients
     if not general_utils.isFilenameInListOfPatient(filename_train, patients): return
@@ -43,6 +45,7 @@ def readSingleDataFrame(filename_train, patients, use_hickle):
     two = tmp_df.x_y.str[1] % constants.getN() == 0
     three = tmp_df.label.values == constants.LABELS[-1]
     tmp_df = tmp_df[(one & two) | three]
+
     if constants.getVerbose(): print("{0} - {2} - {1}".format(filename_train, round(time.time() - start, 3), tmp_df.shape))
     return tmp_df
 
@@ -84,7 +87,6 @@ def splitDataset(nn, listOfPatientsToTrainVal, listOfPatientsToTest):
     validation_list, test_list = list(), list()
 
     for flag in ["train", "val", "test"]: nn.dataset[flag]["indices"] = list()
-
     if nn.cross_validation["use"]==0:  # here only if: NO cross-validation set
         # We have set a number of testing patient(s) and we are inside a supervised learning
         if nn.supervised:
@@ -107,7 +109,6 @@ def splitDataset(nn, listOfPatientsToTrainVal, listOfPatientsToTest):
             nn = setValList(nn, validation_list)
 
         nn = setTrainIndices(nn, validation_list, test_list)
-
     else:  # We are doing a cross-validation!
         # Select the list of validation patients based on the split
         if constants.getVerbose(): print("[INFO] - VALIDATION SPLIT #: {}".format(nn.model_split))
@@ -158,7 +159,7 @@ def setTrainIndices(nn, validation_list, test_list):
 
 
 ################################################################################
-# Prepare the dataset (NOT for the sequence class)
+# Prepare the dataset (NOT for the sequence class!!)
 def prepareDataset(nn):
     start = time.time()
     # set the train data
@@ -168,7 +169,6 @@ def prepareDataset(nn):
 
     # DEFINE the data for the dataset TEST
     nn.dataset["test"]["data"] = getDataFromIndex(nn.train_df, nn.dataset["test"]["indices"], "test", nn.mp)
-
     if constants.getVerbose(): print("[INFO] - Total time to split the Dataset: {}s".format(round(time.time() - start, 3)))
 
     return nn.dataset
@@ -301,8 +301,7 @@ def getNumberOfElements(train_df):
     elif constants.N_CLASSES==3:
         penumbra_v = constants.LABELS[1]
         core_v = constants.LABELS[2]
-    elif constants.N_CLASSES==2:
-        core_v = constants.LABELS[1]
+    elif constants.N_CLASSES==2: core_v = constants.LABELS[1]
 
     N_BACKGROUND = len([x for x in train_df.label if x == back_v])
     N_CORE = len([x for x in train_df.label if x == core_v])

@@ -391,8 +391,6 @@ class NeuralNetwork(object):
             epochs=self.epochs,
             listOfCallbacks=self.callbacks,
             initial_epoch=self.initial_epoch,
-            save_activation_filter=self.save_activation_filter,
-            intermediate_activation_path=self.intermediateActivationFolder,
             use_multiprocessing=self.mp_in_nn
         )
 

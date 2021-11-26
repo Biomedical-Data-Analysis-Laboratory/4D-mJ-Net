@@ -114,15 +114,13 @@ def fitModel(model, dataset, batch_size, epochs, listOfCallbacks, sample_weights
                          verbose=1,
                          use_multiprocessing=use_multiprocessing)
 
-    if save_activation_filter: saveIntermediateLayers(model, intermediate_activation_path=intermediate_activation_path)
-
     return training
 
 
 ################################################################################
 # Function that call a fit_generator to load the training dataset on the fly
 def fit_generator(model, train_sequence, val_sequence, steps_per_epoch, validation_steps, epochs, listOfCallbacks,
-                  initial_epoch, save_activation_filter, intermediate_activation_path, use_multiprocessing):
+                  initial_epoch, use_multiprocessing):
     multiplier = 16
     # steps_per_epoch is given by the len(train_sequence)*steps_per_epoch_ratio rounded to the nearest integer
     training = model.fit_generator(
@@ -139,51 +137,7 @@ def fit_generator(model, train_sequence, val_sequence, steps_per_epoch, validati
         shuffle=True,
         use_multiprocessing=use_multiprocessing)
 
-    if save_activation_filter: saveIntermediateLayers(model, intermediate_activation_path=intermediate_activation_path)
-
     return training
-
-
-################################################################################
-# Save the intermediate layers
-def saveIntermediateLayers(model, intermediate_activation_path):
-    count = 0
-    shape_pxl = (constants.getM(), constants.getN(), constants.NUMBER_OF_IMAGE_PER_SECTION) if constants.getTIMELAST() else (constants.NUMBER_OF_IMAGE_PER_SECTION, constants.getM(), constants.getN())
-    pixels = np.zeros(shape=shape_pxl)
-    # path = "/home/prosjekt/PerfusionCT/StrokeSUS/ORIGINAL/FINAL_Najm_v1/CTP_01_010/10/*."
-    path = "/home/prosjekt/PerfusionCT/StrokeSUS/TOY-DATASET/4D-Studies/case54/05/*."
-    for imagename in np.sort(glob.glob(path + constants.SUFFIX_IMG)):
-        img = cv2.imread(imagename, cv2.IMREAD_GRAYSCALE)
-        pixels[:, :, count] = general_utils.getSlicingWindow(img, 0, 0)
-        count += 1
-
-    pixels = pixels.reshape((1,)+shape_pxl+(1,))
-
-    for layer in model.layers:
-        if layer.name != "input_1" and layer.name != "reshape": visualizeLayer(model, pixels, layer.name, intermediate_activation_path)
-
-
-################################################################################
-# Function to visualize (save) a single layer given the name
-def visualizeLayer(model, pixels, layer_name, intermediate_activation_path, save=True):
-    layer_output = model.get_layer(layer_name).output
-    intermediate_model = tf.keras.models.Model(inputs=model.input, outputs=layer_output)
-
-    intermediate_prediction = intermediate_model.predict(pixels)
-    if save:
-        for img_index in range(0, intermediate_prediction.shape[3]):
-            for c in range(0, intermediate_prediction.shape[4]):
-                cv2.imwrite(intermediate_activation_path + layer_name + str(img_index) + str(c) + ".png",
-                            intermediate_prediction[0, :, :, img_index, c])
-    else:
-        row_size = intermediate_prediction.shape[4]
-        col_size = intermediate_prediction.shape[3]
-
-        fig, ax = plt.subplots(row_size, col_size, figsize=(10, 8))
-
-        for row in range(0, row_size):
-            for col in range(0, col_size):
-                ax[row][col].imshow(intermediate_prediction[0, :, :, col, row], cmap='gray', vmin=0, vmax=255)
 
 
 ################################################################################

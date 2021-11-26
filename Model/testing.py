@@ -6,6 +6,7 @@ import multiprocessing
 import numpy as np
 import os
 import time
+from tensorflow.keras import models
 import warnings
 import pickle as pkl
 import seaborn as sns
@@ -13,7 +14,7 @@ import tensorflow.keras.backend as K
 from scipy import ndimage
 from tensorflow.keras.preprocessing.image import load_img, img_to_array
 
-from Model import constants, training
+from Model import constants
 from Utils import general_utils, dataset_utils, sequence_utils, metrics, model_utils
 
 warnings.simplefilter(action='ignore', category=FutureWarning)
@@ -43,7 +44,27 @@ def getCheckImageProcessed(nn, p_id, idx):
 ################################################################################
 # Predict the model based on the input
 def predictFromModel(nn, x_input):
-    return nn.model.predict(x=x_input, batch_size=1, use_multiprocessing=nn.mp_in_nn)
+    preds = nn.model.predict(x=x_input, batch_size=1, use_multiprocessing=nn.mp_in_nn)
+    if nn.save_activation_filter: saveIntermediateLayers(nn.model, x_input, intermediate_activation_path=nn.intermediateActivationFolder)
+
+    return preds
+
+
+################################################################################
+# Save the intermediate layers
+def saveIntermediateLayers(model, x, intermediate_activation_path):
+    for layer in model.layers:
+        # if "input" not in layer.name and "reshape" not in layer.name:
+        if "conv" in layer.name:
+            layer_output = model.get_layer(layer.name).output
+            intermediate_model = models.Model(inputs=model.input, outputs=layer_output)
+
+            intermediate_prediction = intermediate_model.predict(x, batch_size=1)
+            print(layer.name, intermediate_prediction.shape)
+            for img_index in range(0, intermediate_prediction.shape[3]):
+                for c in range(0, intermediate_prediction.shape[4]):
+                    cv2.imwrite(intermediate_activation_path + layer.name + "_" + str(img_index) + "_" + str(c) + ".png",
+                                intermediate_prediction[0, :, :, img_index, c])
 
 
 ################################################################################
@@ -110,7 +131,7 @@ def predictImage(nn, subfolder, p_id, patientFolder, relativePatientFolder, rela
     if os.path.isfile(logsName): os.remove(logsName)
 
     if constants.getVerbose(): print("[INFO] - Analyzing Patient {0}, image {1}.".format(p_id, idx))
-    checkImageProcessed = getCheckImageProcessed(nn, p_id, idx)
+    checkImageProcessed = getCheckImageProcessed(nn, str(p_id), idx)
     binary_mask = checkImageProcessed != constants.PIXELVALUES[0]
 
     # Portion for the prediction of the image
@@ -273,7 +294,6 @@ def generate2DImage(nn, pixels, startingXY, imgPredicted, categoricalImage, bina
     else: slicingWindowPredicted = swp_orig * 255
     # save the predicted images
     if nn.save_images:
-        print(np.unique(slicingWindowPredicted))
         if not constants.hasLimitedColumns() and constants.N_CLASSES>2:
             # Remove the parts already classified by the model
             binary_mask = np.array(binary_mask, dtype=np.float)

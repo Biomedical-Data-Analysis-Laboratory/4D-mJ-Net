@@ -19,7 +19,7 @@ class CollectBatchStats(callbacks.Callback):
         self.savedModelName = savedModelName
         self.textFolderPath = textFolderPath
         # self.folderOfSavedModel = self.savedModelName[:self.savedModelName.rfind("/")+1]
-        self.modelName = self.savedModelName[self.savedModelName.rfind("/"):]
+        self.modelName = self.savedModelName[self.savedModelName.rfind(os.path.sep):]
         self.acc = acc
 
     def on_batch_end(self, batch, logs=None):
@@ -57,7 +57,7 @@ class RocCallback(callbacks.Callback):
         self.sample_weight = sample_weight
 
         self.savedModelName = savedModelName
-        self.modelName = self.savedModelName[self.savedModelName.rfind("/"):]
+        self.modelName = self.savedModelName[self.savedModelName.rfind(os.path.sep):]
 
     def on_train_begin(self, logs={}):
         return

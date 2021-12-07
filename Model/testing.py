@@ -26,13 +26,13 @@ def getCheckImageProcessed(nn, p_id, idx):
     checkImageProcessed = np.zeros(shape=(constants.IMAGE_WIDTH, constants.IMAGE_HEIGHT))
     # get the label image only if the path is set
     if nn.labeledImagesFolder != "":
-        filename = nn.labeledImagesFolder + constants.PREFIX_IMAGES + p_id + "/" + idx + constants.SUFFIX_IMG
+        filename = nn.labeledImagesFolder + constants.PREFIX_IMAGES + p_id + os.path.sep + idx + constants.SUFFIX_IMG
         if not os.path.exists(filename):
             print("[WARNING] - {0} does NOT exists, try another...".format(filename))
-            filename = nn.labeledImagesFolder + constants.PREFIX_IMAGES + p_id + "/" + idx + ".png"
+            filename = nn.labeledImagesFolder + constants.PREFIX_IMAGES + p_id + os.path.sep + idx + ".png"
             if not os.path.exists(filename):
                 print("[WARNING] - {0} does NOT exists, try another...".format(filename))
-                filename = nn.labeledImagesFolder + constants.PREFIX_IMAGES + p_id + "/" + p_id + idx + constants.SUFFIX_IMG
+                filename = nn.labeledImagesFolder + constants.PREFIX_IMAGES + p_id + os.path.sep + p_id + idx + constants.SUFFIX_IMG
                 assert os.path.exists(filename), "[ERROR] - {0} does NOT exist".format(filename)
 
         checkImageProcessed = cv2.imread(filename, cv2.COLOR_BGR2RGB)
@@ -45,26 +45,32 @@ def getCheckImageProcessed(nn, p_id, idx):
 # Predict the model based on the input
 def predictFromModel(nn, x_input):
     preds = nn.model.predict(x=x_input, batch_size=1, use_multiprocessing=nn.mp_in_nn)
-    if nn.save_activation_filter: saveIntermediateLayers(nn.model, x_input, intermediate_activation_path=nn.intermediateActivationFolder)
 
     return preds
 
 
 ################################################################################
 # Save the intermediate layers
-def saveIntermediateLayers(model, x, intermediate_activation_path):
+def saveIntermediateLayers(model, x, idx, intermediate_activation_path):
+    if not os.path.isdir(intermediate_activation_path + idx): os.mkdir(intermediate_activation_path + idx)
     for layer in model.layers:
-        # if "input" not in layer.name and "reshape" not in layer.name:
-        if "conv" in layer.name:
+        if "conv" in layer.name or "leaky" in layer.name or "batch" in layer.name:
             layer_output = model.get_layer(layer.name).output
             intermediate_model = models.Model(inputs=model.input, outputs=layer_output)
 
             intermediate_prediction = intermediate_model.predict(x, batch_size=1)
             print(layer.name, intermediate_prediction.shape)
-            for img_index in range(0, intermediate_prediction.shape[3]):
+            if not os.path.isdir(intermediate_activation_path + idx + os.path.sep + layer.name): os.mkdir(intermediate_activation_path + idx + os.path.sep + layer.name)
+
+            for img_index in range(0, intermediate_prediction.shape[1]):
+                plt.figure(figsize=(30, 30))
+                xydim = int(np.ceil(np.sqrt(intermediate_prediction.shape[4])))
                 for c in range(0, intermediate_prediction.shape[4]):
-                    cv2.imwrite(intermediate_activation_path + layer.name + "_" + str(img_index) + "_" + str(c) + ".png",
-                                intermediate_prediction[0, :, :, img_index, c])
+                    plt.subplot(xydim, xydim, c+1), plt.imshow(intermediate_prediction[0, img_index, :, :, c], cmap='gray'), plt.axis('off')
+                plt.savefig(intermediate_activation_path + idx + os.path.sep + layer.name + os.path.sep + str(img_index) + ".png")
+                # plt.show()
+                    # cv2.imwrite(intermediate_activation_path + layer.name + os.path.sep + str(img_index) + "_" + str(c) + ".png",
+                    #             intermediate_prediction[0, img_index, :, :, c])
 
 
 ################################################################################
@@ -78,26 +84,26 @@ def predictAndSaveImages(nn, p_id):
 
     if not os.path.exists(filename_test): return
 
-    relativePatientFolder = constants.getPrefixImages() + str(p_id) + "/"
-    relativePatientFolderHeatMap = relativePatientFolder + "HEATMAP/"
-    relativePatientFolderGT = relativePatientFolder + "GT/"
-    relativePatientFolderTMP = relativePatientFolder + "TMP/"
+    relativePatientFolder = constants.getPrefixImages() + str(p_id) + os.path.sep
+    relativePatientFolderHeatMap = relativePatientFolder + "HEATMAP" + os.path.sep
+    relativePatientFolderGT = relativePatientFolder + "GT" + os.path.sep
+    relativePatientFolderTMP = relativePatientFolder + "TMP" + os.path.sep
     patientFolder = nn.patientsFolder+relativePatientFolder
 
     filename_saveImageFolder = nn.saveImagesFolder+nn.experimentID+"__"+nn.getNNID()+suffix
     # create the related folders
     general_utils.createDir(filename_saveImageFolder)
     for subpath in [relativePatientFolder,relativePatientFolderHeatMap,relativePatientFolderGT,relativePatientFolderTMP]:
-        general_utils.createDir(filename_saveImageFolder+"/"+subpath)
+        general_utils.createDir(filename_saveImageFolder+os.path.sep+subpath)
 
-    prefix = nn.experimentID + constants.suffix_partial_weights + nn.getNNID() + suffix + "/"
+    prefix = nn.experimentID + constants.suffix_partial_weights + nn.getNNID() + suffix + os.path.sep
     subpatientFolder = prefix+relativePatientFolder
     patientFolderHeatMap = prefix+relativePatientFolderHeatMap
     patientFolderGT = prefix+relativePatientFolderGT
     patientFolderTMP = prefix+relativePatientFolderTMP
 
     # for all the slice folders in patientFolder
-    for subfolder in glob.glob(patientFolder+"*/"):
+    for subfolder in glob.glob(patientFolder+"*"+os.path.sep):
         # Predict the images
         if constants.getUSE_PM(): predictImagesFromParametricMaps(nn, subfolder, p_id, subpatientFolder, patientFolderHeatMap, patientFolderGT, patientFolderTMP, filename_test)
         else: predictImage(nn, subfolder, p_id, patientFolder, subpatientFolder, patientFolderHeatMap, patientFolderGT, patientFolderTMP, filename_test)
@@ -124,8 +130,7 @@ def predictImage(nn, subfolder, p_id, patientFolder, relativePatientFolder, rela
     imagePredicted = np.zeros(shape=(constants.IMAGE_WIDTH, constants.IMAGE_HEIGHT))
     categoricalImage = np.zeros(shape=(constants.IMAGE_WIDTH, constants.IMAGE_HEIGHT, constants.N_CLASSES))
 
-    idx = general_utils.getStringFromIndex(subfolder.replace(patientFolder, '').replace("/", ""))  # image index
-
+    idx = general_utils.getStringFromIndex(subfolder.replace(patientFolder, '').replace(os.path.sep, ""))  # image index
     # remove the old logs.
     logsName = nn.saveImagesFolder+relativePatientFolder+idx+"_logs.txt"
     if os.path.isfile(logsName): os.remove(logsName)
@@ -155,7 +160,7 @@ def predictImage(nn, subfolder, p_id, patientFolder, relativePatientFolder, rela
             assert len(row) == 1, "The length of the row to analyze should be 1."
             X = model_utils.getCorrectXForInputModel(nn, subfolder, row, batchIndex=0, batch_length=1)
 
-            imagePredicted, categoricalImage = generate2DImage(nn, X, (startingX,startingY), imagePredicted, categoricalImage, binary_mask)
+            imagePredicted, categoricalImage = generate2DImage(nn, X, (startingX,startingY), imagePredicted, categoricalImage, binary_mask, idx)
 
             # if we reach the end of the image, break the while loop.
             if startingX>=constants.IMAGE_WIDTH-constants.getM() and startingY>=constants.IMAGE_HEIGHT-constants.getN(): break
@@ -195,9 +200,10 @@ def predictImagesFromParametricMaps(nn, subfolder, p_id, relativePatientFolder, 
     n_fold = 7
     if constants.getIsISLES2018(): n_fold = 5
 
-    if len(glob.glob(subfolder+"*/"))>=n_fold:
-        for idx in glob.glob(subfolder+"/CBF/*"):
-            idx = general_utils.getStringFromIndex(idx.replace(subfolder, '').replace("/CBF/", ""))  # image index
+    if len(glob.glob(subfolder+"*"+os.path.sep))>=n_fold:
+        pmcheckfold = os.path.sep+"CBF"+os.path.sep
+        for idx in glob.glob(subfolder+pmcheckfold+"*"):
+            idx = general_utils.getStringFromIndex(idx.replace(subfolder, '').replace(pmcheckfold, ""))  # image index
             if constants.getIsISLES2018(): idx = idx.replace(".tiff","")
             else: idx = idx.replace(".png","")
             # remove the old logs.
@@ -216,7 +222,7 @@ def predictImagesFromParametricMaps(nn, subfolder, p_id, relativePatientFolder, 
             test_df = test_df[test_df.data_aug_idx == 0]
             test_df = test_df[test_df.sliceIndex == idx]
     
-            imagePredicted, categoricalImage = generateImageFromParametricMaps(nn, test_df)
+            imagePredicted, categoricalImage = generateImageFromParametricMaps(nn, test_df, idx)
     
             # save the image
             saveImage(nn, relativePatientFolder, idx, imagePredicted, categoricalImage, relativePatientFolderHeatMap,
@@ -269,7 +275,7 @@ def saveImage(nn, relativePatientFolder, idx, imagePredicted, categoricalImage, 
 
 ################################################################################
 # Helpful function that return the 2D image from the pixel and the starting coordinates
-def generate2DImage(nn, pixels, startingXY, imgPredicted, categoricalImage, binary_mask):
+def generate2DImage(nn, pixels, startingXY, imgPredicted, categoricalImage, binary_mask, idx):
     """
     Generate a 2D image from the test_df
 
@@ -306,6 +312,10 @@ def generate2DImage(nn, pixels, startingXY, imgPredicted, categoricalImage, bina
             # add the brain to the prediction window
             slicingWindowPredicted += (binary_mask[x:x+constants.getM(),y:y+constants.getN()]-overlapping_pred)
         imgPredicted[x:x+constants.getM(),y:y+constants.getN()]=slicingWindowPredicted
+
+    if nn.save_activation_filter:
+        if idx == "03" or idx == "04": saveIntermediateLayers(nn.model, pixels, idx, intermediate_activation_path=nn.intermediateActivationFolder)
+
     return imgPredicted, categoricalImage
 
 
@@ -334,7 +344,7 @@ def generateTimeImagesAndConsensus(nn, test_df, relativePatientFolderTMP, idx):
         constants.IMAGE_WIDTH, constants.IMAGE_HEIGHT), dtype=np.uint8)
         if constants.get3DFlag() == "": test_row.pixels = test_row.pixels.reshape(1, test_row.pixels.shape[0], test_row.pixels.shape[1], test_row.pixels.shape[2], 1)
         else: test_row.pixels = test_row.pixels.reshape(1, test_row.pixels.shape[0], test_row.pixels.shape[1], test_row.pixels.shape[2])
-        arrayTimeIndexImages[str(test_row.timeIndex)], categoricalImage = generate2DImage(nn, test_row.pixels, test_row.x_y, arrayTimeIndexImages[str(test_row.timeIndex)], categoricalImage, checkImageProcessed)
+        arrayTimeIndexImages[str(test_row.timeIndex)], categoricalImage = generate2DImage(nn, test_row.pixels, test_row.x_y, arrayTimeIndexImages[str(test_row.timeIndex)], categoricalImage, checkImageProcessed, idx)
 
     if nn.save_images:              # remove one class from the ground truth
         if constants.N_CLASSES==3: checkImageProcessed[checkImageProcessed == 85] = constants.PIXELVALUES[0]
@@ -354,7 +364,7 @@ def generateTimeImagesAndConsensus(nn, test_df, relativePatientFolderTMP, idx):
 
 ################################################################################
 # Function to predict an image starting from the parametric maps
-def generateImageFromParametricMaps(nn, test_df):
+def generateImageFromParametricMaps(nn, test_df, idx):
     """
     Generate a 2D image from the test_df using the parametric maps
 
@@ -405,7 +415,7 @@ def generateImageFromParametricMaps(nn, test_df):
         if "gender" in nn.multiInput.keys() and nn.multiInput["gender"] == 1: X.append(np.array([int(row_to_analyze["gender"].iloc[0])]))
 
         # slicingWindowPredicted contain only the prediction for the last step
-        imagePredicted, categoricalImage = generate2DImage(nn, X, (startX,startY), imagePredicted, categoricalImage, binary_mask)
+        imagePredicted, categoricalImage = generate2DImage(nn, X, (startX,startY), imagePredicted, categoricalImage, binary_mask, idx)
 
         # if we reach the end of the image, break the while loop.
         if startX>= constants.IMAGE_WIDTH- constants.getM() and startY>= constants.IMAGE_HEIGHT- constants.getN(): break

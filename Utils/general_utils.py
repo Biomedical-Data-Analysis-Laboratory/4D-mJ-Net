@@ -81,12 +81,12 @@ def setupEnvironment(args, setting):
     if "3D" in setting["init"].keys() and setting["init"]["3D"]: constants.set3DFlag()
     if "ONE_TIME_POINT" in setting["init"].keys() and setting["init"]["ONE_TIME_POINT"]: constants.setONETIMEPOINT(getStringFromIndex(setting["init"]["ONE_TIME_POINT"]))
 
-    experimentFolder = "EXP"+convertExperimentNumberToString(setting["EXPERIMENT"])+"/"
+    experimentFolder = "EXP"+convertExperimentNumberToString(setting["EXPERIMENT"])+os.path.sep
     N_GPU = setupEnvironmentForGPUs(args, setting)
 
     for key, rel_path in setting["relative_paths"].items():
         if isinstance(rel_path, dict):
-            prefix = key.upper()+"/"
+            prefix = key.upper()+os.path.sep
             createDir(prefix)
             createDir(prefix+experimentFolder)
             for sub_path in setting["relative_paths"][key].values():
@@ -214,7 +214,7 @@ def getMetricFunctions(listStats):
 ################################################################################
 # Return a flag to check if the filename (partial) is inside the list of patients
 def isFilenameInListOfPatient(filename, patients):
-    start_idx = filename.rfind("/") + len(constants.DATASET_PREFIX) + 1
+    start_idx = filename.rfind(os.path.sep) + len(constants.DATASET_PREFIX) + 1
     end_idx = filename.find(getSuffix())
     patient_id = filename[start_idx:end_idx]
     # don't load the dataframe if patient_id NOT in the list of patients
@@ -343,3 +343,35 @@ def pickle_load(path):
         output = pickle.load(handle)
     return output
 
+
+################################################################################
+# Check memory usage of the model
+def get_model_memory_usage(model, batch_size):
+    shapes_mem_count = 0
+    internal_model_mem_count = 0
+    for l in model.layers:
+        layer_type = l.__class__.__name__
+        if layer_type == 'Model':
+            internal_model_mem_count += get_model_memory_usage(l, batch_size)
+        single_layer_mem = 1
+        out_shape = l.output_shape
+        if type(out_shape) is list:
+            out_shape = out_shape[0]
+        for s in out_shape:
+            if s is None:
+                continue
+            single_layer_mem *= s
+        shapes_mem_count += single_layer_mem
+
+    trainable_count = np.sum([K.count_params(p) for p in model.trainable_weights])
+    non_trainable_count = np.sum([K.count_params(p) for p in model.non_trainable_weights])
+
+    number_size = 4.0
+    if K.floatx() == 'float16':
+        number_size = 2.0
+    if K.floatx() == 'float64':
+        number_size = 8.0
+
+    total_memory = number_size * (batch_size * shapes_mem_count + trainable_count + non_trainable_count)
+    gbytes = np.round(total_memory / (1024.0 ** 3), 3) + internal_model_mem_count
+    return gbytes

@@ -296,6 +296,8 @@ class NeuralNetwork(object):
                 )
             self.summaryFlag+=1
 
+        memUsage = general_utils.get_model_memory_usage(self.model, self.batch_size)
+        if constants.getVerbose(): print("The memory usage for the model is: {}Gb".format(memUsage))
         # Check if the model has some saved weights to load...
         if self.arePartialWeightsSaved(): self.loadModelFromPartialWeights()
 

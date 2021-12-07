@@ -1,0 +1,17 @@
+*/__pycache__/
+Settings/
+SAVE/
+Standalone-scripts/Settings/
+venv/
+
+Standalone-scripts/watchdog.py
+Standalone-scripts/test_for_model.py
+
+__init__.py
+*.pyc
+*.tmp
+experiment_list.txt
+test.txt
+nihss_score.csv
+*.sh
+*.obj

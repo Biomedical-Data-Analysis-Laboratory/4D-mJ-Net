@@ -1,6 +1,4 @@
-from Model import constants
 from Architectures import arch_mJNet, arch_PMs_segm, arch_autoencoder, arch_van_De_Leemput, arch_UNet, arch_VNet, arch_ResUNet, arch_mJNetplusplus
-from Utils import general_utils
 
 
 ################################################################################

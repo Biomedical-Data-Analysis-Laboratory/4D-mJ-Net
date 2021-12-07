@@ -495,7 +495,7 @@ def ASSP(input, k_reg, k_init, k_constraint, bias_constraint, filter, r_scale=1)
 
 
 ################################################################################
-#
+# Block of 4D convolution
 def block4DConv(inp, channels, kernel_size, activ_func, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint,
                 leaky, batch, reduce_dim, stride_size):
     conv_1 = Conv4D.Conv4D(inp, channels[0], kernel_size=kernel_size, activation=activ_func, reduce_dim=reduce_dim,

@@ -1,9 +1,9 @@
 Keras==2.3.1
-tensorflow==2.0
+tensorflow-gpu==2.1
 tensorflow_addons==0.6
 numpy>=1.16.6
 pandas>=0.24.2
-h5py
+h5py==2.10
 pydot>=1.4.1
 graphviz>=0.14
 matplotlib~=3.1.3

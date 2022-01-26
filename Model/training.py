@@ -2,7 +2,7 @@ import warnings
 
 import cv2, matplotlib, glob
 
-from Model import constants
+from Model.constants import *
 from Utils import callback, general_utils
 
 matplotlib.use('Agg')
@@ -151,5 +151,5 @@ def plotLossAndAccuracy(nn):
         ax.set_ylabel(key, fontsize=16)
         ax.set_title(key + 'Curves', fontsize=16)
 
-        fig.savefig(nn.savePlotFolder + nn.getNNID() + "_" + key + "_" + str(constants.SLICING_PIXELS) + "_" + str(constants.getM()) + "x" + str(constants.getN()) + ".png")
+        fig.savefig(nn.savePlotFolder + nn.getNNID() + "_" + key + "_" + str(getSLICING_PIXELS()) + "_" + str(getM()) + "x" + str(getN()) + ".png")
         plt.close(fig)

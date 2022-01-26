@@ -1,12 +1,11 @@
 # DO NOT import dataset_utils here!
 import warnings
 
-from Model import constants
+from Model.constants import *
 from Utils import metrics, losses
 
 import sys, argparse, os, json, time, pickle
 import numpy as np
-import pandas as pd
 import tensorflow as tf
 import tensorflow.keras.backend as K
 
@@ -41,18 +40,18 @@ def getCommandLineArguments():
     parser.add_argument("sname", help="Select the setting filename")
     args = parser.parse_args()
 
-    constants.setVerbose(args.verbose)
-    constants.setDEBUG(args.debug)
-    constants.setOriginalShape(args.original)
-    constants.setISLES2018(args.isles2018)
-    constants.setUSE_PM(args.pm)
-    constants.setTileDimension(args.tile)
-    constants.setImageDimension(args.dimension)
-    constants.setNumberOfClasses(args.classes)
-    constants.setWeights(args.weights)
-    constants.setTimeLast(args.timelast)
-    constants.setPrefix(args.prefix)
-    constants.setLimitedColumns(args.limcols)
+    setVerbose(args.verbose)
+    setDEBUG(args.debug)
+    setOriginalShape(args.original)
+    setISLES2018(args.isles2018)
+    setUSE_PM(args.pm)
+    setTileDimension(args.tile)
+    setImageDimension(args.dimension)
+    setNumberOfClasses(args.classes)
+    setWeights(args.weights)
+    setTimeLast(args.timelast)
+    setPrefix(args.prefix)
+    setLimitedColumns(args.limcols)
 
     return args
 
@@ -64,7 +63,7 @@ def getSettingFile(filename):
     # (= current working directory)
     with open(os.path.join(os.getcwd(), filename)) as f: setting = json.load(f)
 
-    if constants.getVerbose():
+    if getVerbose():
         printSeparation("-",50)
         print("Load setting file: {}".format(filename))
 
@@ -75,11 +74,12 @@ def getSettingFile(filename):
 # setup the global environment
 def setupEnvironment(args, setting):
     # important: set up the root path for later uses
-    constants.setRootPath(setting["root_path"])
+    setRootPath(setting["root_path"])
 
-    if "NUMBER_OF_IMAGE_PER_SECTION" in setting["init"].keys(): constants.setImagePerSection(setting["init"]["NUMBER_OF_IMAGE_PER_SECTION"])
-    if "3D" in setting["init"].keys() and setting["init"]["3D"]: constants.set3DFlag()
-    if "ONE_TIME_POINT" in setting["init"].keys() and setting["init"]["ONE_TIME_POINT"]: constants.setONETIMEPOINT(getStringFromIndex(setting["init"]["ONE_TIME_POINT"]))
+    if "NUMBER_OF_IMAGE_PER_SECTION" in setting["init"].keys(): setImagePerSection(setting["init"]["NUMBER_OF_IMAGE_PER_SECTION"])
+    else: setImagePerSection(30)
+    set3DFlag(True) if "3D" in setting["init"].keys() and setting["init"]["3D"] else set3DFlag(False)
+    if "ONE_TIME_POINT" in setting["init"].keys() and setting["init"]["ONE_TIME_POINT"]: setONETIMEPOINT(getStringFromIndex(setting["init"]["ONE_TIME_POINT"]))
 
     experimentFolder = "EXP"+convertExperimentNumberToString(setting["EXPERIMENT"])+os.path.sep
     N_GPU = setupEnvironmentForGPUs(args, setting)
@@ -116,7 +116,7 @@ def setupEnvironmentForGPUs(args, setting):
     tf.compat.v1.disable_eager_execution()
     # session = tf.compat.v1.Session(config=config)
 
-    if constants.getVerbose():
+    if getVerbose():
         printSeparation("-",50)
         print("Use {0} GPU(s): {1}".format(N_GPU, GPU))
 
@@ -125,25 +125,25 @@ def setupEnvironmentForGPUs(args, setting):
 
 ################################################################################
 # return the selected window for an image
-def getSlicingWindow(img, startX, startY, isgt=False, removeColorBar=False):
-    M, N = constants.getM(), constants.getN()
+def getSlicingWindow(img, startX, startY, constants, isgt=False, removeColorBar=False):
+    M, N = constants["M"], constants["N"]
     sliceWindow = img[startX:startX+M,startY:startY+N]
 
     # check if there are any NaN elements
     if np.isnan(sliceWindow).any():
         where = list(map(list, np.argwhere(np.isnan(sliceWindow))))
-        for w in where: sliceWindow[w] = constants.PIXELVALUES[0]
+        for w in where: sliceWindow[w] = constants["PIXELVALUES"][0]
 
     if isgt:
-        for pxval in constants.PIXELVALUES:
+        for pxval in constants["PIXELVALUES"]:
             sliceWindow = np.where(np.logical_and(
                 sliceWindow>=np.rint(pxval-(256/6)), sliceWindow<=np.rint(pxval+(256/6))
             ), pxval, sliceWindow)
     # Remove the colorbar! starting coordinate: (129,435)
-    if removeColorBar and not constants.getIsISLES2018():
-        if M==constants.IMAGE_WIDTH and N==constants.IMAGE_HEIGHT: sliceWindow[:,constants.colorbar_coord[1]:] = 0
+    if removeColorBar and not getIsISLES2018():
+        if M==constants["IMAGE_WIDTH"] and N==constants["IMAGE_HEIGHT"]: sliceWindow[:,colorbar_coord[1]:] = 0
         # if the tile is smaller than the entire image
-        elif startY+N>=constants.colorbar_coord[1]: sliceWindow[:,constants.colorbar_coord[1]-startY:] = 0
+        elif startY+N>=colorbar_coord[1]: sliceWindow[:,colorbar_coord[1]-startY:] = 0
 
     sliceWindow = np.cast["float32"](sliceWindow)  # cast the window into a float
 
@@ -165,7 +165,7 @@ def performDataAugmentationOnTheImage(img, data_aug_idx):
 ################################################################################
 # Get the epoch number from the partial weight filename
 def getEpochFromPartialWeightFilename(partialWeightsPath):
-    return int(partialWeightsPath[partialWeightsPath.index(constants.suffix_partial_weights)+len(constants.suffix_partial_weights):partialWeightsPath.index(".h5")])
+    return int(partialWeightsPath[partialWeightsPath.index(suffix_partial_weights)+len(suffix_partial_weights):partialWeightsPath.index(".h5")])
 
 
 ################################################################################
@@ -173,7 +173,7 @@ def getEpochFromPartialWeightFilename(partialWeightsPath):
 def getLoss(modelInfo):
     name = modelInfo["loss"]
     hyperparameters = modelInfo[name] if name in modelInfo.keys() else {}
-    if name=="focal_tversky_loss": constants.setFocal_Tversky(hyperparameters)
+    if name=="focal_tversky_loss": setFocal_Tversky(hyperparameters)
 
     general_losses = {
         "binary_crossentropy": tf.keras.losses.BinaryCrossentropy(from_logits=True),
@@ -187,7 +187,7 @@ def getLoss(modelInfo):
     else: loss["loss"] = getattr(losses, name)
     loss["name"] = name
 
-    if constants.getVerbose(): print("[INFO] - Use {} Loss".format(name))
+    if getVerbose(): print("[INFO] - Use {} Loss".format(name))
     return loss
 
 
@@ -205,7 +205,7 @@ def getMetricFunctions(listStats):
     statisticFuncs = []
     for m in listStats: statisticFuncs.append(m) if m in general_metrics else statisticFuncs.append(getattr(metrics, m))
 
-    if constants.getVerbose(): print("[INFO] - Getting {} functions".format(listStats))
+    if getVerbose(): print("[INFO] - Getting {} functions".format(listStats))
     if len(statisticFuncs)==0: statisticFuncs = None
 
     return statisticFuncs
@@ -213,9 +213,9 @@ def getMetricFunctions(listStats):
 
 ################################################################################
 # Return a flag to check if the filename (partial) is inside the list of patients
-def isFilenameInListOfPatient(filename, patients):
-    start_idx = filename.rfind(os.path.sep) + len(constants.DATASET_PREFIX) + 1
-    end_idx = filename.find(getSuffix())
+def isFilenameInListOfPatient(filename, patients, suffix):
+    start_idx = filename.rfind(os.path.sep) + len(DATASET_PREFIX) + 1
+    end_idx = filename.find(suffix)
     patient_id = filename[start_idx:end_idx]
     # don't load the dataframe if patient_id NOT in the list of patients
     if patient_id.find("_")==-1: patient_id = int(patient_id)
@@ -225,14 +225,14 @@ def isFilenameInListOfPatient(filename, patients):
 
 ################################################################################
 # Get the correct class weights for the metrics
-def getClassWeights(type):
-    four_cat = [[1,1,0,0]] if type=="rest" else [[0,0,1,0]] if type=="penumbra" else [[0,0,0,1]]
-    three_cat = [[1,0,0]] if type=="rest" else [[0,1,0]] if type=="penumbra" else [[0,0,1]]
-    two_cat = [[1,0]] if type=="rest" else [[0,1]]
+def getClassWeights(classtype):
+    four_cat = [[1,1,0,0]] if classtype == "rest" else [[0, 0, 1, 0]] if classtype == "penumbra" else [[0, 0, 0, 1]]
+    three_cat = [[1,0,0]] if classtype == "rest" else [[0, 1, 0]] if classtype == "penumbra" else [[0, 0, 1]]
+    two_cat = [[1,0]] if classtype == "rest" else [[0, 1]]
 
     class_weights = tf.constant(four_cat, dtype=tf.float32)
-    if constants.N_CLASSES == 3: class_weights = tf.constant(three_cat, dtype=tf.float32)
-    elif constants.N_CLASSES == 2: class_weights = tf.constant(two_cat, dtype=tf.float32)
+    if getN_CLASSES() == 3: class_weights = tf.constant(three_cat, dtype=tf.float32)
+    elif getN_CLASSES() == 2: class_weights = tf.constant(two_cat, dtype=tf.float32)
     return class_weights
 
 
@@ -257,20 +257,20 @@ def getStringFromIndex(index):
 ################################################################################
 # return the suffix for the model and the patient dataset
 def getSuffix():
-    return "_" + str(constants.SLICING_PIXELS) + "_" + str(constants.getM()) + "x" + str(constants.getN()) + constants.get3DFlag() + constants.getONETIMEPOINT()
+    return "_" + str(getSLICING_PIXELS()) + "_" + str(getM()) + "x" + str(getN()) + get3DFlag() + getONETIMEPOINT()
 
 
 ################################################################################
 # get the full directory path, given a relative path
 def getFullDirectoryPath(path):
-    return constants.getRootPath() + path
+    return getRootPath() + path
 
 
 ################################################################################
 # Generate a directory in dir_path
 def createDir(dir_path):
     if not os.path.isdir(dir_path):
-        if constants.getVerbose(): print("[INFO] - Creating folder: " + dir_path)
+        if getVerbose(): print("[INFO] - Creating folder: " + dir_path)
         os.makedirs(dir_path)
 
 
@@ -291,44 +291,44 @@ def convertExperimentNumberToString(expnum):
 ################################################################################
 # Print the shape of the layer if we are in debug mode
 def print_int_shape(layer):
-    if constants.getVerbose(): print(K.int_shape(layer))
+    if getVerbose(): print(K.int_shape(layer))
 
 
 ################################################################################
 def addPIDToWatchdog():
     # Add PID to watchdog list
-    if constants.ENABLE_WATCHDOG is True:
-        if os.path.isfile(constants.PID_WATCHDOG_PICKLE_PATH):
-            PID_list_for_watchdog = pickle_load(constants.PID_WATCHDOG_PICKLE_PATH)
+    if ENABLE_WATCHDOG:
+        if os.path.isfile(PID_WATCHDOG_PICKLE_PATH):
+            PID_list_for_watchdog = pickle_load(PID_WATCHDOG_PICKLE_PATH)
             PID_list_for_watchdog.append(dict(pid=os.getpid()))
         else:
             PID_list_for_watchdog = [dict(pid=os.getpid())]
 
         # Save list
-        pickle_save(PID_list_for_watchdog, constants.PID_WATCHDOG_PICKLE_PATH)
+        pickle_save(PID_list_for_watchdog, PID_WATCHDOG_PICKLE_PATH)
 
         # Create a empty list for saving to when the model finishes
-        if not os.path.isfile(constants.PID_WATCHDOG_FINISHED_PICKLE_PATH):
+        if not os.path.isfile(PID_WATCHDOG_FINISHED_PICKLE_PATH):
             PID_list_finished_for_watchdog = []
-            pickle_save(PID_list_finished_for_watchdog, constants.PID_WATCHDOG_FINISHED_PICKLE_PATH)
+            pickle_save(PID_list_finished_for_watchdog, PID_WATCHDOG_FINISHED_PICKLE_PATH)
     else:
         print('Warning: WATCHDOG IS DISABLED!')
 
 
 ################################################################################
 def stopPIDToWatchdog():
-    if constants.ENABLE_WATCHDOG is True:
+    if ENABLE_WATCHDOG:
         # Add PID to finished-watchdog-list
-        if os.path.isfile(constants.PID_WATCHDOG_FINISHED_PICKLE_PATH):
-            PID_list_finished_for_watchdog = pickle_load(constants.PID_WATCHDOG_FINISHED_PICKLE_PATH)
+        if os.path.isfile(PID_WATCHDOG_FINISHED_PICKLE_PATH):
+            PID_list_finished_for_watchdog = pickle_load(PID_WATCHDOG_FINISHED_PICKLE_PATH)
             PID_list_finished_for_watchdog.append(dict(pid=os.getpid()))
-            pickle_save(PID_list_finished_for_watchdog, constants.PID_WATCHDOG_FINISHED_PICKLE_PATH)
+            pickle_save(PID_list_finished_for_watchdog, PID_WATCHDOG_FINISHED_PICKLE_PATH)
 
         # Remove PID from watchdog list
-        if os.path.isfile(constants.PID_WATCHDOG_PICKLE_PATH):
-            PID_list_for_watchdog = pickle_load(constants.PID_WATCHDOG_PICKLE_PATH)
+        if os.path.isfile(PID_WATCHDOG_PICKLE_PATH):
+            PID_list_for_watchdog = pickle_load(PID_WATCHDOG_PICKLE_PATH)
             PID_list_for_watchdog.remove(dict(pid=os.getpid()))
-            pickle_save(PID_list_for_watchdog, constants.PID_WATCHDOG_PICKLE_PATH)
+            pickle_save(PID_list_for_watchdog, PID_WATCHDOG_PICKLE_PATH)
 
 
 ################################################################################

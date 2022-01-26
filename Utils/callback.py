@@ -1,4 +1,4 @@
-from Model import constants
+from Model.constants import *
 from Utils import general_utils
 
 import os, glob, json
@@ -36,10 +36,10 @@ class CollectBatchStats(callbacks.Callback):
         with open(self.textFolderPath+self.modelName+"_logs.txt", "a+") as loss_file:
             loss_file.write(textToSave)
 
-        tmpSavedModels = glob.glob(self.savedModelName + constants.suffix_partial_weights + "*.h5")
+        tmpSavedModels = glob.glob(self.savedModelName + suffix_partial_weights + "*.h5")
         if len(tmpSavedModels) > 1:  # just to be sure and not delete everything
             for file in tmpSavedModels:
-                if self.savedModelName+ constants.suffix_partial_weights in file:
+                if self.savedModelName+ suffix_partial_weights in file:
                     tmpEpoch = general_utils.getEpochFromPartialWeightFilename(file)
                     if tmpEpoch < epoch: os.remove(file)  # Remove the old saved weights
 
@@ -93,9 +93,9 @@ class RocCallback(callbacks.Callback):
 # Save the best model every "period" number of epochs
 def modelCheckpoint(filename, monitor, mode, period):
     return callbacks.ModelCheckpoint(
-        filename + constants.suffix_partial_weights + "{epoch:02d}.h5",
+        filename + suffix_partial_weights + "{epoch:02d}.h5",
             monitor=monitor,
-            verbose=constants.getVerbose(),
+            verbose=getVerbose(),
             save_best_only=True,
             mode=mode,
             period=period
@@ -110,7 +110,7 @@ def earlyStopping(monitor, min_delta, patience):
             monitor=monitor,
             min_delta=min_delta,
             patience=patience,
-            verbose=constants.getVerbose(),
+            verbose=getVerbose(),
             mode="auto"
     )
 
@@ -122,7 +122,7 @@ def reduceLROnPlateau(monitor, factor, patience, min_delta, cooldown, min_lr):
             monitor=monitor,
             factor=factor,
             patience=patience,
-            verbose=constants.getVerbose(),
+            verbose=getVerbose(),
             mode='auto',
             min_delta=min_delta,
             cooldown=cooldown,
@@ -136,7 +136,7 @@ def LearningRateScheduler(decay_step, decay_rate):
     def lr_scheduler(epoch, lr):
         if epoch % decay_step == 0 and epoch: return lr * decay_rate
         return lr
-    return callbacks.LearningRateScheduler(lr_scheduler, verbose=constants.getVerbose())
+    return callbacks.LearningRateScheduler(lr_scheduler, verbose=getVerbose())
 
 
 ################################################################################
@@ -172,7 +172,7 @@ class SavePrediction(callbacks.Callback):
         self.n_pxl = 0
 
     def _pred_callback(self, preds):
-        batch = K.eval((K.argmax(preds)*255)/(constants.N_CLASSES-1))
+        batch = K.eval((K.argmax(preds)*255)/(getN_CLASSES()-1))
         for val_idx in range(batch.shape[0]):
             vals = dict(zip(*np.unique(batch[val_idx, :, :], return_counts=True)))
             for key in vals.keys():
@@ -198,7 +198,7 @@ class SavePrediction(callbacks.Callback):
         if self._get_pred in self.model.test_function.fetches: self.model.test_function.fetches.remove(self._get_pred)
         if self._get_pred in self.model.test_function.fetch_callbacks: self.model.test_function.fetch_callbacks.pop(self._get_pred)
 
-        print("\n {0} - {1}".format(self.preds, self.n_pxl/(constants.IMAGE_HEIGHT*constants.IMAGE_WIDTH)))
+        print("\n {0} - {1}".format(self.preds, self.n_pxl/(getIMAGE_HEIGHT()*getIMAGE_WIDTH())))
         self.preds = dict()
         self.n_pxl = 0
 

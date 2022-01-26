@@ -1,4 +1,4 @@
-from Model import constants
+from Model.constants import *
 from Utils import general_utils
 
 from keras import layers, models, regularizers, initializers
@@ -14,7 +14,7 @@ def van_De_Leemput(params):
     # Hu initializer = [0, sqrt(9/5*fan_in)]
     hu_init = initializers.VarianceScaling(scale=(9/5), mode='fan_in', distribution='normal', seed=None)
 
-    input_x = layers.Input(shape=(constants.getM(), constants.getN(), constants.NUMBER_OF_IMAGE_PER_SECTION, 1), sparse=False)
+    input_x = layers.Input(shape=(getM(), getN(), getNUMBER_OF_IMAGE_PER_SECTION(), 1), sparse=False)
     general_utils.print_int_shape(input_x) # (None, M, N, 30, 1)
     conv_1 = layers.Conv3D(32, kernel_size=(3,3,3), padding='same', kernel_regularizer=l1_l2_reg, kernel_initializer=hu_init)(input_x)
     conv_1 = layers.LeakyReLU(alpha=0.33)(conv_1)
@@ -127,12 +127,12 @@ def van_De_Leemput(params):
         addconv_14 = layers.concatenate([addconv_14, addconv_14])
     add_7 = layers.add([conc_3, addconv_14])
 
-    conv_15 = layers.Conv3D(len(constants.LABELS), (1, 1, constants.NUMBER_OF_IMAGE_PER_SECTION), activation="softmax", padding='same', strides=(1, 1,
-                                                                                                                                                 constants.NUMBER_OF_IMAGE_PER_SECTION), kernel_regularizer=l1_l2_reg, kernel_initializer=hu_init)(add_7)
+    conv_15 = layers.Conv3D(len(getLABELS()), (1, 1, getNUMBER_OF_IMAGE_PER_SECTION()), activation="softmax", padding='same', strides=(1, 1,
+                                                                                                                                                 getNUMBER_OF_IMAGE_PER_SECTION()), kernel_regularizer=l1_l2_reg, kernel_initializer=hu_init)(add_7)
     general_utils.print_int_shape(conv_15) # (None, M, N, 4)
 
-    # pool_last = layers.MaxPooling3D((constants.NUMBER_OF_IMAGE_PER_SECTION,1,1))(conv_15)
-    y = layers.Reshape((constants.getM(), constants.getN(), len(constants.LABELS)))(conv_15)
+    # pool_last = layers.MaxPooling3D((getNUMBER_OF_IMAGE_PER_SECTION(),1,1))(conv_15)
+    y = layers.Reshape((getM(), getN(), len(getLABELS())))(conv_15)
     general_utils.print_int_shape(y) # (None, M, N, 4)
     model = models.Model(inputs=input_x, outputs=y)
 

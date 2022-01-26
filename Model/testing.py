@@ -14,7 +14,7 @@ import tensorflow.keras.backend as K
 from scipy import ndimage
 from tensorflow.keras.preprocessing.image import load_img, img_to_array
 
-from Model import constants
+from Model.constants import *
 from Utils import general_utils, dataset_utils, sequence_utils, metrics, model_utils
 
 warnings.simplefilter(action='ignore', category=FutureWarning)
@@ -23,16 +23,16 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 ################################################################################
 # Get the labeled image processed (= GT)
 def getCheckImageProcessed(nn, p_id, idx):
-    checkImageProcessed = np.zeros(shape=(constants.IMAGE_WIDTH, constants.IMAGE_HEIGHT))
+    checkImageProcessed = np.zeros(shape=(getIMAGE_WIDTH(), getIMAGE_HEIGHT()))
     # get the label image only if the path is set
     if nn.labeledImagesFolder != "":
-        filename = nn.labeledImagesFolder + constants.PREFIX_IMAGES + p_id + os.path.sep + idx + constants.SUFFIX_IMG
+        filename = nn.labeledImagesFolder + getPrefixImages() + p_id + os.path.sep + idx + SUFFIX_IMG
         if not os.path.exists(filename):
             print("[WARNING] - {0} does NOT exists, try another...".format(filename))
-            filename = nn.labeledImagesFolder + constants.PREFIX_IMAGES + p_id + os.path.sep + idx + ".png"
+            filename = nn.labeledImagesFolder + getPrefixImages() + p_id + os.path.sep + idx + ".png"
             if not os.path.exists(filename):
                 print("[WARNING] - {0} does NOT exists, try another...".format(filename))
-                filename = nn.labeledImagesFolder + constants.PREFIX_IMAGES + p_id + os.path.sep + p_id + idx + constants.SUFFIX_IMG
+                filename = nn.labeledImagesFolder + getPrefixImages() + p_id + os.path.sep + p_id + idx + SUFFIX_IMG
                 assert os.path.exists(filename), "[ERROR] - {0} does NOT exist".format(filename)
 
         checkImageProcessed = cv2.imread(filename, cv2.COLOR_BGR2RGB)
@@ -80,11 +80,11 @@ def predictAndSaveImages(nn, p_id):
 
     suffix_filename = ".pkl"
     if nn.use_hickle: suffix_filename = ".hkl"
-    filename_test = nn.datasetFolder + constants.DATASET_PREFIX + str(p_id) + suffix + suffix_filename
+    filename_test = nn.datasetFolder + DATASET_PREFIX + str(p_id) + suffix + suffix_filename
 
     if not os.path.exists(filename_test): return
 
-    relativePatientFolder = constants.getPrefixImages() + str(p_id) + os.path.sep
+    relativePatientFolder = getPrefixImages() + str(p_id) + os.path.sep
     relativePatientFolderHeatMap = relativePatientFolder + "HEATMAP" + os.path.sep
     relativePatientFolderGT = relativePatientFolder + "GT" + os.path.sep
     relativePatientFolderTMP = relativePatientFolder + "TMP" + os.path.sep
@@ -96,7 +96,7 @@ def predictAndSaveImages(nn, p_id):
     for subpath in [relativePatientFolder,relativePatientFolderHeatMap,relativePatientFolderGT,relativePatientFolderTMP]:
         general_utils.createDir(filename_saveImageFolder+os.path.sep+subpath)
 
-    prefix = nn.experimentID + constants.suffix_partial_weights + nn.getNNID() + suffix + os.path.sep
+    prefix = nn.experimentID + suffix_partial_weights + nn.getNNID() + suffix + os.path.sep
     subpatientFolder = prefix+relativePatientFolder
     patientFolderHeatMap = prefix+relativePatientFolderHeatMap
     patientFolderGT = prefix+relativePatientFolderGT
@@ -105,7 +105,7 @@ def predictAndSaveImages(nn, p_id):
     # for all the slice folders in patientFolder
     for subfolder in glob.glob(patientFolder+"*"+os.path.sep):
         # Predict the images
-        if constants.getUSE_PM(): predictImagesFromParametricMaps(nn, subfolder, p_id, subpatientFolder, patientFolderHeatMap, patientFolderGT, patientFolderTMP, filename_test)
+        if getUSE_PM(): predictImagesFromParametricMaps(nn, subfolder, p_id, subpatientFolder, patientFolderHeatMap, patientFolderGT, patientFolderTMP, filename_test)
         else: predictImage(nn, subfolder, p_id, patientFolder, subpatientFolder, patientFolderHeatMap, patientFolderGT, patientFolderTMP, filename_test)
 
 
@@ -127,20 +127,20 @@ def predictImage(nn, subfolder, p_id, patientFolder, relativePatientFolder, rela
     - filename_test                 : Name of the test pandas dataframe
     """
     startingX, startingY = 0, 0
-    imagePredicted = np.zeros(shape=(constants.IMAGE_WIDTH, constants.IMAGE_HEIGHT))
-    categoricalImage = np.zeros(shape=(constants.IMAGE_WIDTH, constants.IMAGE_HEIGHT, constants.N_CLASSES))
+    imagePredicted = np.zeros(shape=(getIMAGE_WIDTH(), getIMAGE_HEIGHT()))
+    categoricalImage = np.zeros(shape=(getIMAGE_WIDTH(), getIMAGE_HEIGHT(), getN_CLASSES()))
 
     idx = general_utils.getStringFromIndex(subfolder.replace(patientFolder, '').replace(os.path.sep, ""))  # image index
     # remove the old logs.
     logsName = nn.saveImagesFolder+relativePatientFolder+idx+"_logs.txt"
     if os.path.isfile(logsName): os.remove(logsName)
 
-    if constants.getVerbose(): print("[INFO] - Analyzing Patient {0}, image {1}.".format(p_id, idx))
+    if getVerbose(): print("[INFO] - Analyzing Patient {0}, image {1}.".format(p_id, idx))
     checkImageProcessed = getCheckImageProcessed(nn, str(p_id), idx)
-    binary_mask = checkImageProcessed != constants.PIXELVALUES[0]
+    binary_mask = checkImageProcessed != getPIXELVALUES()[0]
 
     # Portion for the prediction of the image
-    if constants.get3DFlag()!= "":
+    if get3DFlag()!= "":
         assert os.path.exists(filename_test), "[ERROR] - File {} does NOT exist".format(filename_test)
 
         test_df = dataset_utils.readFromPickleOrHickle(filename_test, nn.use_hickle)
@@ -158,19 +158,19 @@ def predictImage(nn, subfolder, p_id, patientFolder, relativePatientFolder, rela
             row = test_df[test_df.data_aug_idx == 0]
             # Control that the analyzed row is == 1
             assert len(row) == 1, "The length of the row to analyze should be 1."
-            X = model_utils.getCorrectXForInputModel(nn, subfolder, row, batchIndex=0, batch_length=1)
+            X = model_utils.getCorrectXForInputModel(nn.test_sequence, subfolder, row, batch_idx=0, batch_len=1)
 
             imagePredicted, categoricalImage = generate2DImage(nn, X, (startingX,startingY), imagePredicted, categoricalImage, binary_mask, idx)
 
             # if we reach the end of the image, break the while loop.
-            if startingX>=constants.IMAGE_WIDTH-constants.getM() and startingY>=constants.IMAGE_HEIGHT-constants.getN(): break
+            if startingX>=getIMAGE_WIDTH()-getM() and startingY>=getIMAGE_HEIGHT()-getN(): break
 
             # going to the next slicingWindow
-            if startingY< constants.IMAGE_HEIGHT- constants.getN(): startingY+= constants.getN()
+            if startingY< getIMAGE_HEIGHT()- getN(): startingY+= getN()
             else:
-                if startingX< constants.IMAGE_WIDTH:
+                if startingX< getIMAGE_WIDTH():
                     startingY=0
-                    startingX+= constants.getM()
+                    startingX+= getM()
 
     # save the image
     saveImage(nn, relativePatientFolder, idx, imagePredicted, categoricalImage, relativePatientFolderHeatMap,
@@ -198,19 +198,19 @@ def predictImagesFromParametricMaps(nn, subfolder, p_id, relativePatientFolder, 
     # if the patient folder contains the correct number of subfolders
     # ATTENTION: careful here...
     n_fold = 7
-    if constants.getIsISLES2018(): n_fold = 5
+    if getIsISLES2018(): n_fold = 5
 
     if len(glob.glob(subfolder+"*"+os.path.sep))>=n_fold:
         pmcheckfold = os.path.sep+"CBF"+os.path.sep
         for idx in glob.glob(subfolder+pmcheckfold+"*"):
             idx = general_utils.getStringFromIndex(idx.replace(subfolder, '').replace(pmcheckfold, ""))  # image index
-            if constants.getIsISLES2018(): idx = idx.replace(".tiff","")
+            if getIsISLES2018(): idx = idx.replace(".tiff","")
             else: idx = idx.replace(".png","")
             # remove the old logs.
             logsName = nn.saveImagesFolder+relativePatientFolder+idx+"_logs.txt"
             if os.path.isfile(logsName): os.remove(logsName)
     
-            # if constants.getVerbose(): print("[INFO] - Analyzing Patient {0}, image {1}.".format(p_id, idx))
+            # if getVerbose(): print("[INFO] - Analyzing Patient {0}, image {1}.".format(p_id, idx))
 
             checkImageProcessed = getCheckImageProcessed(nn, str(p_id), idx)
 
@@ -238,13 +238,13 @@ def saveImage(nn, relativePatientFolder, idx, imagePredicted, categoricalImage, 
         # save the image predicted in the specific folder
         cv2.imwrite(nn.saveImagesFolder+relativePatientFolder+idx+".png", imagePredicted)
         # create and save the HEATMAP only if we are using softmax activation
-        if constants.getTO_CATEG() and nn.labeledImagesFolder!="":
+        if getTO_CATEG() and nn.labeledImagesFolder!="":
             p_idx, c_idx = 2,3
-            if constants.N_CLASSES==3: p_idx, c_idx = 1, 2
-            elif constants.N_CLASSES==2: c_idx = 1
+            if getN_CLASSES()==3: p_idx, c_idx = 1, 2
+            elif getN_CLASSES()==2: c_idx = 1
 
             checkImageProcessed_rgb = cv2.cvtColor(checkImageProcessed, cv2.COLOR_GRAY2RGB)
-            if constants.N_CLASSES >= 3:
+            if getN_CLASSES() >= 3:
                 heatmap_img_p = cv2.convertScaleAbs(categoricalImage[:, :, p_idx] * 255)
                 heatmap_img_p = cv2.applyColorMap(heatmap_img_p, cv2.COLORMAP_JET)
                 blend_p = cv2.addWeighted(checkImageProcessed_rgb, 0.5, heatmap_img_p, 0.5, 0.0)
@@ -255,16 +255,16 @@ def saveImage(nn, relativePatientFolder, idx, imagePredicted, categoricalImage, 
             cv2.imwrite(nn.saveImagesFolder + relativePatientFolderHeatMap + idx + "_heatmap_core.png", blend_c)
 
         # Save the ground truth and the contours
-        if constants.get3DFlag()== "" and nn.labeledImagesFolder!="":
+        if get3DFlag()== "" and nn.labeledImagesFolder!="":
             # save the GT
-            cv2.imwrite(nn.saveImagesFolder + relativepatientFolderGT + idx + constants.SUFFIX_IMG, checkImageProcessed)
+            cv2.imwrite(nn.saveImagesFolder + relativepatientFolderGT + idx + SUFFIX_IMG, checkImageProcessed)
 
             imagePredicted = cv2.cvtColor(np.uint8(imagePredicted),cv2.COLOR_GRAY2RGB)  # back to rgb
-            if constants.N_CLASSES >= 3:
-                _, penumbra_mask = cv2.threshold(checkImageProcessed, 85, constants.PIXELVALUES[-2], cv2.THRESH_BINARY)
+            if getN_CLASSES() >= 3:
+                _, penumbra_mask = cv2.threshold(checkImageProcessed, 85, getPIXELVALUES()[-2], cv2.THRESH_BINARY)
                 penumbra_cnt, _ = cv2.findContours(penumbra_mask.astype('uint8'),cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)
                 imagePredicted = cv2.drawContours(imagePredicted, penumbra_cnt, -1, (255,0,0), 2)
-            _, core_mask = cv2.threshold(checkImageProcessed, constants.PIXELVALUES[-2], constants.PIXELVALUES[-1], cv2.THRESH_BINARY)
+            _, core_mask = cv2.threshold(checkImageProcessed, getPIXELVALUES()[-2], getPIXELVALUES()[-1], cv2.THRESH_BINARY)
             core_cnt, _ = cv2.findContours(core_mask.astype('uint8'), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
             imagePredicted = cv2.drawContours(imagePredicted, core_cnt, -1, (0,0,255), 2)
             # save the GT image with predicted contours
@@ -293,25 +293,25 @@ def generate2DImage(nn, pixels, startingXY, imgPredicted, categoricalImage, bina
     x, y = startingXY
     # swp_orig contain only the prediction for the last step
     swp_orig = predictFromModel(nn, pixels)[0]
-    if nn.save_images and constants.getTO_CATEG(): categoricalImage[x:x+constants.getM(),y:y+constants.getN()]=swp_orig
+    if nn.save_images and getTO_CATEG(): categoricalImage[x:x+getM(),y:y+getN()]=swp_orig
 
     # convert the categorical into a single array for removing some uncertain predictions
-    if constants.getTO_CATEG(): slicingWindowPredicted = K.eval((K.argmax(swp_orig) * 255) / (constants.N_CLASSES - 1))
+    if getTO_CATEG(): slicingWindowPredicted = K.eval((K.argmax(swp_orig) * 255) / (getN_CLASSES() - 1))
     else: slicingWindowPredicted = swp_orig * 255
     # save the predicted images
     if nn.save_images:
-        if not constants.hasLimitedColumns() and constants.N_CLASSES>2:
+        if not hasLimitedColumns() and getN_CLASSES()>2:
             # Remove the parts already classified by the model
             binary_mask = np.array(binary_mask, dtype=np.float)
             # force all the predictions to be inside the binary mask defined by the GT
-            slicingWindowPredicted *= binary_mask[x:x+constants.getM(),y:y+constants.getN()]
+            slicingWindowPredicted *= binary_mask[x:x+getM(),y:y+getN()]
 
             overlapping_pred = np.array(slicingWindowPredicted>0,dtype=np.float)
             overlapping_pred *= 85.
             binary_mask *= 85.  # multiply the binary mask for the brain pixel value
             # add the brain to the prediction window
-            slicingWindowPredicted += (binary_mask[x:x+constants.getM(),y:y+constants.getN()]-overlapping_pred)
-        imgPredicted[x:x+constants.getM(),y:y+constants.getN()]=slicingWindowPredicted
+            slicingWindowPredicted += (binary_mask[x:x+getM(),y:y+getN()]-overlapping_pred)
+        imgPredicted[x:x+getM(),y:y+getN()]=slicingWindowPredicted
 
     if nn.save_activation_filter:
         if idx == "03" or idx == "04": saveIntermediateLayers(nn.model, pixels, idx, intermediate_activation_path=nn.intermediateActivationFolder)
@@ -334,26 +334,26 @@ def generateTimeImagesAndConsensus(nn, test_df, relativePatientFolderTMP, idx):
     - imagePredicted        : the predicted image
     """
 
-    imagePredicted = np.zeros(shape=(constants.IMAGE_WIDTH, constants.IMAGE_HEIGHT))
-    categoricalImage = np.zeros(shape=(constants.IMAGE_WIDTH, constants.IMAGE_HEIGHT, constants.N_CLASSES))
-    checkImageProcessed = np.zeros(shape=(constants.IMAGE_WIDTH, constants.IMAGE_HEIGHT))
+    imagePredicted = np.zeros(shape=(getIMAGE_WIDTH(), getIMAGE_HEIGHT()))
+    categoricalImage = np.zeros(shape=(getIMAGE_WIDTH(), getIMAGE_HEIGHT(), getN_CLASSES()))
+    checkImageProcessed = np.zeros(shape=(getIMAGE_WIDTH(), getIMAGE_HEIGHT()))
     arrayTimeIndexImages = dict()
 
     for test_row in test_df.itertuples():  # for every rows of the same image
         if str(test_row.timeIndex) not in arrayTimeIndexImages.keys(): arrayTimeIndexImages[str(test_row.timeIndex)] = np.zeros(shape=(
-        constants.IMAGE_WIDTH, constants.IMAGE_HEIGHT), dtype=np.uint8)
-        if constants.get3DFlag() == "": test_row.pixels = test_row.pixels.reshape(1, test_row.pixels.shape[0], test_row.pixels.shape[1], test_row.pixels.shape[2], 1)
+        getIMAGE_WIDTH(), getIMAGE_HEIGHT()), dtype=np.uint8)
+        if get3DFlag() == "": test_row.pixels = test_row.pixels.reshape(1, test_row.pixels.shape[0], test_row.pixels.shape[1], test_row.pixels.shape[2], 1)
         else: test_row.pixels = test_row.pixels.reshape(1, test_row.pixels.shape[0], test_row.pixels.shape[1], test_row.pixels.shape[2])
         arrayTimeIndexImages[str(test_row.timeIndex)], categoricalImage = generate2DImage(nn, test_row.pixels, test_row.x_y, arrayTimeIndexImages[str(test_row.timeIndex)], categoricalImage, checkImageProcessed, idx)
 
     if nn.save_images:              # remove one class from the ground truth
-        if constants.N_CLASSES==3: checkImageProcessed[checkImageProcessed == 85] = constants.PIXELVALUES[0]
-        cv2.imwrite(nn.saveImagesFolder + relativePatientFolderTMP +"orig_" + idx + constants.SUFFIX_IMG, checkImageProcessed)
+        if getN_CLASSES()==3: checkImageProcessed[checkImageProcessed == 85] = getPIXELVALUES()[0]
+        cv2.imwrite(nn.saveImagesFolder + relativePatientFolderTMP +"orig_" + idx + SUFFIX_IMG, checkImageProcessed)
 
         for tidx in arrayTimeIndexImages.keys():
             curr_image = arrayTimeIndexImages[tidx]
             # save the images
-            cv2.imwrite(nn.saveImagesFolder + relativePatientFolderTMP + idx +"_" + general_utils.getStringFromIndex(tidx) + constants.SUFFIX_IMG, curr_image)
+            cv2.imwrite(nn.saveImagesFolder + relativePatientFolderTMP + idx +"_" + general_utils.getStringFromIndex(tidx) + SUFFIX_IMG, curr_image)
             # add the predicted image in the imagePredicted for consensus
             imagePredicted += curr_image
 
@@ -379,21 +379,25 @@ def generateImageFromParametricMaps(nn, test_df, idx):
     - imagePredicted        : the predicted image
     """
 
-    imagePredicted = np.zeros(shape=(constants.IMAGE_WIDTH, constants.IMAGE_HEIGHT))
-    categoricalImage = np.zeros(shape=(constants.IMAGE_WIDTH, constants.IMAGE_HEIGHT, constants.N_CLASSES))
+    imagePredicted = np.zeros(shape=(getIMAGE_WIDTH(), getIMAGE_HEIGHT()))
+    categoricalImage = np.zeros(shape=(getIMAGE_WIDTH(), getIMAGE_HEIGHT(), getN_CLASSES()))
     startX, startY = 0, 0
+    constants ={"M": getM(), "N": getM(), "NUMBER_OF_IMAGE_PER_SECTION": getNUMBER_OF_IMAGE_PER_SECTION(),
+                "TIME_LAST": getTIMELAST(), "N_CLASSES": getN_CLASSES(), "PIXELVALUES": getPIXELVALUES(),
+                "weights": getWeights(), "TO_CATEG": getTO_CATEG(), "isISLES": getIsISLES2018(), "USE_PM":getUSE_PM(),
+                "LIST_PMS":getList_PMS(), "IMAGE_HEIGHT":getIMAGE_HEIGHT(), "IMAGE_WIDTH": getIMAGE_WIDTH()}
 
     while True:
         row_to_analyze = test_df[test_df.x_y == (startX, startY)]
 
         assert len(row_to_analyze) == 1, "The length of the row to analyze should be 1."
 
-        binary_mask = np.zeros(shape=(constants.getM(), constants.getN()))
+        binary_mask = np.zeros(shape=(getM(), getN()))
         pms = dict()
-        for pm_name in constants.getList_PMS():
+        for pm_name in getList_PMS():
             filename = row_to_analyze[pm_name].iloc[0]
             pm = cv2.imread(filename, nn.inputImgFlag)
-            pms[pm_name] = general_utils.getSlicingWindow(pm, startX, startY, removeColorBar=True)
+            pms[pm_name] = general_utils.getSlicingWindow(pm, startX, startY, constants, removeColorBar=True)
             # add the mask of the pixels that are > 0 only if it's the MIP image
             if pm_name=="MIP":
                 if nn.params["convertImgToGray"]: binary_mask += pms[pm_name] > 0
@@ -418,17 +422,17 @@ def generateImageFromParametricMaps(nn, test_df, idx):
         imagePredicted, categoricalImage = generate2DImage(nn, X, (startX,startY), imagePredicted, categoricalImage, binary_mask, idx)
 
         # if we reach the end of the image, break the while loop.
-        if startX>= constants.IMAGE_WIDTH- constants.getM() and startY>= constants.IMAGE_HEIGHT- constants.getN(): break
+        if startX>= getIMAGE_WIDTH()- getM() and startY>= getIMAGE_HEIGHT()- getN(): break
 
         # check for M == WIDTH & N == HEIGHT
-        if constants.getM()== constants.IMAGE_WIDTH and constants.getN()== constants.IMAGE_HEIGHT: break
+        if getM()== getIMAGE_WIDTH() and getN()== getIMAGE_HEIGHT(): break
 
         # going to the next slicingWindow
-        if startY<=(constants.IMAGE_HEIGHT - constants.getN()): startY+= constants.getN()
+        if startY<=(getIMAGE_HEIGHT() - getN()): startY+= getN()
         else:
-            if startX < constants.IMAGE_WIDTH:
+            if startX < getIMAGE_WIDTH():
                 startY = 0
-                startX += constants.getM()
+                startX += getM()
 
     return imagePredicted, categoricalImage
 
@@ -441,7 +445,7 @@ def evaluateModel(nn, p_id, isAlreadySaved):
     if isAlreadySaved:
         suffix_filename = ".pkl"
         if nn.use_hickle: suffix_filename = ".hkl"
-        filename_train = nn.datasetFolder + constants.DATASET_PREFIX + str(p_id) + suffix + suffix_filename
+        filename_train = nn.datasetFolder + DATASET_PREFIX + str(p_id) + suffix + suffix_filename
 
         if not os.path.exists(filename_train): return
 
@@ -467,11 +471,17 @@ def evaluateModel(nn, p_id, isAlreadySaved):
             flagtype="test",
             back_perc=100,
             loss=nn.loss["name"],
+            name=nn.name,
             is3dot5DModel=nn.is3dot5DModel,
             is4DModel=nn.is4DModel,
             inputImgFlag=nn.inputImgFlag,
             supervised=nn.supervised,
-            patientsFolder=nn.patientsFolder
+            patientsFolder=nn.patientsFolder,
+            labeledImagesFolder=nn.labeledImagesFolder,
+            constants={"M": getM(), "N": getM(), "NUMBER_OF_IMAGE_PER_SECTION": getNUMBER_OF_IMAGE_PER_SECTION(),
+                       "TIME_LAST": getTIMELAST(), "N_CLASSES": getN_CLASSES(), "PIXELVALUES": getPIXELVALUES(),
+                       "weights": getWeights(), "TO_CATEG": getTO_CATEG(), "isISLES": getIsISLES2018(), "USE_PM":getUSE_PM(),
+                       "LIST_PMS":getList_PMS(), "IMAGE_HEIGHT":getIMAGE_HEIGHT(), "IMAGE_WIDTH": getIMAGE_WIDTH()}
         )
 
         testing = nn.model.evaluate_generator(
@@ -487,7 +497,7 @@ def evaluateModel(nn, p_id, isAlreadySaved):
             y=nn.dataset["test"]["labels"],
             callbacks=nn.callbacks,
             sample_weight=sample_weights,
-            verbose=constants.getVerbose(),
+            verbose=getVerbose(),
             batch_size=nn.batch_size,
             use_multiprocessing=nn.mp_in_nn
         )

@@ -2,7 +2,7 @@
 
 import os
 from Utils import general_utils, dataset_utils
-from Model import training, constants
+from Model.constants import *
 from Model.NeuralNetworkClass import NeuralNetwork
 # to remove *SOME OF* the warning from tensorflow (regarding deprecation) <-- to remove when update tensorflow!
 from tensorflow.python.util import deprecation
@@ -45,18 +45,18 @@ def main():
             severity = listOfPatientsToTrainVal[0].split("_")[1] + "_" if "_" in listOfPatientsToTrainVal[0] else ""
             # different for SUS2020_v2 dataset since the dataset is not complete and the prefix is different
             if "SUS2020" in nn.datasetFolder:
-                listOfPatientsToTrainVal = [d[len(constants.getPrefixImages()):] for d in
+                listOfPatientsToTrainVal = [d[len(getPrefixImages()):] for d in
                                             os.listdir(nn.patientsFolder) if
                                             os.path.isdir(os.path.join(nn.patientsFolder, d)) and
                                             severity in d]
             else:
-                listOfPatientsToTrainVal = [int(d[len(constants.getPrefixImages()):]) for d in
+                listOfPatientsToTrainVal = [int(d[len(getPrefixImages()):]) for d in
                                             os.listdir(nn.patientsFolder) if
                                             os.path.isdir(os.path.join(nn.patientsFolder, d)) and
                                             severity in d]
 
-        # if DEBUG mode: use only 5 patients in the list
-        if constants.getDEBUG():
+        # if DEBUG mode: use only a fix number of patients in the list
+        if getDEBUG():
             listOfPatientsToTrainVal = listOfPatientsToTrainVal[:20]
             listOfPatientsToTest = listOfPatientsToTest[:3]
             nn.setDebugDataset()
@@ -96,7 +96,7 @@ def main():
             else: nn.initializeAndStartTraining(n_gpu, args.jump)
 
             # TRAIN SET: only for ISLES2018 dataset
-            if constants.getIsISLES2018(): nn.predictAndSaveImages([general_utils.getStringFromIndex(x) for x in listOfPatientsToTrainVal if x <1000], nn.isModelSaved())
+            if getIsISLES2018(): nn.predictAndSaveImages([general_utils.getStringFromIndex(x) for x in listOfPatientsToTrainVal if x <1000], nn.isModelSaved())
             else: nn.predictAndSaveImages(val_list, nn.isModelSaved())  # VALIDATION SET: predict the images for decision on the model
             # PERFORM TESTING: predict and save the images
             nn.predictAndSaveImages(listOfPatientsToTest, nn.isModelSaved())

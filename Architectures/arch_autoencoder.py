@@ -1,4 +1,4 @@
-from Model import constants
+from Model.constants import *
 from Utils import general_utils
 
 
@@ -7,7 +7,7 @@ from keras import layers, regularizers, initializers, models
 
 
 def simple_autoencoder(params):
-    input_shape = (constants.getM(), constants.getN(), constants.NUMBER_OF_IMAGE_PER_SECTION, 1)
+    input_shape = (getM(), getN(), getNUMBER_OF_IMAGE_PER_SECTION(), 1)
 
     activ_func = layers.LeakyReLU(alpha=0.33)
     l1_l2_reg = regularizers.l1_l2(l1=1e-6, l2=1e-5)

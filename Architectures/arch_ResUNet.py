@@ -1,4 +1,4 @@
-from Model import constants
+from Model.constants import *
 from Utils import general_utils, model_utils
 
 from tensorflow.keras import layers, models
@@ -16,7 +16,7 @@ def ResUNet(params):
     kernel_init = "glorot_uniform" if "kernel_init" not in params.keys() else model_utils.getKernelInit(params["kernel_init"])
     kernel_constraint = None if "kernel_constraint" not in params.keys() else model_utils.getKernelBiasConstraint(params["kernel_constraint"])
     bias_constraint = None if "bias_constraint" not in params.keys() else model_utils.getKernelBiasConstraint(params["bias_constraint"])
-    input_shape = (constants.getM(), constants.getN(), constants.NUMBER_OF_IMAGE_PER_SECTION, 1) if constants.getTIMELAST() else (constants.NUMBER_OF_IMAGE_PER_SECTION, constants.getM(), constants.getN(), 1)
+    input_shape = (getM(), getN(), getNUMBER_OF_IMAGE_PER_SECTION(), 1) if getTIMELAST() else (getNUMBER_OF_IMAGE_PER_SECTION(), getM(), getN(), 1)
 
     input_x = layers.Input(shape=input_shape, sparse=False)
     conv_1 = Conv3D(channels[0], kernel_size=(3,3,3),kernel_regularizer=l1_l2_reg,padding="same",kernel_initializer=kernel_init,
@@ -32,53 +32,60 @@ def ResUNet(params):
     squeeze_exc_1 = model_utils.squeeze_excite_block(add_1)
     general_utils.print_int_shape(squeeze_exc_1)
 
-    stride = (2,2,params["strides"]["1"]) if constants.getTIMELAST() else (params["strides"]["1"],2,2)
-    resblock_1 = model_utils.resNetBlock(squeeze_exc_1, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint, filter=channels[1], strides=stride)
+    stride = (2,2,params["strides"]["1"]) if getTIMELAST() else (params["strides"]["1"],2,2)
+    resblock_1 = model_utils.resNetBlock(squeeze_exc_1, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint,
+                                         filter=channels[1], strides=stride)
     general_utils.print_int_shape(resblock_1)
-    stride = (2,2,params["strides"]["2"]) if constants.getTIMELAST() else (params["strides"]["2"],2,2)
-    resblock_2 = model_utils.resNetBlock(resblock_1, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint, filter=channels[2], strides=stride)
+    stride = (2,2,params["strides"]["2"]) if getTIMELAST() else (params["strides"]["2"],2,2)
+    resblock_2 = model_utils.resNetBlock(resblock_1, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint,
+                                         filter=channels[2], strides=stride)
     general_utils.print_int_shape(resblock_2)
-    stride = (2,2,params["strides"]["3"]) if constants.getTIMELAST() else (params["strides"]["3"],2,2)
-    resblock_3 = model_utils.resNetBlock(resblock_2, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint, filter=channels[3], strides=stride)
+    stride = (2,2,params["strides"]["3"]) if getTIMELAST() else (params["strides"]["3"],2,2)
+    resblock_3 = model_utils.resNetBlock(resblock_2, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint,
+                                         filter=channels[3], strides=stride)
     general_utils.print_int_shape(resblock_3)
 
-    bridge = model_utils.ASSP(resblock_3, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint, filter=channels[4])
+    bridge = model_utils.ASSP(resblock_3, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint, filt=channels[4])
     general_utils.print_int_shape(bridge)
 
     att_1 = model_utils.attentionGateBlock(resblock_2, bridge, channels[4], l1_l2_reg, kernel_init, kernel_constraint, bias_constraint)
     general_utils.print_int_shape(att_1)
-    resblock_4 = model_utils.resNetBlock(att_1, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint, filter=channels[3], strides=(1,1,1))
+    resblock_4 = model_utils.resNetBlock(att_1, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint,
+                                         filter=channels[3], strides=(1, 1, 1))
     general_utils.print_int_shape(resblock_4)
 
     att_2 = model_utils.attentionGateBlock(resblock_1, resblock_4, channels[3], l1_l2_reg, kernel_init, kernel_constraint, bias_constraint)
     general_utils.print_int_shape(att_2)
 
-    resblock_5 = model_utils.resNetBlock(att_2, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint, filter=channels[2], strides=(1,1,1))
+    resblock_5 = model_utils.resNetBlock(att_2, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint,
+                                         filter=channels[2], strides=(1, 1, 1))
     general_utils.print_int_shape(resblock_5)
 
     att_3 = model_utils.attentionGateBlock(squeeze_exc_1, resblock_5, channels[2], l1_l2_reg, kernel_init, kernel_constraint, bias_constraint)
     general_utils.print_int_shape(att_3)
 
-    resblock_6 = model_utils.resNetBlock(att_3, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint, filter=channels[1], strides=(1,1,1))
+    resblock_6 = model_utils.resNetBlock(att_3, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint,
+                                         filter=channels[1], strides=(1, 1, 1))
     general_utils.print_int_shape(resblock_6)
 
-    assp_block = model_utils.ASSP(resblock_6, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint, filter=channels[0])
+    assp_block = model_utils.ASSP(resblock_6, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint,
+                                  filt=channels[0])
     general_utils.print_int_shape(assp_block)
     act_name = "sigmoid"
     n_chann = 1
-    shape_output = (constants.getM(), constants.getN())
+    shape_output = (getM(), getN())
 
     # set the softmax activation function if the flag is set
-    if constants.getTO_CATEG():
+    if getTO_CATEG():
         act_name = "softmax"
-        n_chann = len(constants.LABELS)
-        shape_output = (constants.getM(), constants.getN(), n_chann)
+        n_chann = len(getLABELS())
+        shape_output = (getM(), getN(), n_chann)
 
-    stride = (1, 1, params["strides"]["1"]) if constants.getTIMELAST() else (params["strides"]["1"], 1, 1)
+    stride = (1, 1, params["strides"]["1"]) if getTIMELAST() else (params["strides"]["1"], 1, 1)
     last_conv = layers.Conv3D(channels[0], kernel_size=(3,3,3), activation="relu", padding='same', kernel_initializer=kernel_init, strides=stride, kernel_constraint=kernel_constraint, bias_constraint=bias_constraint)(assp_block)
-    stride = (1, 1, params["strides"]["2"]) if constants.getTIMELAST() else (params["strides"]["2"], 1, 1)
+    stride = (1, 1, params["strides"]["2"]) if getTIMELAST() else (params["strides"]["2"], 1, 1)
     last_conv = layers.Conv3D(channels[0]*2, kernel_size=(3,3,3), activation="relu", padding='same', kernel_initializer=kernel_init, strides=stride, kernel_constraint=kernel_constraint, bias_constraint=bias_constraint)(last_conv)
-    stride = (1, 1, params["strides"]["3"]) if constants.getTIMELAST() else (params["strides"]["3"], 1, 1)
+    stride = (1, 1, params["strides"]["3"]) if getTIMELAST() else (params["strides"]["3"], 1, 1)
     last_conv = layers.Conv3D(channels[0]*4, kernel_size=(3,3,3), activation="relu", padding='same', kernel_initializer=kernel_init, strides=stride, kernel_constraint=kernel_constraint, bias_constraint=bias_constraint)(last_conv)
 
     output = Conv3D(n_chann,kernel_size=(1,1,1),kernel_regularizer=l1_l2_reg,padding="same",kernel_initializer=kernel_init,

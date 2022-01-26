@@ -1,4 +1,4 @@
-from Model import constants
+from Model.constants import *
 from Utils import general_utils, model_utils
 
 from tensorflow.keras import layers, models, initializers
@@ -55,10 +55,10 @@ def PMs_segmentation(params, multiInput, batch=True):
     up_1 = layers.Concatenate(-1)([transp_1,block5_conv3_conc])
 
     # going up with the layers
-    up_2 = model_utils.upLayers(up_1, block4_conv3, [128*len(PMS),128*len(PMS),128*len(PMS)], (3,3), (2,2), activ_func, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint, params, is2D=True)
-    up_3 = model_utils.upLayers(up_2, block3_conv3, [64*len(PMS),64*len(PMS),64*len(PMS)], (3,3), (2,2), activ_func, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint, params, is2D=True)
-    up_4 = model_utils.upLayers(up_3, block2_conv2, [32*len(PMS),32*len(PMS),32*len(PMS)], (3,3), (2,2), activ_func, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint, params, is2D=True)
-    up_5 = model_utils.upLayers(up_4, block1_conv2, [16*len(PMS),16*len(PMS),16*len(PMS)], (3,3), (2,2), activ_func, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint, params, is2D=True)
+    up_2 = model_utils.upLayers(up_1, block4_conv3, [128*len(PMS),128*len(PMS),128*len(PMS)], (3,3), (2,2), activ_func, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint, params, is2D=True, batch=batch)
+    up_3 = model_utils.upLayers(up_2, block3_conv3, [64*len(PMS),64*len(PMS),64*len(PMS)], (3,3), (2,2), activ_func, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint, params, is2D=True, batch=batch)
+    up_4 = model_utils.upLayers(up_3, block2_conv2, [32*len(PMS),32*len(PMS),32*len(PMS)], (3,3), (2,2), activ_func, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint, params, is2D=True, batch=batch)
+    up_5 = model_utils.upLayers(up_4, block1_conv2, [16*len(PMS),16*len(PMS),16*len(PMS)], (3,3), (2,2), activ_func, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint, params, is2D=True, batch=batch)
 
     final_conv_1 = layers.Conv2D(16, kernel_size=(3, 3), padding='same',activation=activ_func,
                                  kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init,
@@ -69,11 +69,11 @@ def PMs_segmentation(params, multiInput, batch=True):
                                  kernel_constraint=kernel_constraint, bias_constraint=bias_constraint)(final_conv_1)
     if batch: final_conv_2 = layers.BatchNormalization()(final_conv_2)
 
-    act_name, n_chann, shape_output = "sigmoid", 1, (constants.getM(), constants.getN())
+    act_name, n_chann, shape_output = "sigmoid", 1, (getM(), getN())
 
     # set the softmax activation function if the flag is set
-    if constants.getTO_CATEG():
-        act_name, n_chann, shape_output = "softmax", len(constants.LABELS), (constants.getM(),constants.getN(),len(constants.LABELS))
+    if getTO_CATEG():
+        act_name, n_chann, shape_output = "softmax", len(getLABELS()), (getM(),getN(),len(getLABELS()))
 
     final_conv_3 = layers.Conv2D(n_chann, kernel_size=(1, 1), activation=act_name, padding='same',
                                  kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init,

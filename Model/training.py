@@ -151,5 +151,5 @@ def plotLossAndAccuracy(nn):
         ax.set_ylabel(key, fontsize=16)
         ax.set_title(key + 'Curves', fontsize=16)
 
-        fig.savefig(nn.savePlotFolder + nn.getNNID() + "_" + key + "_" + str(getSLICING_PIXELS()) + "_" + str(getM()) + "x" + str(getN()) + ".png")
+        fig.savefig(nn.savePlotFolder + nn.getNNID() + "_" + key + "_" + str(get_slice_pixels()) + "_" + str(get_m()) + "x" + str(get_n()) + ".png")
         plt.close(fig)

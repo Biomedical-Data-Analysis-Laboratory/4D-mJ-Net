@@ -50,7 +50,7 @@ class NeuralNetwork(object):
         # get parameter for the model
         self.optimizerInfo = modelInfo["optimizer"]
         self.params = modelInfo["params"]
-        self.loss = general_utils.getLoss(modelInfo)
+        self.loss = general_utils.get_loss(modelInfo)
         self.metricFuncs = general_utils.getMetricFunctions(modelInfo["metrics"])
 
         # inflate and concatenate only work with PMs_segmentation architectures!
@@ -62,7 +62,7 @@ class NeuralNetwork(object):
         # FLAGS for the model
         self.multiInput = self.params["multiInput"] if "multiInput" in self.params.keys() else dict()
         self.to_categ = True if modelInfo["to_categ"]==1 else False
-        setTO_CATEG(self.to_categ)
+        set_TO_CATEG(self.to_categ)
         self.save_images = True if modelInfo["save_images"]==1 else False
         self.da = True if modelInfo["data_augmentation"]==1 else False
         self.train_again = True if modelInfo["train_again"]==1 else False
@@ -78,7 +78,7 @@ class NeuralNetwork(object):
         self.datasetFolder = setting["dataset_path"]
         self.labeledImagesFolder = setting["relative_paths"]["labeled_images"] if "labeled_images" in setting["relative_paths"].keys() else ""
         self.patientsFolder = setting["relative_paths"]["patients"]
-        self.experimentID = "EXP"+general_utils.convertExperimentNumberToString(setting["EXPERIMENT"])
+        self.experimentID = "EXP" + general_utils.convert_expnum_to_str(setting["EXPERIMENT"])
         self.experimentFolder = "SAVE/" + self.experimentID + "/"
         self.savedModelFolder = self.experimentFolder+setting["relative_paths"]["save"]["model"]
         self.savePartialModelFolder = self.experimentFolder+setting["relative_paths"]["save"]["partial_model"]
@@ -91,7 +91,7 @@ class NeuralNetwork(object):
 
         # empty variables initialization
         self.n_slices = 0 if "n_slices" not in self.params.keys() else self.params["n_slices"]
-        self.x_label = "pixels" if not getUSE_PM() else getList_PMS()
+        self.x_label = "pixels" if not getUSE_PM() else get_list_PMS()
         self.y_label = "ground_truth"
         self.summaryFlag = 0
         self.model = None
@@ -110,7 +110,7 @@ class NeuralNetwork(object):
         self.mp_in_nn = False
 
         # change the prefix if SUS2020_v2 is in the dataset name
-        if "SUS2020" in self.datasetFolder: setPrefix("CTP_")
+        if "SUS2020" in self.datasetFolder: set_prefix("CTP_")
 
     ################################################################################
     # Set model ID
@@ -119,7 +119,7 @@ class NeuralNetwork(object):
 
         # empty variables initialization
         self.n_slices = 0 if "n_slices" not in self.params.keys() else self.params["n_slices"]
-        self.x_label = "pixels" if not getUSE_PM() else getList_PMS()
+        self.x_label = "pixels" if not getUSE_PM() else get_list_PMS()
         self.y_label = "ground_truth"
         self.summaryFlag = 0
         self.model = None
@@ -145,8 +145,8 @@ class NeuralNetwork(object):
     ################################################################################
     # Initialize the callbacks
     def setCallbacks(self, sample_weights=None, add_for_finetuning=""):
-        if getVerbose():
-            general_utils.printSeparation("-", 50)
+        if is_verbose():
+            general_utils.print_sep("-", 50)
             print("[INFO] - Setting callbacks...")
 
         self.callbacks = training.getCallbacks(
@@ -180,8 +180,8 @@ class NeuralNetwork(object):
         # load weights into new model
         self.model.load_weights(saved_weightname)
 
-        if getVerbose():
-            general_utils.printSeparation("+",100)
+        if is_verbose():
+            general_utils.print_sep("+", 100)
             print("[INFO - Loading] - --- MODEL {} LOADED FROM DISK! --- ".format(saved_modelname))
             print("[INFO - Loading] - --- WEIGHTS {} LOADED FROM DISK! --- ".format(saved_weightname))
 
@@ -204,40 +204,42 @@ class NeuralNetwork(object):
             self.model.load_weights(self.partialWeightsPath)
             self.initial_epoch = general_utils.getEpochFromPartialWeightFilename(self.partialWeightsPath)
 
-            if getVerbose():
-                general_utils.printSeparation("+",100)
+            if is_verbose():
+                general_utils.print_sep("+", 100)
                 print("[INFO - Loading] - --- WEIGHTS {} LOADED FROM DISK! --- ".format(self.partialWeightsPath))
                 print("[INFO] - --- Start training from epoch {} --- ".format(str(self.initial_epoch)))
 
     ################################################################################
     # Function to divide the dataframe in train and test based on the patient id;
-    def splitDataset(self, train_df, listOfPatientsToTrainVal, listOfPatientsToTest):
+    def split_ds(self, train_df, patientlist_train_val, patientlist_test):
         # set the dataset inside the class
         self.train_df = train_df
         # split the dataset (return in dataset just the indices and labels)
-        self.dataset, self.val_list, self.test_list = dataset_utils.splitDataset(self, listOfPatientsToTrainVal, listOfPatientsToTest)
+        self.dataset, self.val_list, self.test_list = dataset_utils.split_ds(self, patientlist_train_val, patientlist_test)
         # get the number of element per class in the dataset
-        self.N_BACKGROUND, self.N_BRAIN, self.N_PENUMBRA, self.N_CORE, self.N_TOT = dataset_utils.getNumberOfElements(self.train_df)
+        self.N_BACKGROUND, self.N_BRAIN, self.N_PENUMBRA, self.N_CORE, self.N_TOT = dataset_utils.get_number_of_elem(
+            self.train_df)
 
         return self.val_list
 
     ################################################################################
     # Update the dataset with the new train_df, the dataset, and val_list
-    def updateDataset(self, train_df, val_list, listOfPatientsToTest):
+    def update_ds(self, train_df, val_list, listOfPatientsToTest):
         self.train_df = train_df
         self.val_list = val_list
         # get the number of element per class in the dataset
-        self.N_BACKGROUND, self.N_BRAIN, self.N_PENUMBRA, self.N_CORE, self.N_TOT = dataset_utils.getNumberOfElements(self.train_df)
+        self.N_BACKGROUND, self.N_BRAIN, self.N_PENUMBRA, self.N_CORE, self.N_TOT = dataset_utils.get_number_of_elem(
+            self.train_df)
 
         # Reset the indices for validation and train lists
-        dataset_utils.setValList(self, self.val_list)
-        dataset_utils.setTrainIndices(self, self.val_list, listOfPatientsToTest)
+        dataset_utils.set_val_list(self, self.val_list)
+        dataset_utils.set_train_indices(self, self.val_list, listOfPatientsToTest)
 
     ################################################################################
     # Function to reshape the pixel array and initialize the model.
     def prepareDataset(self):
         # split the dataset (set the data key inside dataset [NOT for the sequence generator])
-        self.dataset = dataset_utils.prepareDataset(self)
+        self.dataset = dataset_utils.prepare_ds(self)
 
     ################################################################################
     # compile the model, callable also from outside
@@ -275,8 +277,8 @@ class NeuralNetwork(object):
     def initializeTraining(self, n_gpu):
         assert n_gpu==1, "The number of GPU should be 1."
 
-        if getVerbose():
-            general_utils.printSeparation("*", 50)
+        if is_verbose():
+            general_utils.print_sep("*", 50)
             print("[INFO] - Start runTraining function.")
             print("[INFO] - Getting model {0} with {1} optimizer...".format(self.name, self.optimizerInfo["name"]))
 
@@ -295,7 +297,7 @@ class NeuralNetwork(object):
             self.summaryFlag+=1
 
         memUsage = general_utils.get_model_memory_usage(self.model, self.batch_size)
-        if getVerbose(): print("The memory usage for the model is: {}Gb".format(memUsage))
+        if is_verbose(): print("The memory usage for the model is: {}Gb".format(memUsage))
         # Check if the model has some saved weights to load...
         if self.arePartialWeightsSaved(): self.loadModelFromPartialWeights()
 
@@ -311,9 +313,16 @@ class NeuralNetwork(object):
     def runTraining(self, n_gpu):
         self.initializeTraining(n_gpu)
 
-        self.dataset["train"]["labels"] = dataset_utils.getLabelsFromIndex(train_df=self.train_df, dataset=self.dataset["train"], modelname=self.name, flag="train")
-        self.dataset["val"]["labels"] = None if self.val["validation_perc"]==0 else dataset_utils.getLabelsFromIndex(train_df=self.train_df, dataset=self.dataset["val"], modelname=self.name, flag="val")
-        if self.supervised: self.dataset["test"]["labels"] = dataset_utils.getLabelsFromIndex(train_df=self.train_df, dataset=self.dataset["test"], modelname=self.name, flag="test")
+        self.dataset["train"]["labels"] = dataset_utils.get_labels_from_idx(train_df=self.train_df,
+                                                                            dataset=self.dataset["train"],
+                                                                            modelname=self.name, flag="train")
+        self.dataset["val"]["labels"] = None if self.val["validation_perc"]==0 else dataset_utils.get_labels_from_idx(
+            train_df=self.train_df, dataset=self.dataset["val"], modelname=self.name, flag="val")
+        if self.supervised: self.dataset["test"]["labels"] = dataset_utils.get_labels_from_idx(train_df=self.train_df,
+                                                                                               dataset=self.dataset[
+                                                                                                   "test"],
+                                                                                               modelname=self.name,
+                                                                                               flag="test")
 
         # fit and train the model
         self.train = training.fitModel(
@@ -349,7 +358,7 @@ class NeuralNetwork(object):
             multiInput=self.multiInput,
             params=self.params,
             batch_size=self.batch_size,
-            back_perc=1 if not getUSE_PM() and (getM() != getIMAGE_WIDTH() and getN() != getIMAGE_HEIGHT()) else 100,
+            back_perc=1 if not getUSE_PM() and (get_m() != get_img_width() and get_n() != get_img_weight()) else 100,
             loss=self.loss["name"],
             name=self.name,
             is3dot5DModel=self.is3dot5DModel,
@@ -359,10 +368,10 @@ class NeuralNetwork(object):
             supervised=self.supervised,
             patientsFolder=self.patientsFolder,
             labeledImagesFolder=self.labeledImagesFolder,
-            constants={"M":getM(),"N":getM(),"NUMBER_OF_IMAGE_PER_SECTION":getNUMBER_OF_IMAGE_PER_SECTION(),
-                       "TIME_LAST":getTIMELAST(), "N_CLASSES":getN_CLASSES(), "PIXELVALUES":getPIXELVALUES(),
-                       "weights":getWeights(), "TO_CATEG":getTO_CATEG(), "isISLES": getIsISLES2018(), "USE_PM":getUSE_PM(),
-                       "LIST_PMS":getList_PMS(), "IMAGE_HEIGHT":getIMAGE_HEIGHT(), "IMAGE_WIDTH": getIMAGE_WIDTH()}
+            constants={"M":get_m(), "N":get_m(), "NUMBER_OF_IMAGE_PER_SECTION":getNUMBER_OF_IMAGE_PER_SECTION(),
+                       "TIME_LAST":is_timelast(), "N_CLASSES":get_n_classes(), "PIXELVALUES":get_pixel_values(),
+                       "weights":get_weights(), "TO_CATEG":is_TO_CATEG(), "isISLES": is_ISLES2018(), "USE_PM":getUSE_PM(),
+                       "LIST_PMS":get_list_PMS(), "IMAGE_HEIGHT":get_img_weight(), "IMAGE_WIDTH": get_img_width()}
         )
 
         # validation data sequence
@@ -375,7 +384,7 @@ class NeuralNetwork(object):
             multiInput=self.multiInput,
             params=self.params,
             batch_size=self.batch_size,
-            back_perc=1 if not getUSE_PM() and (getM() != getIMAGE_WIDTH() and getN() != getIMAGE_HEIGHT()) else 100,
+            back_perc=1 if not getUSE_PM() and (get_m() != get_img_width() and get_n() != get_img_weight()) else 100,
             flagtype="val",
             loss=self.loss["name"],
             name=self.name,
@@ -385,10 +394,10 @@ class NeuralNetwork(object):
             supervised=self.supervised,
             patientsFolder=self.patientsFolder,
             labeledImagesFolder=self.labeledImagesFolder,
-            constants={"M":getM(),"N":getM(),"NUMBER_OF_IMAGE_PER_SECTION":getNUMBER_OF_IMAGE_PER_SECTION(),
-                       "TIME_LAST":getTIMELAST(), "N_CLASSES":getN_CLASSES(), "PIXELVALUES":getPIXELVALUES(),
-                       "weights":getWeights(), "TO_CATEG":getTO_CATEG(), "isISLES": getIsISLES2018(), "USE_PM":getUSE_PM(),
-                       "LIST_PMS":getList_PMS(), "IMAGE_HEIGHT":getIMAGE_HEIGHT(), "IMAGE_WIDTH": getIMAGE_WIDTH()}
+            constants={"M":get_m(), "N":get_m(), "NUMBER_OF_IMAGE_PER_SECTION":getNUMBER_OF_IMAGE_PER_SECTION(),
+                       "TIME_LAST":is_timelast(), "N_CLASSES":get_n_classes(), "PIXELVALUES":get_pixel_values(),
+                       "weights":get_weights(), "TO_CATEG":is_TO_CATEG(), "isISLES": is_ISLES2018(), "USE_PM":getUSE_PM(),
+                       "LIST_PMS":get_list_PMS(), "IMAGE_HEIGHT":get_img_weight(), "IMAGE_WIDTH": get_img_width()}
         )
 
     ################################################################################
@@ -420,7 +429,7 @@ class NeuralNetwork(object):
                 elif "gender" in self.multiInput.keys() and self.multiInput["gender"] == 1: model_name += "_1"
                 layer_indexes.extend([i for i, l in enumerate(self.model.get_layer(model_name).layers) if "concat" in l.name])
             else:
-                for pm in getList_PMS(): layer_indexes.extend([i for i, l in enumerate(self.model.layers) if pm.lower() in l.name])
+                for pm in get_list_PMS(): layer_indexes.extend([i for i, l in enumerate(self.model.layers) if pm.lower() in l.name])
             layer_indexes = np.sort(layer_indexes)
 
             # The optimizer (==ADAM) should have a low learning rate
@@ -440,7 +449,7 @@ class NeuralNetwork(object):
                     for ind in layer_indexes[len(layer_indexes) // 2:]: self.model.get_layer(model_name).layers[ind].trainable = True
                 else:
                     for ind in layer_indexes[len(layer_indexes) // 2:]: self.model.layers[ind].trainable = True
-                if getVerbose(): print("Fine-tuning setting: {} layers trainable".format(layer_indexes[len(layer_indexes) // 2:]))
+                if is_verbose(): print("Fine-tuning setting: {} layers trainable".format(layer_indexes[len(layer_indexes) // 2:]))
                 if self.arePartialWeightsSaved():
                     if not self.params["concatenate_input"]: self.model.load_weights(self.partialWeightsPath)
                     self.initial_epoch = general_utils.getEpochFromPartialWeightFilename(self.partialWeightsPath) + previousEarlyStoppingPatience
@@ -460,7 +469,7 @@ class NeuralNetwork(object):
                     for ind in layer_indexes:  self.model.get_layer(model_name).layers[ind].trainable = True
                 else:
                     for ind in layer_indexes:  self.model.layers[ind].trainable = True
-                if getVerbose(): print("Fine-tuning setting: {} layers trainable".format(layer_indexes))
+                if is_verbose(): print("Fine-tuning setting: {} layers trainable".format(layer_indexes))
                 if self.arePartialWeightsSaved():
                     if not self.params["concatenate_input"]: self.model.load_weights(self.partialWeightsPath)
                     self.initial_epoch = general_utils.getEpochFromPartialWeightFilename(self.partialWeightsPath) + previousEarlyStoppingPatience
@@ -477,36 +486,37 @@ class NeuralNetwork(object):
     # Get the sample weight from the dataset
     def getSampleWeights(self, flagDataset):
         sample_weights = None
-        self.N_BACKGROUND, self.N_BRAIN, self.N_PENUMBRA, self.N_CORE, self.N_TOT = dataset_utils.getNumberOfElements(self.train_df)
+        self.N_BACKGROUND, self.N_BRAIN, self.N_PENUMBRA, self.N_CORE, self.N_TOT = dataset_utils.get_number_of_elem(
+            self.train_df)
 
-        if getN_CLASSES()==4:
+        if get_n_classes() ==4:
             # and the (M,N) == image dimension
-            if getM()== getIMAGE_WIDTH() and getN()== getIMAGE_HEIGHT():
+            if get_m() == get_img_width() and get_n() == get_img_weight():
                 if self.use_sequence:  # set everything == 1
                     sample_weights = self.train_df.assign(ground_truth=1)
                     sample_weights = sample_weights.ground_truth
                 else:
                     # function that map each getPIXELVALUES()[2] with 150, getPIXELVALUES()[3] with 20
                     # and the rest with 0.1 and sum them
-                    f = lambda x: np.sum(np.where(np.array(x) == getPIXELVALUES()[2],
-                                                  getWeights()[0][3],
-                                                  np.where(np.array(x) == getPIXELVALUES()[3],
-                                                           getWeights()[0][2],
+                    f = lambda x: np.sum(np.where(np.array(x) == get_pixel_values()[2],
+                                                  get_weights()[0][3],
+                                                  np.where(np.array(x) == get_pixel_values()[3],
+                                                           get_weights()[0][2],
                                                            HOT_ONE_WEIGHTS[0][0])))
 
                     sample_weights = self.train_df.ground_truth.map(f)
-                    sample_weights = sample_weights/(getM() * getN())
+                    sample_weights = sample_weights/(get_m() * get_n())
             else:
                 # see: "ISBI 2019 C-NMC Challenge: Classification in Cancer Cell Imaging" section 4.1 pag 68
                 sample_weights = self.train_df.label.map({
-                    getLABELS()[0]: self.N_TOT / (getN_CLASSES() * self.N_BACKGROUND) if self.N_BACKGROUND > 0 else 0,
-                    getLABELS()[1]: self.N_TOT / (getN_CLASSES() * self.N_BRAIN) if self.N_BRAIN > 0 else 0,
-                    getLABELS()[2]: self.N_TOT / (getN_CLASSES() * self.N_PENUMBRA) if self.N_PENUMBRA > 0 else 0,
-                    getLABELS()[3]: self.N_TOT / (getN_CLASSES() * self.N_CORE) if self.N_CORE > 0 else 0,
+                    get_labels()[0]: self.N_TOT / (get_n_classes() * self.N_BACKGROUND) if self.N_BACKGROUND > 0 else 0,
+                    get_labels()[1]: self.N_TOT / (get_n_classes() * self.N_BRAIN) if self.N_BRAIN > 0 else 0,
+                    get_labels()[2]: self.N_TOT / (get_n_classes() * self.N_PENUMBRA) if self.N_PENUMBRA > 0 else 0,
+                    get_labels()[3]: self.N_TOT / (get_n_classes() * self.N_CORE) if self.N_CORE > 0 else 0,
                 })
-        elif getN_CLASSES()==3:
+        elif get_n_classes() ==3:
             # and the (M,N) == image dimension
-            if getM()== getIMAGE_WIDTH() and getN()== getIMAGE_HEIGHT():
+            if get_m() == get_img_width() and get_n() == get_img_weight():
                 if self.use_sequence:  # set everything == 1
                     sample_weights = self.train_df.assign(ground_truth=1)
                     sample_weights = sample_weights.ground_truth
@@ -516,20 +526,20 @@ class NeuralNetwork(object):
                     f = lambda x: np.sum(np.where(np.array(x)==150,150,np.where(np.array(x)==76,20,0.1)))
 
                     sample_weights = self.train_df.ground_truth.map(f)
-                    sample_weights = sample_weights/(getM() * getN())
+                    sample_weights = sample_weights/(get_m() * get_n())
             else:
                 # see: "ISBI 2019 C-NMC Challenge: Classification in Cancer Cell Imaging" section 4.1 pag 68
                 sample_weights = self.train_df.label.map({
-                    getLABELS()[0]: self.N_TOT / (getN_CLASSES() * (self.N_BACKGROUND + self.N_BRAIN)) if self.N_BACKGROUND + self.N_BRAIN > 0 else 0,
-                    getLABELS()[1]: self.N_TOT / (getN_CLASSES() * self.N_PENUMBRA) if self.N_PENUMBRA > 0 else 0,
-                    getLABELS()[2]: self.N_TOT / (getN_CLASSES() * self.N_CORE) if self.N_CORE > 0 else 0,
+                    get_labels()[0]: self.N_TOT / (get_n_classes() * (self.N_BACKGROUND + self.N_BRAIN)) if self.N_BACKGROUND + self.N_BRAIN > 0 else 0,
+                    get_labels()[1]: self.N_TOT / (get_n_classes() * self.N_PENUMBRA) if self.N_PENUMBRA > 0 else 0,
+                    get_labels()[2]: self.N_TOT / (get_n_classes() * self.N_CORE) if self.N_CORE > 0 else 0,
                 })
-        elif getN_CLASSES()==2:  # we are in a binary class problem
+        elif get_n_classes() ==2:  # we are in a binary class problem
             # f = lambda x : np.sum(np.array(x))
             # sample_weights = self.train_df.ground_truth.map(f)
             sample_weights = self.train_df.label.map({
-                getLABELS()[0]: self.N_TOT / (getN_CLASSES() * self.N_BACKGROUND) if self.N_BACKGROUND > 0 else 0,
-                getLABELS()[1]: self.N_TOT / (getN_CLASSES() * self.N_CORE) if self.N_CORE > 0 else 0,
+                get_labels()[0]: self.N_TOT / (get_n_classes() * self.N_BACKGROUND) if self.N_BACKGROUND > 0 else 0,
+                get_labels()[1]: self.N_TOT / (get_n_classes() * self.N_CORE) if self.N_CORE > 0 else 0,
             })
 
         return np.array(sample_weights.values[self.dataset[flagDataset]["indices"]])
@@ -555,19 +565,19 @@ class NeuralNetwork(object):
         # serialize weights to HDF5
         self.model.save_weights(saved_weightname)
 
-        if getVerbose():
-            general_utils.printSeparation("-", 50)
+        if is_verbose():
+            general_utils.print_sep("-", 50)
             print("[INFO - Saving] - Saved model and weights to disk!")
 
     ################################################################################
     # Call the function located in testing for predicting and saved the images
     def predictAndSaveImages(self, listPatients, isAlreadySaved):
         stats = {}
-        if getVerbose: print("[INFO] - List of patients to predict: {}".format(listPatients))
+        if is_verbose: print("[INFO] - List of patients to predict: {}".format(listPatients))
         for p_id in listPatients:
             # evaluate the model with the testing patient
             if self.supervised: self.evaluateModelWithCategorics(p_id, isAlreadySaved)
-            general_utils.printSeparation("+", 50)
+            general_utils.print_sep("+", 50)
             print("[INFO] - Executing function: predictAndSaveImages for patient {}".format(p_id))
             testing.predictAndSaveImages(self, p_id)
 
@@ -576,8 +586,8 @@ class NeuralNetwork(object):
     ################################################################################
     # Test the model with the selected patient (if the number of patient to test is > 0)
     def evaluateModelWithCategorics(self, p_id, isAlreadySaved):
-        if getVerbose():
-            general_utils.printSeparation("+", 50)
+        if is_verbose():
+            general_utils.print_sep("+", 50)
             print("[INFO] - Evaluating the model for patient {}".format(p_id))
 
         self.testing_score.append(testing.evaluateModel(self, p_id, isAlreadySaved))
@@ -593,7 +603,7 @@ class NeuralNetwork(object):
     def getSavedInformation(self, path, other_info="", suffix=""):
         # mJ-Net_DA_ADAM_4_16x16.json <-- example weights name
         # mJ-Net_DA_ADAM_4_16x16.h5 <-- example model name
-        path = general_utils.getFullDirectoryPath(path)+self.getNNID()+other_info+general_utils.getSuffix()
+        path = general_utils.getFullDirectoryPath(path) + self.getNNID() + other_info + general_utils.get_suffix()
         return path+suffix
 
     ################################################################################
@@ -620,7 +630,7 @@ class NeuralNetwork(object):
             ret_id += ("_VAL" + str(self.val["validation_perc"]))
             if self.val["random_validation_selection"]: ret_id += "_RANDOM"
 
-            if getTO_CATEG(): ret_id += "_SOFTMAX"  # differentiate between softmax and sigmoid last activation layer
+            if is_TO_CATEG(): ret_id += "_SOFTMAX"  # differentiate between softmax and sigmoid last activation layer
 
             # if there is cross validation, add the SPLIT ID to differentiate the models
             if self.cross_validation["use"]: ret_id += ("_" + self.model_split)

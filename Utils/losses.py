@@ -32,7 +32,7 @@ def tversky_loss(y_true, y_pred):
 # Focal Tversky loss: a generalisation of the tversky loss.
 # From this paper: https://arxiv.org/abs/1810.07842
 def focal_tversky_loss(y_true, y_pred):
-    gamma = getFocal_Tversky()["gamma"]
+    gamma = get_Focal_Tversky()["gamma"]
     tv = metrics.tversky_coef(y_true, y_pred)
     return K.pow((1 - tv), (1/gamma))
 

@@ -4,7 +4,7 @@ import os
 global M,N,SLICING_PIXELS,verbose,USE_PM,DEBUG,ORIGINAL_SHAPE,TIME_LAST,isISLES,root_path,IMAGE_WIDTH,IMAGE_HEIGH,\
     NUMBER_OF_IMAGE_PER_SECTION,N_CLASSES,LABELS,PIXELVALUES,HOT_ONE_WEIGHTS,TO_CATEG,ALPHA,GAMMA,focal_tversky_loss,\
     PREFIX_IMAGES,DATASET_PREFIX,SUFFIX_IMG,colorbar_coord,suffix_partial_weights,threeD_flag,ONE_TIME_POINT,list_PMS,\
-    dataFrameColumns,limitedColumns,ENABLE_WATCHDOG,PID_WATCHDOG_PICKLE_PATH,PID_WATCHDOG_FINISHED_PICKLE_PATH
+    DF_columns,limited_columns,ENABLE_WATCHDOG,PID_WATCHDOG_PICKLE_PATH,PID_WATCHDOG_FINISHED_PICKLE_PATH
 
 
 DATASET_PREFIX = "patient"
@@ -22,39 +22,39 @@ PID_WATCHDOG_FINISHED_PICKLE_PATH = os.getcwd()+'/PID_finished_list_{}.obj'.form
 ################################################################################
 # GET & SET FUNCTIONS
 ################################################################################
-def getVerbose():
+def is_verbose():
     return verbose
 
 
-def setVerbose(v):
+def set_verbose(v):
     global verbose
     verbose = v
 
 
 ################################################################################
-def getDEBUG():
+def is_debug():
     return DEBUG
 
 
-def setDEBUG(d):
+def set_debug(d):
     global DEBUG
     DEBUG = d
     
 
 ################################################################################
-def getM():
+def get_m():
     return M
 
 
-def getN():
+def get_n():
     return N
 
 
-def getSLICING_PIXELS():
+def get_slice_pixels():
     return SLICING_PIXELS
 
 
-def setTileDimension(t):
+def set_tile_dim(t):
     global M, N, SLICING_PIXELS
     if t is not None:
         M = int(t)
@@ -67,57 +67,57 @@ def setTileDimension(t):
 
 
 ################################################################################
-def getIMAGE_WIDTH():
+def get_img_width():
     return IMAGE_WIDTH
 
 
-def getIMAGE_HEIGHT():
+def get_img_weight():
     return IMAGE_HEIGHT
     
     
-def setImageDimension(d):
+def set_img_dim(d):
     global IMAGE_WIDTH, IMAGE_HEIGHT
     if d is not None: IMAGE_WIDTH, IMAGE_HEIGHT = int(d), int(d)
     else: IMAGE_WIDTH, IMAGE_HEIGHT = 512, 512
 
 
 ################################################################################
-def get3DFlag():
+def is_3D():
     return threeD_flag
 
 
-def set3DFlag(flag):
+def set_3D_flag(flag):
     global threeD_flag
     threeD_flag = ""
     if flag: threeD_flag = "_3D"
 
 
 ################################################################################
-def getONETIMEPOINT():
+def get_onetimepoint():
     return ONE_TIME_POINT
 
 
-def setONETIMEPOINT(timepoint):
+def set_onetimepoint(timepoint):
     global ONE_TIME_POINT
     ONE_TIME_POINT = "_" + timepoint
 
 
 ################################################################################
-def getRootPath():
+def get_rootpath():
     return root_path
 
 
-def setRootPath(path):
+def set_rootpath(path):
     global root_path
     root_path = path
 
 
 ################################################################################
-def getPrefixImages():
+def get_prefix_img():
     return PREFIX_IMAGES
 
 
-def setPrefix(prefix):
+def set_prefix(prefix):
     global PREFIX_IMAGES
     PREFIX_IMAGES = prefix if prefix is not None else "PA"
 
@@ -127,81 +127,81 @@ def getUSE_PM():
     return USE_PM
 
 
-def getList_PMS():
+def get_list_PMS():
     return list_PMS
 
 
 def setUSE_PM(pm):
     global USE_PM, list_PMS
     USE_PM = pm
-    if USE_PM and getIsISLES2018(): list_PMS = ["CBF", "CBV", "MTT", "TMAX"]
+    if USE_PM and is_ISLES2018(): list_PMS = ["CBF", "CBV", "MTT", "TMAX"]
     else: list_PMS = ["CBF", "CBV", "TTP", "TMAX", "MIP"]
 
 
 ################################################################################
-def getIsISLES2018():
+def is_ISLES2018():
     return isISLES
 
 
-def setISLES2018(isles):
+def set_ISLES2018(isles):
     global isISLES
     isISLES = isles
     if isISLES:
-        setImageDimension(256)
-        setLimitedColumns(True)
+        set_img_dim(256)
+        set_limited_columns(True)
 
 
 ################################################################################
-def hasLimitedColumns():
-    return limitedColumns
+def has_limited_columns():
+    return limited_columns
 
 
-def getDataFrameColumns():
-    return dataFrameColumns
+def get_DF_columns():
+    return DF_columns
 
 
-def setLimitedColumns(limcols):
-    global dataFrameColumns, limitedColumns
+def set_limited_columns(limcols):
+    global DF_columns, limited_columns
     if limcols:
-        limitedColumns = True
-        dataFrameColumns = ["patient_id", "label", "pixels", "CBF", "CBV", "MTT", "TMAX", "ground_truth", "label_code",
+        limited_columns = True
+        DF_columns = ["patient_id", "label", "pixels", "CBF", "CBV", "MTT", "TMAX", "ground_truth", "label_code",
                             "x_y", "data_aug_idx", "timeIndex", "sliceIndex"]
     else:
-        limitedColumns = False
-        dataFrameColumns = ['patient_id', 'label', 'pixels', 'CBF', 'CBV', 'TTP', 'TMAX', "MIP", "NIHSS", 'ground_truth',
+        limited_columns = False
+        DF_columns = ['patient_id', 'label', 'pixels', 'CBF', 'CBV', 'TTP', 'TMAX', "MIP", "NIHSS", 'ground_truth',
                             'x_y', 'data_aug_idx','timeIndex', 'sliceIndex', 'severity', "age", "gender", 'label_code']
 
 
 ################################################################################
-def getTIMELAST():
+def is_timelast():
     return TIME_LAST
 
 
-def setTimeLast(timelast):
+def set_timelast(timelast):
     global TIME_LAST
     TIME_LAST = timelast
 
 
 ################################################################################
-def getTO_CATEG():
+def is_TO_CATEG():
     return TO_CATEG
 
 
-def setTO_CATEG(flag):
+def set_TO_CATEG(flag):
     global TO_CATEG
     TO_CATEG = flag
 
 
 ################################################################################
-def getORIGINAL_SHAPE():
+def is_orig_shape():
     return ORIGINAL_SHAPE
 
 
-def getPIXELVALUES():
+def get_pixel_values():
     return PIXELVALUES
 
 
-def setOriginalShape(o):
+def set_orig_shape(o):
     global ORIGINAL_SHAPE, PIXELVALUES
     ORIGINAL_SHAPE = o
     PIXELVALUES = [255, 1, 76, 150] if ORIGINAL_SHAPE else [0, 85, 170, 255]
@@ -218,15 +218,15 @@ def setImagePerSection(num):
 
 
 ################################################################################
-def getN_CLASSES():
+def get_n_classes():
     return N_CLASSES
 
 
-def getLABELS():
+def get_labels():
     return LABELS
 
 
-def setNumberOfClasses(c):
+def set_classes(c):
     global N_CLASSES, LABELS, PIXELVALUES, HOT_ONE_WEIGHTS, GAMMA, ALPHA
     N_CLASSES = c
 
@@ -252,11 +252,11 @@ def setNumberOfClasses(c):
 
 
 ################################################################################
-def getFocal_Tversky():
+def get_Focal_Tversky():
     return focal_tversky_loss
 
 
-def setFocal_Tversky(hyperparameters):
+def set_Focal_Tversky(hyperparameters):
     global focal_tversky_loss
 
     focal_tversky_loss = {
@@ -268,11 +268,11 @@ def setFocal_Tversky(hyperparameters):
 
 
 ################################################################################
-def getWeights():
+def get_weights():
     return HOT_ONE_WEIGHTS
 
 
-def setWeights(weights):
+def set_weights(weights):
     global HOT_ONE_WEIGHTS
     if weights is not None: HOT_ONE_WEIGHTS = [weights]
 

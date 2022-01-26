@@ -16,7 +16,8 @@ def ResUNet(params):
     kernel_init = "glorot_uniform" if "kernel_init" not in params.keys() else model_utils.getKernelInit(params["kernel_init"])
     kernel_constraint = None if "kernel_constraint" not in params.keys() else model_utils.getKernelBiasConstraint(params["kernel_constraint"])
     bias_constraint = None if "bias_constraint" not in params.keys() else model_utils.getKernelBiasConstraint(params["bias_constraint"])
-    input_shape = (getM(), getN(), getNUMBER_OF_IMAGE_PER_SECTION(), 1) if getTIMELAST() else (getNUMBER_OF_IMAGE_PER_SECTION(), getM(), getN(), 1)
+    input_shape = (get_m(), get_n(), getNUMBER_OF_IMAGE_PER_SECTION(), 1) if is_timelast() else (getNUMBER_OF_IMAGE_PER_SECTION(),
+                                                                                                 get_m(), get_n(), 1)
 
     input_x = layers.Input(shape=input_shape, sparse=False)
     conv_1 = Conv3D(channels[0], kernel_size=(3,3,3),kernel_regularizer=l1_l2_reg,padding="same",kernel_initializer=kernel_init,
@@ -32,15 +33,15 @@ def ResUNet(params):
     squeeze_exc_1 = model_utils.squeeze_excite_block(add_1)
     general_utils.print_int_shape(squeeze_exc_1)
 
-    stride = (2,2,params["strides"]["1"]) if getTIMELAST() else (params["strides"]["1"],2,2)
+    stride = (2,2,params["strides"]["1"]) if is_timelast() else (params["strides"]["1"], 2, 2)
     resblock_1 = model_utils.resNetBlock(squeeze_exc_1, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint,
                                          filter=channels[1], strides=stride)
     general_utils.print_int_shape(resblock_1)
-    stride = (2,2,params["strides"]["2"]) if getTIMELAST() else (params["strides"]["2"],2,2)
+    stride = (2,2,params["strides"]["2"]) if is_timelast() else (params["strides"]["2"], 2, 2)
     resblock_2 = model_utils.resNetBlock(resblock_1, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint,
                                          filter=channels[2], strides=stride)
     general_utils.print_int_shape(resblock_2)
-    stride = (2,2,params["strides"]["3"]) if getTIMELAST() else (params["strides"]["3"],2,2)
+    stride = (2,2,params["strides"]["3"]) if is_timelast() else (params["strides"]["3"], 2, 2)
     resblock_3 = model_utils.resNetBlock(resblock_2, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint,
                                          filter=channels[3], strides=stride)
     general_utils.print_int_shape(resblock_3)
@@ -73,19 +74,19 @@ def ResUNet(params):
     general_utils.print_int_shape(assp_block)
     act_name = "sigmoid"
     n_chann = 1
-    shape_output = (getM(), getN())
+    shape_output = (get_m(), get_n())
 
     # set the softmax activation function if the flag is set
-    if getTO_CATEG():
+    if is_TO_CATEG():
         act_name = "softmax"
-        n_chann = len(getLABELS())
-        shape_output = (getM(), getN(), n_chann)
+        n_chann = len(get_labels())
+        shape_output = (get_m(), get_n(), n_chann)
 
-    stride = (1, 1, params["strides"]["1"]) if getTIMELAST() else (params["strides"]["1"], 1, 1)
+    stride = (1, 1, params["strides"]["1"]) if is_timelast() else (params["strides"]["1"], 1, 1)
     last_conv = layers.Conv3D(channels[0], kernel_size=(3,3,3), activation="relu", padding='same', kernel_initializer=kernel_init, strides=stride, kernel_constraint=kernel_constraint, bias_constraint=bias_constraint)(assp_block)
-    stride = (1, 1, params["strides"]["2"]) if getTIMELAST() else (params["strides"]["2"], 1, 1)
+    stride = (1, 1, params["strides"]["2"]) if is_timelast() else (params["strides"]["2"], 1, 1)
     last_conv = layers.Conv3D(channels[0]*2, kernel_size=(3,3,3), activation="relu", padding='same', kernel_initializer=kernel_init, strides=stride, kernel_constraint=kernel_constraint, bias_constraint=bias_constraint)(last_conv)
-    stride = (1, 1, params["strides"]["3"]) if getTIMELAST() else (params["strides"]["3"], 1, 1)
+    stride = (1, 1, params["strides"]["3"]) if is_timelast() else (params["strides"]["3"], 1, 1)
     last_conv = layers.Conv3D(channels[0]*4, kernel_size=(3,3,3), activation="relu", padding='same', kernel_initializer=kernel_init, strides=stride, kernel_constraint=kernel_constraint, bias_constraint=bias_constraint)(last_conv)
 
     output = Conv3D(n_chann,kernel_size=(1,1,1),kernel_regularizer=l1_l2_reg,padding="same",kernel_initializer=kernel_init,

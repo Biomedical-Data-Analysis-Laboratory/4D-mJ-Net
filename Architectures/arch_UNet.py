@@ -10,7 +10,7 @@ def Ronneberger_UNET(params):
     # Hu initializer = [0, sqrt(2/fan_in)]
     hu_init = initializers.he_normal(seed=None)
 
-    input_x = layers.Input(shape=(getM(), getN(), getNUMBER_OF_IMAGE_PER_SECTION(), 1), sparse=False)
+    input_x = layers.Input(shape=(get_m(), get_n(), getNUMBER_OF_IMAGE_PER_SECTION(), 1), sparse=False)
     print(K.int_shape(input_x)) # (None, 30, 16, 16, 1)
     conv_1 = layers.Conv3D(64, kernel_size=(getNUMBER_OF_IMAGE_PER_SECTION(), 3, 3), activation='relu', padding='same', kernel_initializer=hu_init)(input_x)
     print(K.int_shape(conv_1)) # (None, 30, 16, 16, 64)
@@ -98,7 +98,7 @@ def Ronneberger_UNET(params):
     conv_20 = layers.Conv3D(4, (1,1,1), activation="softmax", padding='same', kernel_initializer=hu_init)(conv_19)
     print(K.int_shape(conv_20)) # (None, 1, 16, 16, 4)
 
-    y = layers.Reshape((getM(), getN(), 4))(conv_20)
+    y = layers.Reshape((get_m(), get_n(), 4))(conv_20)
     print(K.int_shape(y))
     model = models.Model(inputs=input_x, outputs=y)
     return model

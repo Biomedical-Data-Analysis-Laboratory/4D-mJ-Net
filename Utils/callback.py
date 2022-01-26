@@ -95,7 +95,7 @@ def modelCheckpoint(filename, monitor, mode, period):
     return callbacks.ModelCheckpoint(
         filename + suffix_partial_weights + "{epoch:02d}.h5",
             monitor=monitor,
-            verbose=getVerbose(),
+            verbose=is_verbose(),
             save_best_only=True,
             mode=mode,
             period=period
@@ -110,7 +110,7 @@ def earlyStopping(monitor, min_delta, patience):
             monitor=monitor,
             min_delta=min_delta,
             patience=patience,
-            verbose=getVerbose(),
+            verbose=is_verbose(),
             mode="auto"
     )
 
@@ -122,7 +122,7 @@ def reduceLROnPlateau(monitor, factor, patience, min_delta, cooldown, min_lr):
             monitor=monitor,
             factor=factor,
             patience=patience,
-            verbose=getVerbose(),
+            verbose=is_verbose(),
             mode='auto',
             min_delta=min_delta,
             cooldown=cooldown,
@@ -136,7 +136,7 @@ def LearningRateScheduler(decay_step, decay_rate):
     def lr_scheduler(epoch, lr):
         if epoch % decay_step == 0 and epoch: return lr * decay_rate
         return lr
-    return callbacks.LearningRateScheduler(lr_scheduler, verbose=getVerbose())
+    return callbacks.LearningRateScheduler(lr_scheduler, verbose=is_verbose())
 
 
 ################################################################################
@@ -159,7 +159,7 @@ def TerminateOnNaN():
 ################################################################################
 # Callback that streams epoch results to a CSV file.
 def CSVLogger(textFolderPath, nn_id, filename, separator):
-    return callbacks.CSVLogger(textFolderPath+nn_id+general_utils.getSuffix()+filename, separator=separator, append=True)
+    return callbacks.CSVLogger(textFolderPath + nn_id + general_utils.get_suffix() + filename, separator=separator, append=True)
 
 
 ################################################################################
@@ -172,7 +172,7 @@ class SavePrediction(callbacks.Callback):
         self.n_pxl = 0
 
     def _pred_callback(self, preds):
-        batch = K.eval((K.argmax(preds)*255)/(getN_CLASSES()-1))
+        batch = K.eval((K.argmax(preds)*255) / (get_n_classes() - 1))
         for val_idx in range(batch.shape[0]):
             vals = dict(zip(*np.unique(batch[val_idx, :, :], return_counts=True)))
             for key in vals.keys():
@@ -198,7 +198,7 @@ class SavePrediction(callbacks.Callback):
         if self._get_pred in self.model.test_function.fetches: self.model.test_function.fetches.remove(self._get_pred)
         if self._get_pred in self.model.test_function.fetch_callbacks: self.model.test_function.fetch_callbacks.pop(self._get_pred)
 
-        print("\n {0} - {1}".format(self.preds, self.n_pxl/(getIMAGE_HEIGHT()*getIMAGE_WIDTH())))
+        print("\n {0} - {1}".format(self.preds, self.n_pxl / (get_img_weight() * get_img_width())))
         self.preds = dict()
         self.n_pxl = 0
 

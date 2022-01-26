@@ -69,11 +69,11 @@ def PMs_segmentation(params, multiInput, batch=True):
                                  kernel_constraint=kernel_constraint, bias_constraint=bias_constraint)(final_conv_1)
     if batch: final_conv_2 = layers.BatchNormalization()(final_conv_2)
 
-    act_name, n_chann, shape_output = "sigmoid", 1, (getM(), getN())
+    act_name, n_chann, shape_output = "sigmoid", 1, (get_m(), get_n())
 
     # set the softmax activation function if the flag is set
-    if getTO_CATEG():
-        act_name, n_chann, shape_output = "softmax", len(getLABELS()), (getM(),getN(),len(getLABELS()))
+    if is_TO_CATEG():
+        act_name, n_chann, shape_output = "softmax", len(get_labels()), (get_m(), get_n(), len(get_labels()))
 
     final_conv_3 = layers.Conv2D(n_chann, kernel_size=(1, 1), activation=act_name, padding='same',
                                  kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init,

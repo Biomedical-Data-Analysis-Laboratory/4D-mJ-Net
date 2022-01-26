@@ -20,7 +20,7 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 
 ################################################################################
 # get the arguments from the command line
-def getCommandLineArguments():
+def get_commandline_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("-v", "--verbose", help="Increase output verbosity", action="store_true")
     parser.add_argument("--isles2018", help="Flag to use the ISLES2018 dataset", action="store_true")
@@ -40,31 +40,31 @@ def getCommandLineArguments():
     parser.add_argument("sname", help="Select the setting filename")
     args = parser.parse_args()
 
-    setVerbose(args.verbose)
-    setDEBUG(args.debug)
-    setOriginalShape(args.original)
-    setISLES2018(args.isles2018)
+    set_verbose(args.verbose)
+    set_debug(args.debug)
+    set_orig_shape(args.original)
+    set_ISLES2018(args.isles2018)
     setUSE_PM(args.pm)
-    setTileDimension(args.tile)
-    setImageDimension(args.dimension)
-    setNumberOfClasses(args.classes)
-    setWeights(args.weights)
-    setTimeLast(args.timelast)
-    setPrefix(args.prefix)
-    setLimitedColumns(args.limcols)
+    set_tile_dim(args.tile)
+    set_img_dim(args.dimension)
+    set_classes(args.classes)
+    set_weights(args.weights)
+    set_timelast(args.timelast)
+    set_prefix(args.prefix)
+    set_limited_columns(args.limcols)
 
     return args
 
 
 ################################################################################
 # get the setting file
-def getSettingFile(filename):
+def get_setting_file(filename):
     # the path of the setting file start from the main.py
     # (= current working directory)
     with open(os.path.join(os.getcwd(), filename)) as f: setting = json.load(f)
 
-    if getVerbose():
-        printSeparation("-",50)
+    if is_verbose():
+        print_sep("-", 50)
         print("Load setting file: {}".format(filename))
 
     return setting
@@ -72,27 +72,29 @@ def getSettingFile(filename):
 
 ################################################################################
 # setup the global environment
-def setupEnvironment(args, setting):
+def setup_env(args, setting):
     # important: set up the root path for later uses
-    setRootPath(setting["root_path"])
+    set_rootpath(setting["root_path"])
 
     if "NUMBER_OF_IMAGE_PER_SECTION" in setting["init"].keys(): setImagePerSection(setting["init"]["NUMBER_OF_IMAGE_PER_SECTION"])
     else: setImagePerSection(30)
-    set3DFlag(True) if "3D" in setting["init"].keys() and setting["init"]["3D"] else set3DFlag(False)
-    if "ONE_TIME_POINT" in setting["init"].keys() and setting["init"]["ONE_TIME_POINT"]: setONETIMEPOINT(getStringFromIndex(setting["init"]["ONE_TIME_POINT"]))
+    set_3D_flag(True) if "3D" in setting["init"].keys() and setting["init"]["3D"] else set_3D_flag(False)
+    if "ONE_TIME_POINT" in setting["init"].keys() and setting["init"]["ONE_TIME_POINT"]: set_onetimepoint(
+        get_str_from_idx(
+            setting["init"]["ONE_TIME_POINT"]))
 
-    experimentFolder = "EXP"+convertExperimentNumberToString(setting["EXPERIMENT"])+os.path.sep
+    experimentFolder = "EXP" + convert_expnum_to_str(setting["EXPERIMENT"]) + os.path.sep
     N_GPU = setupEnvironmentForGPUs(args, setting)
 
     for key, rel_path in setting["relative_paths"].items():
         if isinstance(rel_path, dict):
             prefix = key.upper()+os.path.sep
-            createDir(prefix)
-            createDir(prefix+experimentFolder)
+            create_dir(prefix)
+            create_dir(prefix + experimentFolder)
             for sub_path in setting["relative_paths"][key].values():
-                createDir(prefix+experimentFolder+sub_path)
+                create_dir(prefix + experimentFolder + sub_path)
         else:
-            if rel_path!="": createDir(rel_path)
+            if rel_path!="": create_dir(rel_path)
 
     return N_GPU
 
@@ -116,8 +118,8 @@ def setupEnvironmentForGPUs(args, setting):
     tf.compat.v1.disable_eager_execution()
     # session = tf.compat.v1.Session(config=config)
 
-    if getVerbose():
-        printSeparation("-",50)
+    if is_verbose():
+        print_sep("-", 50)
         print("Use {0} GPU(s): {1}".format(N_GPU, GPU))
 
     return N_GPU
@@ -140,7 +142,7 @@ def getSlicingWindow(img, startX, startY, constants, isgt=False, removeColorBar=
                 sliceWindow>=np.rint(pxval-(256/6)), sliceWindow<=np.rint(pxval+(256/6))
             ), pxval, sliceWindow)
     # Remove the colorbar! starting coordinate: (129,435)
-    if removeColorBar and not getIsISLES2018():
+    if removeColorBar and not is_ISLES2018():
         if M==constants["IMAGE_WIDTH"] and N==constants["IMAGE_HEIGHT"]: sliceWindow[:,colorbar_coord[1]:] = 0
         # if the tile is smaller than the entire image
         elif startY+N>=colorbar_coord[1]: sliceWindow[:,colorbar_coord[1]-startY:] = 0
@@ -152,7 +154,7 @@ def getSlicingWindow(img, startX, startY, constants, isgt=False, removeColorBar=
 
 ################################################################################
 # Perform a data augmentation based on the index and return the image
-def performDataAugmentationOnTheImage(img, data_aug_idx):
+def perform_DA_on_img(img, data_aug_idx):
     if data_aug_idx == 1: img = np.rot90(img)  # rotate 90 degree counterclockwise
     elif data_aug_idx == 2: img = np.rot90(img, 2)  # rotate 180 degree counterclockwise
     elif data_aug_idx == 3: img = np.rot90(img, 3)  # rotate 270 degree counterclockwise
@@ -170,10 +172,10 @@ def getEpochFromPartialWeightFilename(partialWeightsPath):
 
 ################################################################################
 # Get the loss defined in the settings
-def getLoss(modelInfo):
+def get_loss(modelInfo):
     name = modelInfo["loss"]
     hyperparameters = modelInfo[name] if name in modelInfo.keys() else {}
-    if name=="focal_tversky_loss": setFocal_Tversky(hyperparameters)
+    if name=="focal_tversky_loss": set_Focal_Tversky(hyperparameters)
 
     general_losses = {
         "binary_crossentropy": tf.keras.losses.BinaryCrossentropy(from_logits=True),
@@ -187,7 +189,7 @@ def getLoss(modelInfo):
     else: loss["loss"] = getattr(losses, name)
     loss["name"] = name
 
-    if getVerbose(): print("[INFO] - Use {} Loss".format(name))
+    if is_verbose(): print("[INFO] - Use {} Loss".format(name))
     return loss
 
 
@@ -205,7 +207,7 @@ def getMetricFunctions(listStats):
     statisticFuncs = []
     for m in listStats: statisticFuncs.append(m) if m in general_metrics else statisticFuncs.append(getattr(metrics, m))
 
-    if getVerbose(): print("[INFO] - Getting {} functions".format(listStats))
+    if is_verbose(): print("[INFO] - Getting {} functions".format(listStats))
     if len(statisticFuncs)==0: statisticFuncs = None
 
     return statisticFuncs
@@ -231,8 +233,8 @@ def getClassWeights(classtype):
     two_cat = [[1,0]] if classtype == "rest" else [[0, 1]]
 
     class_weights = tf.constant(four_cat, dtype=tf.float32)
-    if getN_CLASSES() == 3: class_weights = tf.constant(three_cat, dtype=tf.float32)
-    elif getN_CLASSES() == 2: class_weights = tf.constant(two_cat, dtype=tf.float32)
+    if get_n_classes() == 3: class_weights = tf.constant(three_cat, dtype=tf.float32)
+    elif get_n_classes() == 2: class_weights = tf.constant(two_cat, dtype=tf.float32)
     return class_weights
 
 
@@ -248,7 +250,7 @@ def getClassWeights(classtype):
 
 ################################################################################
 # get the string of the patient id given the integer
-def getStringFromIndex(index):
+def get_str_from_idx(index):
     p_id = str(index)
     if len(p_id)==1: p_id = "0"+p_id
     return p_id
@@ -256,33 +258,33 @@ def getStringFromIndex(index):
 
 ################################################################################
 # return the suffix for the model and the patient dataset
-def getSuffix():
-    return "_" + str(getSLICING_PIXELS()) + "_" + str(getM()) + "x" + str(getN()) + get3DFlag() + getONETIMEPOINT()
+def get_suffix():
+    return "_" + str(get_slice_pixels()) + "_" + str(get_m()) + "x" + str(get_n()) + is_3D() + get_onetimepoint()
 
 
 ################################################################################
 # get the full directory path, given a relative path
 def getFullDirectoryPath(path):
-    return getRootPath() + path
+    return get_rootpath() + path
 
 
 ################################################################################
 # Generate a directory in dir_path
-def createDir(dir_path):
+def create_dir(dir_path):
     if not os.path.isdir(dir_path):
-        if getVerbose(): print("[INFO] - Creating folder: " + dir_path)
+        if is_verbose(): print("[INFO] - Creating folder: " + dir_path)
         os.makedirs(dir_path)
 
 
 ################################################################################
 # print a separation for verbose purpose
-def printSeparation(what, howmuch):
+def print_sep(what, howmuch):
     print(what*howmuch)
 
 
 ################################################################################
 # Convert the experiment number to a string of 3 letters
-def convertExperimentNumberToString(expnum):
+def convert_expnum_to_str(expnum):
     exp = str(expnum)
     while len(exp.split(".")[0])<3: exp = "0"+exp
     return exp
@@ -291,7 +293,7 @@ def convertExperimentNumberToString(expnum):
 ################################################################################
 # Print the shape of the layer if we are in debug mode
 def print_int_shape(layer):
-    if getVerbose(): print(K.int_shape(layer))
+    if is_verbose(): print(K.int_shape(layer))
 
 
 ################################################################################

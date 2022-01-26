@@ -22,50 +22,50 @@ def main():
     general_utils.addPIDToWatchdog()
 
     # Get the command line arguments
-    args = general_utils.getCommandLineArguments()
+    args = general_utils.get_commandline_args()
 
     # Read the settings from json file
-    setting = general_utils.getSettingFile(args.sname)
+    setting = general_utils.get_setting_file(args.sname)
     if args.exp: setting["EXPERIMENT"] = args.exp
 
     # set up the environment for GPUs
-    n_gpu = general_utils.setupEnvironment(args, setting)
+    n_gpu = general_utils.setup_env(args, setting)
 
     # initialize model(s)
     for info in setting["models"]: networks.append(NeuralNetwork(info, setting))
 
     for nn in networks:
-        listOfPatientsToTrainVal = setting["PATIENTS_TO_TRAINVAL"]
-        listOfPatientsToTest = list() if "PATIENTS_TO_TEST" not in setting.keys() else setting["PATIENTS_TO_TEST"]
-        listOfPatientsToExclude = list() if "PATIENTS_TO_EXCLUDE" not in setting.keys() else setting["PATIENTS_TO_EXCLUDE"]
+        patientlist_train_val = setting["PATIENTS_TO_TRAINVAL"]
+        patientlist_test = list() if "PATIENTS_TO_TEST" not in setting.keys() else setting["PATIENTS_TO_TEST"]
+        patientlist_exclude = list() if "PATIENTS_TO_EXCLUDE" not in setting.keys() else setting["PATIENTS_TO_EXCLUDE"]
 
         # flag that states: run the train on all the patients in the "patient" folder
-        if "ALL" == listOfPatientsToTrainVal[0]:
+        if "ALL" == patientlist_train_val[0]:
             # check if we want to get the dataset JUST based on the severity
-            severity = listOfPatientsToTrainVal[0].split("_")[1] + "_" if "_" in listOfPatientsToTrainVal[0] else ""
+            severity = patientlist_train_val[0].split("_")[1] + "_" if "_" in patientlist_train_val[0] else ""
             # different for SUS2020_v2 dataset since the dataset is not complete and the prefix is different
             if "SUS2020" in nn.datasetFolder:
-                listOfPatientsToTrainVal = [d[len(getPrefixImages()):] for d in
-                                            os.listdir(nn.patientsFolder) if
-                                            os.path.isdir(os.path.join(nn.patientsFolder, d)) and
-                                            severity in d]
+                patientlist_train_val = [d[len(get_prefix_img()):] for d in
+                                         os.listdir(nn.patientsFolder) if
+                                         os.path.isdir(os.path.join(nn.patientsFolder, d)) and
+                                         severity in d]
             else:
-                listOfPatientsToTrainVal = [int(d[len(getPrefixImages()):]) for d in
-                                            os.listdir(nn.patientsFolder) if
-                                            os.path.isdir(os.path.join(nn.patientsFolder, d)) and
-                                            severity in d]
+                patientlist_train_val = [int(d[len(get_prefix_img()):]) for d in
+                                         os.listdir(nn.patientsFolder) if
+                                         os.path.isdir(os.path.join(nn.patientsFolder, d)) and
+                                         severity in d]
 
         # if DEBUG mode: use only a fix number of patients in the list
-        if getDEBUG():
-            listOfPatientsToTrainVal = listOfPatientsToTrainVal[:20]
-            listOfPatientsToTest = listOfPatientsToTest[:3]
+        if is_debug():
+            patientlist_train_val = patientlist_train_val[:20]
+            patientlist_test = patientlist_test[:3]
             nn.setDebugDataset()
 
-        listOfPatientsToTrainVal.sort()  # sort the list
+        patientlist_train_val.sort()  # sort the list
 
         # remove the patients to exclude (if any)
-        listOfPatientsToTest = list(set(listOfPatientsToTest) - set(listOfPatientsToExclude))
-        listOfPatientsToTrainVal = list(set(listOfPatientsToTrainVal) - set(listOfPatientsToExclude))
+        patientlist_test = list(set(patientlist_test) - set(patientlist_exclude))
+        patientlist_train_val = list(set(patientlist_train_val) - set(patientlist_exclude))
 
         # loop over all the list of patients.
         # Useful for creating a model for each patient (if cross-validation is set)
@@ -77,7 +77,7 @@ def main():
 
         for split_id in range(starting_rep,n_rep+1):
             nn.resetVars()
-            model_split = general_utils.getStringFromIndex(split_id)
+            model_split = general_utils.get_str_from_idx(split_id)
             nn.setModelSplit(model_split)
 
             # set the multi/single PROCESSING
@@ -85,8 +85,8 @@ def main():
 
             # # GET THE DATASET:
             # - The dataset is composed of all the .pkl files in the dataset folder! (To load only once)
-            if train_df is None: train_df = dataset_utils.getDataset(nn, listOfPatientsToTrainVal)
-            val_list = nn.splitDataset(train_df, listOfPatientsToTrainVal, listOfPatientsToTest)
+            if train_df is None: train_df = dataset_utils.get_ds(nn, patientlist_train_val)
+            val_list = nn.split_ds(train_df, patientlist_train_val, patientlist_test)
 
             # Check if the model was already trained and saved
             if nn.isModelSaved():
@@ -96,10 +96,10 @@ def main():
             else: nn.initializeAndStartTraining(n_gpu, args.jump)
 
             # TRAIN SET: only for ISLES2018 dataset
-            if getIsISLES2018(): nn.predictAndSaveImages([general_utils.getStringFromIndex(x) for x in listOfPatientsToTrainVal if x <1000], nn.isModelSaved())
+            if is_ISLES2018(): nn.predictAndSaveImages([general_utils.get_str_from_idx(x) for x in patientlist_train_val if x < 1000], nn.isModelSaved())
             else: nn.predictAndSaveImages(val_list, nn.isModelSaved())  # VALIDATION SET: predict the images for decision on the model
             # PERFORM TESTING: predict and save the images
-            nn.predictAndSaveImages(listOfPatientsToTest, nn.isModelSaved())
+            nn.predictAndSaveImages(patientlist_test, nn.isModelSaved())
 
     general_utils.stopPIDToWatchdog()
 

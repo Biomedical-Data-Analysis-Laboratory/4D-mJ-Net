@@ -44,22 +44,22 @@ def main():
             # check if we want to get the dataset JUST based on the severity
             severity = patientlist_train_val[0].split("_")[1] + "_" if "_" in patientlist_train_val[0] else ""
             # different for SUS2020_v2 dataset since the dataset is not complete and the prefix is different
-            if "SUS2020" in nn.datasetFolder:
+            if "SUS2020" in nn.ds_folder:
                 patientlist_train_val = [d[len(get_prefix_img()):] for d in
-                                         os.listdir(nn.patientsFolder) if
-                                         os.path.isdir(os.path.join(nn.patientsFolder, d)) and
+                                         os.listdir(nn.patients_folder) if
+                                         os.path.isdir(os.path.join(nn.patients_folder, d)) and
                                          severity in d]
             else:
                 patientlist_train_val = [int(d[len(get_prefix_img()):]) for d in
-                                         os.listdir(nn.patientsFolder) if
-                                         os.path.isdir(os.path.join(nn.patientsFolder, d)) and
+                                         os.listdir(nn.patients_folder) if
+                                         os.path.isdir(os.path.join(nn.patients_folder, d)) and
                                          severity in d]
 
         # if DEBUG mode: use only a fix number of patients in the list
         if is_debug():
             patientlist_train_val = patientlist_train_val[:20]
             patientlist_test = patientlist_test[:3]
-            nn.setDebugDataset()
+            nn.set_debug_ds()
 
         patientlist_train_val.sort()  # sort the list
 
@@ -76,12 +76,12 @@ def main():
             starting_rep = nn.cross_validation["starting"] if "starting" in nn.cross_validation.keys() else 1
 
         for split_id in range(starting_rep,n_rep+1):
-            nn.resetVars()
+            nn.reset_vars()
             model_split = general_utils.get_str_from_idx(split_id)
-            nn.setModelSplit(model_split)
+            nn.set_model_split(model_split)
 
             # set the multi/single PROCESSING
-            nn.setProcessingEnv(setting["init"]["MULTIPROCESSING"])
+            nn.set_processing_env(setting["init"]["MULTIPROCESSING"])
 
             # # GET THE DATASET:
             # - The dataset is composed of all the .pkl files in the dataset folder! (To load only once)
@@ -89,17 +89,21 @@ def main():
             val_list = nn.split_ds(train_df, patientlist_train_val, patientlist_test)
 
             # Check if the model was already trained and saved
-            if nn.isModelSaved():
+            if nn.is_model_saved():
                 # SET THE CALLBACKS & LOAD MODEL
-                nn.setCallbacks()
-                nn.loadSavedModel()
-            else: nn.initializeAndStartTraining(n_gpu, args.jump)
+                nn.set_callbacks()
+                nn.load_saved_model()
+            else:
+                nn.init_and_start_training(n_gpu, args.jump)
 
             # TRAIN SET: only for ISLES2018 dataset
-            if is_ISLES2018(): nn.predictAndSaveImages([general_utils.get_str_from_idx(x) for x in patientlist_train_val if x < 1000], nn.isModelSaved())
-            else: nn.predictAndSaveImages(val_list, nn.isModelSaved())  # VALIDATION SET: predict the images for decision on the model
+            if is_ISLES2018():
+                nn.predict_and_save_img([general_utils.get_str_from_idx(x) for x in patientlist_train_val if x < 1000],
+                                        nn.is_model_saved())
+            else: nn.predict_and_save_img(val_list,
+                                          nn.is_model_saved())  # VALIDATION SET: predict the images for decision on the model
             # PERFORM TESTING: predict and save the images
-            nn.predictAndSaveImages(patientlist_test, nn.isModelSaved())
+            nn.predict_and_save_img(patientlist_test, nn.is_model_saved())
 
     general_utils.stopPIDToWatchdog()
 

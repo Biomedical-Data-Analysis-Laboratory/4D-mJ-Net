@@ -20,84 +20,84 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 class NeuralNetwork(object):
     """docstring for NeuralNetwork."""
 
-    def __init__(self, modelInfo, setting):
+    def __init__(self, model_info, setting):
         super(NeuralNetwork, self).__init__()
 
         # Used to override the path for the saved model in order to test patients with a specific model
         self.OVERRIDE_MODELS_ID_PATH = setting["OVERRIDE_MODELS_ID_PATH"] if setting["OVERRIDE_MODELS_ID_PATH"]!="" else False
         self.use_sequence = setting["USE_SEQUENCE_TRAIN"] if "USE_SEQUENCE_TRAIN" in setting.keys() else 0
 
-        self.name = modelInfo["name"]
-        self.epochs = modelInfo["epochs"]
-        self.batch_size = modelInfo["batch_size"] if "batch_size" in modelInfo.keys() else 32
+        self.name = model_info["name"]
+        self.epochs = model_info["epochs"]
+        self.batch_size = model_info["batch_size"] if "batch_size" in model_info.keys() else 32
 
         # use only for the fit_generator
-        self.steps_per_epoch_ratio = modelInfo["steps_per_epoch_ratio"] if "steps_per_epoch_ratio" in modelInfo.keys() else 1
-        self.validation_steps_ratio = modelInfo["validation_steps_ratio"] if "validation_steps_ratio" in modelInfo.keys() else 1
+        self.steps_per_epoch_ratio = model_info["steps_per_epoch_ratio"] if "steps_per_epoch_ratio" in model_info.keys() else 1
+        self.validation_steps_ratio = model_info["validation_steps_ratio"] if "validation_steps_ratio" in model_info.keys() else 1
 
         self.val = {
-            "validation_perc": modelInfo["val"]["validation_perc"],
-            "random_validation_selection": modelInfo["val"]["random_validation_selection"],
-            "number_patients_for_validation": modelInfo["val"]["number_patients_for_validation"] if "number_patients_for_validation" in modelInfo["val"].keys() else 0,
-            "number_patients_for_testing": modelInfo["val"]["number_patients_for_testing"] if "number_patients_for_testing" in modelInfo["val"].keys() else 0,
-            "seed": modelInfo["val"]["seed"]
+            "validation_perc": model_info["val"]["validation_perc"],
+            "random_validation_selection": model_info["val"]["random_validation_selection"],
+            "number_patients_for_validation": model_info["val"]["number_patients_for_validation"] if "number_patients_for_validation" in model_info["val"].keys() else 0,
+            "number_patients_for_testing": model_info["val"]["number_patients_for_testing"] if "number_patients_for_testing" in model_info["val"].keys() else 0,
+            "seed": model_info["val"]["seed"]
         }
 
-        self.cross_validation = modelInfo["cross_validation"]
+        self.cross_validation = model_info["cross_validation"]
 
         self.dataset = {"train": {},"val": {},"test": {}}
 
         # get parameter for the model
-        self.optimizerInfo = modelInfo["optimizer"]
-        self.params = modelInfo["params"]
-        self.loss = general_utils.get_loss(modelInfo)
-        self.metricFuncs = general_utils.getMetricFunctions(modelInfo["metrics"])
+        self.optimizer_info = model_info["optimizer"]
+        self.params = model_info["params"]
+        self.loss = general_utils.get_loss(model_info)
+        self.metric_func = general_utils.getMetricFunctions(model_info["metrics"])
 
         # inflate and concatenate only work with PMs_segmentation architectures!
         self.params["concatenate_input"] = True if "concatenate_input" in self.params.keys() and self.params["concatenate_input"] else False
         self.params["convertImgToGray"] = True if "convertImgToGray" in self.params.keys() and self.params["convertImgToGray"] else False
-        self.inputImgFlag = cv2.IMREAD_COLOR if not self.params["convertImgToGray"] else cv2.IMREAD_GRAYSCALE  # only works when the input are the PMs (concatenate)
+        self.input_img_flag = cv2.IMREAD_COLOR if not self.params["convertImgToGray"] else cv2.IMREAD_GRAYSCALE  # only works when the input are the PMs (concatenate)
         self.params["inflate_network"] = True if "inflate_network" in self.params.keys() and self.params["inflate_network"] else False
 
         # FLAGS for the model
-        self.multiInput = self.params["multiInput"] if "multiInput" in self.params.keys() else dict()
-        self.to_categ = True if modelInfo["to_categ"]==1 else False
+        self.multi_input = self.params["multiInput"] if "multiInput" in self.params.keys() else dict()
+        self.to_categ = True if model_info["to_categ"] == 1 else False
         set_TO_CATEG(self.to_categ)
-        self.save_images = True if modelInfo["save_images"]==1 else False
-        self.da = True if modelInfo["data_augmentation"]==1 else False
-        self.train_again = True if modelInfo["train_again"]==1 else False
-        self.supervised = True if modelInfo["supervised"]==1 else False
-        self.save_activation_filter = True if modelInfo["save_activation_filter"]==1 else False
-        self.use_hickle = True if "use_hickle" in modelInfo.keys() and modelInfo["use_hickle"]==1 else False
-        self.SVO_focus = True if "SVO_focus" in modelInfo.keys() and modelInfo["SVO_focus"] == 1 else False
+        self.save_images = True if model_info["save_images"] == 1 else False
+        self.da = True if model_info["data_augmentation"] == 1 else False
+        self.train_again = True if model_info["train_again"] == 1 else False
+        self.supervised = True if model_info["supervised"] == 1 else False
+        self.save_activation_filter = True if model_info["save_activation_filter"] == 1 else False
+        self.use_hickle = True if "use_hickle" in model_info.keys() and model_info["use_hickle"] == 1 else False
+        self.SVO_focus = True if "SVO_focus" in model_info.keys() and model_info["SVO_focus"] == 1 else False
         self.is3dot5DModel = True if "3dot5D" in self.name else False
         self.is4DModel = True if "4D" in self.name else False
 
         # paths
-        self.rootPath = setting["root_path"]
-        self.datasetFolder = setting["dataset_path"]
-        self.labeledImagesFolder = setting["relative_paths"]["labeled_images"] if "labeled_images" in setting["relative_paths"].keys() else ""
-        self.patientsFolder = setting["relative_paths"]["patients"]
+        self.rootpath = setting["root_path"]
+        self.ds_folder = setting["dataset_path"]
+        self.labeled_img_folder = setting["relative_paths"]["labeled_images"] if "labeled_images" in setting["relative_paths"].keys() else ""
+        self.patients_folder = setting["relative_paths"]["patients"]
         self.experimentID = "EXP" + general_utils.convert_expnum_to_str(setting["EXPERIMENT"])
-        self.experimentFolder = "SAVE/" + self.experimentID + "/"
-        self.savedModelFolder = self.experimentFolder+setting["relative_paths"]["save"]["model"]
-        self.savePartialModelFolder = self.experimentFolder+setting["relative_paths"]["save"]["partial_model"]
-        self.saveImagesFolder = self.experimentFolder+setting["relative_paths"]["save"]["images"]
-        self.savePlotFolder = self.experimentFolder+setting["relative_paths"]["save"]["plot"]
-        self.saveTextFolder = self.experimentFolder+setting["relative_paths"]["save"]["text"]
-        self.intermediateActivationFolder = self.experimentFolder+setting["relative_paths"]["save"]["intermediate_activation"] if "intermediate_activation" in setting["relative_paths"]["save"].keys() else None
+        self.experiment_folder = "SAVE/" + self.experimentID + "/"
+        self.saved_model_folder = self.experiment_folder + setting["relative_paths"]["save"]["model"]
+        self.savePartialModelFolder = self.experiment_folder + setting["relative_paths"]["save"]["partial_model"]
+        self.save_img_folder = self.experiment_folder + setting["relative_paths"]["save"]["images"]
+        self.save_plot_folder = self.experiment_folder + setting["relative_paths"]["save"]["plot"]
+        self.save_text_folder = self.experiment_folder + setting["relative_paths"]["save"]["text"]
+        self.intermediate_activation_folder = self.experiment_folder + setting["relative_paths"]["save"]["intermediate_activation"] if "intermediate_activation" in setting["relative_paths"]["save"].keys() else None
 
-        self.infoCallbacks = modelInfo["callbacks"]
+        self.info_callbacks = model_info["callbacks"]
 
         # empty variables initialization
         self.n_slices = 0 if "n_slices" not in self.params.keys() else self.params["n_slices"]
-        self.x_label = "pixels" if not getUSE_PM() else get_list_PMS()
+        self.x_label = "pixels" if not get_USE_PM() else get_list_PMS()
         self.y_label = "ground_truth"
-        self.summaryFlag = 0
+        self.summary_flag = 0
         self.model = None
         self.model_split = None
         self.testing_score = []
-        self.partialWeightsPath = ""
+        self.partial_weights_path = ""
         self.callbacks = None
         self.initial_epoch = 0
         self.train_df, self.val_list, self.test_list = None, None, None
@@ -110,22 +110,22 @@ class NeuralNetwork(object):
         self.mp_in_nn = False
 
         # change the prefix if SUS2020_v2 is in the dataset name
-        if "SUS2020" in self.datasetFolder: set_prefix("CTP_")
+        if "SUS2020" in self.ds_folder: set_prefix("CTP_")
 
     ################################################################################
     # Set model ID
-    def resetVars(self):
+    def reset_vars(self):
         self.dataset = {"train": {}, "val": {}, "test": {}}
 
         # empty variables initialization
         self.n_slices = 0 if "n_slices" not in self.params.keys() else self.params["n_slices"]
-        self.x_label = "pixels" if not getUSE_PM() else get_list_PMS()
+        self.x_label = "pixels" if not get_USE_PM() else get_list_PMS()
         self.y_label = "ground_truth"
-        self.summaryFlag = 0
+        self.summary_flag = 0
         self.model = None
         self.model_split = None
         self.testing_score = []
-        self.partialWeightsPath = ""
+        self.partial_weights_path = ""
         self.callbacks = None
         self.initial_epoch = 0
         self.train_df, self.val_list, self.test_list = None, None, None
@@ -139,40 +139,35 @@ class NeuralNetwork(object):
 
     ################################################################################
     # Set model ID
-    def setModelSplit(self, model_split):
+    def set_model_split(self, model_split):
         self.model_split = model_split
 
     ################################################################################
     # Initialize the callbacks
-    def setCallbacks(self, sample_weights=None, add_for_finetuning=""):
+    def set_callbacks(self, sample_weights=None, add_for_finetuning=""):
         if is_verbose():
             general_utils.print_sep("-", 50)
             print("[INFO] - Setting callbacks...")
 
-        self.callbacks = training.getCallbacks(
-            root_path=self.rootPath,
-            info=self.infoCallbacks,
-            filename=self.getSavedInformation(path=self.savePartialModelFolder),
-            textFolderPath=self.saveTextFolder,
-            dataset=self.dataset,
-            sample_weights=sample_weights, # only for ROC callback (NOT working)
-            nn_id=self.getNNID(),
-            add_for_finetuning=add_for_finetuning
-        )
+        self.callbacks = training.get_callbacks(info=self.info_callbacks, root_path=self.rootpath,
+                                                filename=self.getSavedInformation(path=self.savePartialModelFolder),
+                                                text_fold_path=self.save_text_folder, dataset=self.dataset,
+                                                sample_weights=sample_weights, nn_id=self.get_network_id(),
+                                                add_for_finetuning=add_for_finetuning)
 
     ################################################################################
     # return a Boolean to control if the model was already saved
-    def isModelSaved(self):
-        saved_modelname = self.getSavedModel()
-        saved_weightname = self.getSavedWeight()
+    def is_model_saved(self):
+        saved_modelname = self.get_saved_model()
+        saved_weightname = self.get_saved_weights()
 
         return os.path.isfile(saved_modelname) and os.path.isfile(saved_weightname)
 
     ################################################################################
     # load json and create model
-    def loadSavedModel(self):
-        saved_modelname = self.getSavedModel()
-        saved_weightname = self.getSavedWeight()
+    def load_saved_model(self):
+        saved_modelname = self.get_saved_model()
+        saved_weightname = self.get_saved_weights()
         json_file = open(saved_modelname, 'r')
         loaded_model_json = json_file.read()
         json_file.close()
@@ -187,26 +182,26 @@ class NeuralNetwork(object):
 
     ################################################################################
     # Check if there are saved partial weights
-    def arePartialWeightsSaved(self):
+    def are_partial_weights_saved(self):
         # path ==> weight name plus a suffix ":" <-- suffix_partial_weights
         path = self.getSavedInformation(path=self.savePartialModelFolder) + suffix_partial_weights
         for file in glob.glob(self.savePartialModelFolder+"*.h5"):
-            if path in self.rootPath+file:  # we have a match
-                self.partialWeightsPath = file
+            if path in self.rootpath+file:  # we have a match
+                self.partial_weights_path = file
                 return True
 
         return False
 
     ################################################################################
     # Load the partial weights and set the initial epoch where the weights were saved
-    def loadModelFromPartialWeights(self):
-        if self.partialWeightsPath!="":
-            self.model.load_weights(self.partialWeightsPath)
-            self.initial_epoch = general_utils.getEpochFromPartialWeightFilename(self.partialWeightsPath)
+    def load_model_from_partial_weights(self):
+        if self.partial_weights_path!= "":
+            self.model.load_weights(self.partial_weights_path)
+            self.initial_epoch = general_utils.getEpochFromPartialWeightFilename(self.partial_weights_path)
 
             if is_verbose():
                 general_utils.print_sep("+", 100)
-                print("[INFO - Loading] - --- WEIGHTS {} LOADED FROM DISK! --- ".format(self.partialWeightsPath))
+                print("[INFO - Loading] - --- WEIGHTS {} LOADED FROM DISK! --- ".format(self.partial_weights_path))
                 print("[INFO] - --- Start training from epoch {} --- ".format(str(self.initial_epoch)))
 
     ################################################################################
@@ -217,8 +212,7 @@ class NeuralNetwork(object):
         # split the dataset (return in dataset just the indices and labels)
         self.dataset, self.val_list, self.test_list = dataset_utils.split_ds(self, patientlist_train_val, patientlist_test)
         # get the number of element per class in the dataset
-        self.N_BACKGROUND, self.N_BRAIN, self.N_PENUMBRA, self.N_CORE, self.N_TOT = dataset_utils.get_number_of_elem(
-            self.train_df)
+        self.N_BACKGROUND, self.N_BRAIN, self.N_PENUMBRA, self.N_CORE, self.N_TOT = dataset_utils.get_number_of_elem(self.train_df)
 
         return self.val_list
 
@@ -228,8 +222,7 @@ class NeuralNetwork(object):
         self.train_df = train_df
         self.val_list = val_list
         # get the number of element per class in the dataset
-        self.N_BACKGROUND, self.N_BRAIN, self.N_PENUMBRA, self.N_CORE, self.N_TOT = dataset_utils.get_number_of_elem(
-            self.train_df)
+        self.N_BACKGROUND, self.N_BRAIN, self.N_PENUMBRA, self.N_CORE, self.N_TOT = dataset_utils.get_number_of_elem(self.train_df)
 
         # Reset the indices for validation and train lists
         dataset_utils.set_val_list(self, self.val_list)
@@ -237,108 +230,98 @@ class NeuralNetwork(object):
 
     ################################################################################
     # Function to reshape the pixel array and initialize the model.
-    def prepareDataset(self):
+    def prepare_ds(self):
         # split the dataset (set the data key inside dataset [NOT for the sequence generator])
         self.dataset = dataset_utils.prepare_ds(self)
 
     ################################################################################
     # compile the model, callable also from outside
-    def compileModel(self):
+    def compile_model(self):
         # set the optimizer (or reset)
-        self.optimizer = training.getOptimizer(optInfo=self.optimizerInfo)
+        self.optimizer = training.get_optimizer(opt_info=self.optimizer_info)
 
         self.model.compile(
             optimizer=self.optimizer,
             loss=self.loss["loss"],
-            metrics=self.metricFuncs
+            metrics=self.metric_func
         )
 
     ################################################################################
     # Function to route the right initialization and training
-    def initializeAndStartTraining(self, n_gpu, jump):
+    def init_and_start_training(self, n_gpu, jump):
         if self.use_sequence:
             # if we are doing a sequence train (for memory issue)
-            self.prepareSequenceClass()
-            self.initializeTraining(n_gpu)
-            if not jump: self.runTrainSequence()
+            self.prepare_sequence_class()
+            self.init_training(n_gpu)
+            if not jump: self.run_train_sequence()
             self.gradualFineTuningSolution()
             # Plot the loss and accuracy of the training
-            training.plotLossAndAccuracy(self)
+            training.plot_loss_and_accuracy(self)
         else:
             # # PREPARE DATASET (=divide in train/val/test)
-            self.prepareDataset()
+            self.prepare_ds()
             # # SET THE CALLBACKS, RUN TRAINING & SAVE THE MODELS WEIGHTS
-            self.runTraining(n_gpu)
+            self.run_training(n_gpu)
 
-        self.saveModelAndWeight()
+        self.save_model_and_weights()
 
     ################################################################################
     # Function that initialize the training, print the model summary and set the weights
-    def initializeTraining(self, n_gpu):
+    def init_training(self, n_gpu):
         assert n_gpu==1, "The number of GPU should be 1."
 
         if is_verbose():
             general_utils.print_sep("*", 50)
             print("[INFO] - Start runTraining function.")
-            print("[INFO] - Getting model {0} with {1} optimizer...".format(self.name, self.optimizerInfo["name"]))
+            print("[INFO] - Getting model {0} with {1} optimizer...".format(self.name, self.optimizer_info["name"]))
 
         # Based on the number of GPUs available, call the function called self.name in architectures.py
-        self.model = getattr(architectures, self.name)(params=self.params, multiInput=self.multiInput)
+        self.model = getattr(architectures, self.name)(params=self.params, multiInput=self.multi_input)
 
-        if self.summaryFlag==0:
+        if self.summary_flag==0:
             # if getVerbose(): print(self.model.summary())
             for rankdir in ["TB"]:  # "LR"
                 plot_model(
                     self.model,
-                    to_file=general_utils.getFullDirectoryPath(self.savedModelFolder)+self.getNNID()+"_"+rankdir+".png",
+                    to_file=general_utils.get_dir_path(
+                        self.saved_model_folder) + self.get_network_id() + "_" + rankdir + ".png",
                     show_shapes=True,
                     rankdir=rankdir
                 )
-            self.summaryFlag+=1
+            self.summary_flag+=1
 
         memUsage = general_utils.get_model_memory_usage(self.model, self.batch_size)
         if is_verbose(): print("The memory usage for the model is: {}Gb".format(memUsage))
         # Check if the model has some saved weights to load...
-        if self.arePartialWeightsSaved(): self.loadModelFromPartialWeights()
+        if self.are_partial_weights_saved(): self.load_model_from_partial_weights()
 
         # Compile the model with optimizer, loss function and metrics
-        self.compileModel()
+        self.compile_model()
         # Get the sample weights
-        self.sample_weights = self.getSampleWeights("train")
+        self.sample_weights = self.get_sample_weights("train")
         # Set the callbacks
-        self.setCallbacks(self.sample_weights)
+        self.set_callbacks(self.sample_weights)
 
     ################################################################################
     # Run the training over the dataset based on the model
-    def runTraining(self, n_gpu):
-        self.initializeTraining(n_gpu)
+    def run_training(self, n_gpu):
+        self.init_training(n_gpu)
 
-        self.dataset["train"]["labels"] = dataset_utils.get_labels_from_idx(train_df=self.train_df,
-                                                                            dataset=self.dataset["train"],
-                                                                            modelname=self.name, flag="train")
+        self.dataset["train"]["labels"] = dataset_utils.get_labels_from_idx(train_df=self.train_df,dataset=self.dataset["train"],modelname=self.name, flag="train")
         self.dataset["val"]["labels"] = None if self.val["validation_perc"]==0 else dataset_utils.get_labels_from_idx(
             train_df=self.train_df, dataset=self.dataset["val"], modelname=self.name, flag="val")
-        if self.supervised: self.dataset["test"]["labels"] = dataset_utils.get_labels_from_idx(train_df=self.train_df,
-                                                                                               dataset=self.dataset[
-                                                                                                   "test"],
-                                                                                               modelname=self.name,
-                                                                                               flag="test")
+        if self.supervised: self.dataset["test"]["labels"] = dataset_utils.get_labels_from_idx(train_df=self.train_df,dataset=self.dataset["test"],modelname=self.name,flag="test")
 
         # fit and train the model
-        self.train = training.fitModel(
-            model=self.model,
-            dataset=self.dataset,
-            batch_size=self.batch_size,
-            epochs=self.epochs,
-            listOfCallbacks=self.callbacks,
-            sample_weights=self.sample_weights,
-            initial_epoch=self.initial_epoch,
-            save_activation_filter=self.save_activation_filter,
-            intermediate_activation_path=self.intermediateActivationFolder,
-            use_multiprocessing=self.mp_in_nn)
+        self.train = training.fit_model(model=self.model, dataset=self.dataset, batch_size=self.batch_size,
+                                        epochs=self.epochs, callbacklist=self.callbacks,
+                                        sample_weights=self.sample_weights, initial_epoch=self.initial_epoch,
+                                        save_activation_filter=self.save_activation_filter,
+                                        intermediate_activation_path=self.intermediate_activation_folder,
+                                        use_multiprocessing=self.mp_in_nn)
 
         # plot the loss and accuracy of the training
-        training.plotLossAndAccuracy(self)
+        training.plot_loss_and_accuracy(self)
 
         # deallocate memory
         for flag in ["train", "val", "test"]:
@@ -347,30 +330,30 @@ class NeuralNetwork(object):
 
     ################################################################################
     # Function to prepare the train and validation sequence using the datasetSequence class
-    def prepareSequenceClass(self):
+    def prepare_sequence_class(self):
         # train data sequence
         self.train_sequence = sequence_utils.datasetSequence(
             dataframe=self.train_df,
             indices=self.dataset["train"]["indices"],
-            sample_weights=self.getSampleWeights("train"),
+            sample_weights=self.get_sample_weights("train"),
             x_label=self.x_label,
             y_label=self.y_label,
-            multiInput=self.multiInput,
+            multiInput=self.multi_input,
             params=self.params,
             batch_size=self.batch_size,
-            back_perc=1 if not getUSE_PM() and (get_m() != get_img_width() and get_n() != get_img_weight()) else 100,
+            back_perc=1 if not get_USE_PM() and (get_m() != get_img_width() and get_n() != get_img_weight()) else 100,
             loss=self.loss["name"],
             name=self.name,
             is3dot5DModel=self.is3dot5DModel,
             is4DModel=self.is4DModel,
             SVO_focus=self.SVO_focus,
-            inputImgFlag=self.inputImgFlag,
+            inputImgFlag=self.input_img_flag,
             supervised=self.supervised,
-            patientsFolder=self.patientsFolder,
-            labeledImagesFolder=self.labeledImagesFolder,
+            patients_folder=self.patients_folder,
+            labeledImagesFolder=self.labeled_img_folder,
             constants={"M":get_m(), "N":get_m(), "NUMBER_OF_IMAGE_PER_SECTION":getNUMBER_OF_IMAGE_PER_SECTION(),
                        "TIME_LAST":is_timelast(), "N_CLASSES":get_n_classes(), "PIXELVALUES":get_pixel_values(),
-                       "weights":get_weights(), "TO_CATEG":is_TO_CATEG(), "isISLES": is_ISLES2018(), "USE_PM":getUSE_PM(),
+                       "weights":get_weights(), "TO_CATEG":is_TO_CATEG(), "isISLES": is_ISLES2018(), "USE_PM":get_USE_PM(),
                        "LIST_PMS":get_list_PMS(), "IMAGE_HEIGHT":get_img_weight(), "IMAGE_WIDTH": get_img_width()}
         )
 
@@ -378,31 +361,31 @@ class NeuralNetwork(object):
         self.val_sequence = sequence_utils.datasetSequence(
             dataframe=self.train_df,
             indices=self.dataset["val"]["indices"],
-            sample_weights=self.getSampleWeights("val"),
+            sample_weights=self.get_sample_weights("val"),
             x_label=self.x_label,
             y_label=self.y_label,
-            multiInput=self.multiInput,
+            multiInput=self.multi_input,
             params=self.params,
             batch_size=self.batch_size,
-            back_perc=1 if not getUSE_PM() and (get_m() != get_img_width() and get_n() != get_img_weight()) else 100,
+            back_perc=1 if not get_USE_PM() and (get_m() != get_img_width() and get_n() != get_img_weight()) else 100,
             flagtype="val",
             loss=self.loss["name"],
             name=self.name,
             is3dot5DModel=self.is3dot5DModel,
             is4DModel=self.is4DModel,
-            inputImgFlag=self.inputImgFlag,
+            inputImgFlag=self.input_img_flag,
             supervised=self.supervised,
-            patientsFolder=self.patientsFolder,
-            labeledImagesFolder=self.labeledImagesFolder,
+            patients_folder=self.patients_folder,
+            labeledImagesFolder=self.labeled_img_folder,
             constants={"M":get_m(), "N":get_m(), "NUMBER_OF_IMAGE_PER_SECTION":getNUMBER_OF_IMAGE_PER_SECTION(),
                        "TIME_LAST":is_timelast(), "N_CLASSES":get_n_classes(), "PIXELVALUES":get_pixel_values(),
-                       "weights":get_weights(), "TO_CATEG":is_TO_CATEG(), "isISLES": is_ISLES2018(), "USE_PM":getUSE_PM(),
+                       "weights":get_weights(), "TO_CATEG":is_TO_CATEG(), "isISLES": is_ISLES2018(), "USE_PM":get_USE_PM(),
                        "LIST_PMS":get_list_PMS(), "IMAGE_HEIGHT":get_img_weight(), "IMAGE_WIDTH": get_img_width()}
         )
 
     ################################################################################
     # Function to start the train using the sequence as input and the fit_generator function
-    def runTrainSequence(self):
+    def run_train_sequence(self):
         self.train = training.fit_generator(
             model=self.model,
             train_sequence=self.train_sequence,
@@ -424,23 +407,23 @@ class NeuralNetwork(object):
             layer_indexes = []
             if self.params["concatenate_input"]:
                 model_name = "model"
-                if "nihss" in self.multiInput.keys() and self.multiInput["nihss"] == 1: model_name += "_1"
-                elif "age" in self.multiInput.keys() and self.multiInput["age"] == 1: model_name += "_1"
-                elif "gender" in self.multiInput.keys() and self.multiInput["gender"] == 1: model_name += "_1"
+                if "nihss" in self.multi_input.keys() and self.multi_input["nihss"] == 1: model_name += "_1"
+                elif "age" in self.multi_input.keys() and self.multi_input["age"] == 1: model_name += "_1"
+                elif "gender" in self.multi_input.keys() and self.multi_input["gender"] == 1: model_name += "_1"
                 layer_indexes.extend([i for i, l in enumerate(self.model.get_layer(model_name).layers) if "concat" in l.name])
             else:
                 for pm in get_list_PMS(): layer_indexes.extend([i for i, l in enumerate(self.model.layers) if pm.lower() in l.name])
             layer_indexes = np.sort(layer_indexes)
 
             # The optimizer (==ADAM) should have a low learning rate
-            if self.optimizerInfo["name"].lower() != "adam":
+            if self.optimizer_info["name"].lower() != "adam":
                 print("The optimizer is not Adam!")
                 return
 
-            self.optimizerInfo["lr"] = 1e-5
-            self.infoCallbacks["ModelCheckpoint"]["period"] = 1
-            previousEarlyStoppingPatience = self.infoCallbacks["EarlyStopping"]["patience"]
-            self.infoCallbacks["EarlyStopping"]["patience"] = 25
+            self.optimizer_info["lr"] = 1e-5
+            self.info_callbacks["ModelCheckpoint"]["period"] = 1
+            previousEarlyStoppingPatience = self.info_callbacks["EarlyStopping"]["patience"]
+            self.info_callbacks["EarlyStopping"]["patience"] = 25
 
             if self.params["gradual_finetuning_solution"]["type"] == "half":
                 # Perform fine tuning twice: first on the bottom half, then on the totality
@@ -450,17 +433,17 @@ class NeuralNetwork(object):
                 else:
                     for ind in layer_indexes[len(layer_indexes) // 2:]: self.model.layers[ind].trainable = True
                 if is_verbose(): print("Fine-tuning setting: {} layers trainable".format(layer_indexes[len(layer_indexes) // 2:]))
-                if self.arePartialWeightsSaved():
-                    if not self.params["concatenate_input"]: self.model.load_weights(self.partialWeightsPath)
-                    self.initial_epoch = general_utils.getEpochFromPartialWeightFilename(self.partialWeightsPath) + previousEarlyStoppingPatience
+                if self.are_partial_weights_saved():
+                    if not self.params["concatenate_input"]: self.model.load_weights(self.partial_weights_path)
+                    self.initial_epoch = general_utils.getEpochFromPartialWeightFilename(self.partial_weights_path) + previousEarlyStoppingPatience
                 # Compile the model again
-                self.compileModel()
+                self.compile_model()
                 # Get the sample weights
-                self.sample_weights = self.getSampleWeights("train")
+                self.sample_weights = self.get_sample_weights("train")
                 # Set the callbacks
-                self.setCallbacks(self.sample_weights, "_half")
+                self.set_callbacks(self.sample_weights, "_half")
                 # Train the model again
-                self.runTrainSequence()
+                self.run_train_sequence()
                 finished_first_half = False if "only" in self.params["gradual_finetuning_solution"].keys() and self.params["gradual_finetuning_solution"]["only"] == "half" else True
 
             if self.params["gradual_finetuning_solution"]["type"] == "full" or finished_first_half:
@@ -470,24 +453,23 @@ class NeuralNetwork(object):
                 else:
                     for ind in layer_indexes:  self.model.layers[ind].trainable = True
                 if is_verbose(): print("Fine-tuning setting: {} layers trainable".format(layer_indexes))
-                if self.arePartialWeightsSaved():
-                    if not self.params["concatenate_input"]: self.model.load_weights(self.partialWeightsPath)
-                    self.initial_epoch = general_utils.getEpochFromPartialWeightFilename(self.partialWeightsPath) + previousEarlyStoppingPatience
+                if self.are_partial_weights_saved():
+                    if not self.params["concatenate_input"]: self.model.load_weights(self.partial_weights_path)
+                    self.initial_epoch = general_utils.getEpochFromPartialWeightFilename(self.partial_weights_path) + previousEarlyStoppingPatience
                 # Compile the model again
-                self.compileModel()
+                self.compile_model()
                 # Get the sample weights
-                self.sample_weights = self.getSampleWeights("train")
+                self.sample_weights = self.get_sample_weights("train")
                 # Set the callbacks
-                self.setCallbacks(self.sample_weights, "_full")
+                self.set_callbacks(self.sample_weights, "_full")
                 # Train the model again
-                self.runTrainSequence()
+                self.run_train_sequence()
 
     ################################################################################
     # Get the sample weight from the dataset
-    def getSampleWeights(self, flagDataset):
+    def get_sample_weights(self, flagDataset):
         sample_weights = None
-        self.N_BACKGROUND, self.N_BRAIN, self.N_PENUMBRA, self.N_CORE, self.N_TOT = dataset_utils.get_number_of_elem(
-            self.train_df)
+        self.N_BACKGROUND, self.N_BRAIN, self.N_PENUMBRA, self.N_CORE, self.N_TOT = dataset_utils.get_number_of_elem(self.train_df)
 
         if get_n_classes() ==4:
             # and the (M,N) == image dimension
@@ -546,7 +528,7 @@ class NeuralNetwork(object):
 
     ################################################################################
     # Set the debug set
-    def setDebugDataset(self):
+    def set_debug_ds(self):
         self.val["validation_perc"] = 2
         self.val["number_patients_for_validation"] = 5
         self.val["number_patients_for_testing"] = 0
@@ -554,14 +536,13 @@ class NeuralNetwork(object):
 
     ################################################################################
     # Save the trained model and its relative weights
-    def saveModelAndWeight(self):
-        saved_modelname = self.getSavedModel()
-        saved_weightname = self.getSavedWeight()
+    def save_model_and_weights(self):
+        saved_modelname = self.get_saved_model()
+        saved_weightname = self.get_saved_weights()
 
         # serialize model to JSON
         model_json = self.model.to_json()
-        with open(saved_modelname, "w") as json_file:
-            json_file.write(model_json)
+        with open(saved_modelname, "w") as json_file: json_file.write(model_json)
         # serialize weights to HDF5
         self.model.save_weights(saved_weightname)
 
@@ -571,7 +552,7 @@ class NeuralNetwork(object):
 
     ################################################################################
     # Call the function located in testing for predicting and saved the images
-    def predictAndSaveImages(self, listPatients, isAlreadySaved):
+    def predict_and_save_img(self, listPatients, isAlreadySaved):
         stats = {}
         if is_verbose: print("[INFO] - List of patients to predict: {}".format(listPatients))
         for p_id in listPatients:
@@ -579,7 +560,7 @@ class NeuralNetwork(object):
             if self.supervised: self.evaluateModelWithCategorics(p_id, isAlreadySaved)
             general_utils.print_sep("+", 50)
             print("[INFO] - Executing function: predictAndSaveImages for patient {}".format(p_id))
-            testing.predictAndSaveImages(self, p_id)
+            testing.predict_and_save_img(self, p_id)
 
         return stats
 
@@ -590,11 +571,11 @@ class NeuralNetwork(object):
             general_utils.print_sep("+", 50)
             print("[INFO] - Evaluating the model for patient {}".format(p_id))
 
-        self.testing_score.append(testing.evaluateModel(self, p_id, isAlreadySaved))
+        self.testing_score.append(testing.evaluate_model(self, p_id, isAlreadySaved))
 
     ################################################################################
     # set the flag for single/multi PROCESSING
-    def setProcessingEnv(self, mp):
+    def set_processing_env(self, mp):
         self.mp = mp
         self.mp_in_nn = mp
 
@@ -603,29 +584,29 @@ class NeuralNetwork(object):
     def getSavedInformation(self, path, other_info="", suffix=""):
         # mJ-Net_DA_ADAM_4_16x16.json <-- example weights name
         # mJ-Net_DA_ADAM_4_16x16.h5 <-- example model name
-        path = general_utils.getFullDirectoryPath(path) + self.getNNID() + other_info + general_utils.get_suffix()
+        path = general_utils.get_dir_path(path) + self.get_network_id() + other_info + general_utils.get_suffix()
         return path+suffix
 
     ################################################################################
     # return the saved model
-    def getSavedModel(self):
-        return self.getSavedInformation(path=self.savedModelFolder, suffix=".json")
+    def get_saved_model(self):
+        return self.getSavedInformation(path=self.saved_model_folder, suffix=".json")
 
     ################################################################################
     # return the saved weight
-    def getSavedWeight(self):
-        return self.getSavedInformation(path=self.savedModelFolder, suffix=".h5")
+    def get_saved_weights(self):
+        return self.getSavedInformation(path=self.saved_model_folder, suffix=".h5")
 
     ################################################################################
     # return NeuralNetwork ID
-    def getNNID(self):
+    def get_network_id(self):
         # CAREFUL WITH THIS
         # needs to override the model id to use a different model to test various patients
         if self.OVERRIDE_MODELS_ID_PATH: ret_id = self.OVERRIDE_MODELS_ID_PATH
         else:
             ret_id = self.name
             if self.da: ret_id += "_DA"
-            ret_id += ("_" + self.optimizerInfo["name"].upper())
+            ret_id += ("_" + self.optimizer_info["name"].upper())
 
             ret_id += ("_VAL" + str(self.val["validation_perc"]))
             if self.val["random_validation_selection"]: ret_id += "_RANDOM"

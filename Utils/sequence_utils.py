@@ -16,7 +16,7 @@ from Utils import general_utils, dataset_utils, model_utils
 # https://faroit.com/keras-docs/2.1.3/models/sequential/#fit_generator
 class datasetSequence(Sequence):
     def __init__(self, dataframe, indices, sample_weights, x_label, y_label, multiInput, batch_size, params, back_perc,
-                 is3dot5DModel, is4DModel, inputImgFlag, supervised, patientsFolder, labeledImagesFolder, constants,
+                 is3dot5DModel, is4DModel, inputImgFlag, supervised, patients_folder, labeledImagesFolder, constants,
                  name, SVO_focus=False, flagtype="train", loss=None):
         self.indices = indices
         self.dataframe = dataframe.iloc[self.indices]
@@ -28,25 +28,25 @@ class datasetSequence(Sequence):
         self.batch_size = batch_size
         self.params = params
         self.back_perc = back_perc
-        self.flagtype = flagtype
+        self.flag_type = flagtype
         self.loss = loss
         self.is3dot5DModel = is3dot5DModel
         self.is4DModel = is4DModel
         self.SVO_focus = SVO_focus
         self.inputImgFlag = inputImgFlag  # only works when the input are the PMs (concatenate)
         self.supervised = supervised
-        self.patientsFolder = patientsFolder
+        self.patients_folder = patients_folder
         self.labeledImagesFolder = labeledImagesFolder
         self.constants = constants
 
-        if self.flagtype != "test":
+        if self.flag_type != "test":
             # get ALL the rows with label != from background
-            self.dataframenoback = self.dataframe.loc[self.dataframe.label != get_labels()[0]]
+            self.df_noback = self.dataframe.loc[self.dataframe.label != get_labels()[0]]
             # also, get a back_perc of rows with label == background
-            self.dataframeback = self.dataframe.loc[self.dataframe.label == get_labels()[0]]
-            if self.back_perc < 100: self.dataframeback = self.dataframeback[:int((len(self.dataframeback)/100)*self.back_perc)]
+            self.df_back = self.dataframe.loc[self.dataframe.label == get_labels()[0]]
+            if self.back_perc < 100: self.df_back = self.df_back[:int((len(self.df_back) / 100) * self.back_perc)]
             # combine the two dataframes
-            self.dataframe = pd.concat([self.dataframenoback, self.dataframeback], sort=False)
+            self.dataframe = pd.concat([self.df_noback, self.df_back], sort=False)
 
         self.index_pd_DA: Dict[str, Set[Any]] = {"0": set(),"1": set(),"2": set(),"3": set(),"4": set(),"5": set()}
         self.index_batch = None
@@ -79,24 +79,24 @@ class datasetSequence(Sequence):
         self.index_pd_DA: Dict[str, Set[Any]] = {"0": set(),"1": set(),"2": set(),"3": set(),"4": set(),"5": set()}
 
         # path to the folder containing the getNUMBER_OF_IMAGE_PER_SECTION() time point images
-        X, Y, weights = self.getXY(X, Y, weights, current_batch)
+        X, Y, weights = self.get_XY(X, Y, weights, current_batch)
 
         return X, Y, weights
 
     ################################################################################
     # return the X set and the relative weights based on the pixels column
-    def getXY(self, X, Y, weights, current_batch):
+    def get_XY(self, X, Y, weights, current_batch):
         for index, (row_index, row) in enumerate(current_batch.iterrows()):
             # add the index into the correct set
             self.index_pd_DA[str(row["data_aug_idx"])].add(row_index)
             X = model_utils.getCorrectXForInputModel(self, row[self.x_label], row, batch_idx=index, batch_len=len(current_batch), X=X, train=True)
-            if self.y_label=="ground_truth": Y, weights = self.getY(Y, row, index, weights)
+            if self.y_label=="ground_truth": Y, weights = self.get_Y(Y, row, index, weights)
 
         return X, np.array(Y), weights
 
     ################################################################################
     # Return the Y set and the weights
-    def getY(self, Y, row, index, weights):
+    def get_Y(self, Y, row, index, weights):
         aug_idx = str(row["data_aug_idx"])  # index if there's augmentation
         filename = row[self.y_label]
         if platform.system()=="Windows": filename = filename.replace(filename[:filename.rfind("/",0,len(filename)-7)],self.labeledImagesFolder)

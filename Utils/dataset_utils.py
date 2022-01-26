@@ -23,7 +23,7 @@ def load_train_DF(nn, patients):
 
     suffix_filename = ".pkl"
     if nn.use_hickle: suffix_filename = ".hkl"
-    listOfFolders = glob.glob(nn.datasetFolder + "*" + suffix + suffix_filename)
+    listOfFolders = glob.glob(nn.ds_folder + "*" + suffix + suffix_filename)
     with multiprocessing.Pool(processes=5) as pool:  # auto closing workers
         frames = pool.starmap(read_single_DF, list(zip(listOfFolders, [patients] * len(listOfFolders),
                                                        [suffix] * len(listOfFolders), [get_m()] * len(listOfFolders),

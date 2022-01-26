@@ -44,7 +44,7 @@ def get_commandline_args():
     set_debug(args.debug)
     set_orig_shape(args.original)
     set_ISLES2018(args.isles2018)
-    setUSE_PM(args.pm)
+    set_USE_PM(args.pm)
     set_tile_dim(args.tile)
     set_img_dim(args.dimension)
     set_classes(args.classes)
@@ -264,7 +264,7 @@ def get_suffix():
 
 ################################################################################
 # get the full directory path, given a relative path
-def getFullDirectoryPath(path):
+def get_dir_path(path):
     return get_rootpath() + path
 
 

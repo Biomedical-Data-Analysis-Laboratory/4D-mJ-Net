@@ -154,7 +154,7 @@ def getCorrectXForInputModel(nn, current_folder, row, batch_idx, batch_len, X=No
         howmany = len(glob.glob(folder + "*.*"))
         interpX = np.empty((nn.constants["M"],nn.constants["N"],howmany,1)) if nn.constants["TIME_LAST"] else np.empty((howmany,nn.constants["M"],nn.constants["N"],1))
 
-        if platform.system()=="Windows": folder = folder.replace(folder[:folder.rfind("/",0,len(folder)-4)],nn.patientsFolder)
+        if platform.system()=="Windows": folder = folder.replace(folder[:folder.rfind("/",0,len(folder)-4)],nn.patients_folder)
 
         for time_idx, filename in enumerate(np.sort(glob.glob(folder + "*.*"))):
             single_X = np.empty((batch_len, nn.constants["M"], nn.constants["N"], 1))
@@ -164,7 +164,7 @@ def getCorrectXForInputModel(nn, current_folder, row, batch_idx, batch_len, X=No
             # Get the slice and if we are training, also perform augmentation
             slc_w = general_utils.getSlicingWindow(totimg, coord[0], coord[1], nn.constants)
             if train and not nn.constants["isISLES"]: slc_w = general_utils.perform_DA_on_img(slc_w, data_aug_idx)
-            if not nn.supervised or nn.patientsFolder != "OLDPREPROC_PATIENTS/":
+            if not nn.supervised or nn.patients_folder != "OLDPREPROC_PATIENTS/":
                 # reshape it for the correct input in the model
                 if nn.constants["TIME_LAST"]:
                     # append the image into a list if ISLES
@@ -198,14 +198,14 @@ def getCorrectXForInputModel(nn, current_folder, row, batch_idx, batch_len, X=No
         if isXarray: X[z] = tmp_X
         # Check if we are going to add/use the PMs or the additional input (NIHSS, age, gender)
         multiInput = 0
-        for k in nn.multiInput.keys(): multiInput+=nn.multiInput[k]
+        for k in nn.multi_input.keys(): multiInput+=nn.multi_input[k]
 
         if multiInput>0:
             if nn.x_label == nn.constants["LIST_PMS"] or (nn.x_label == "pixels" and (nn.is4DModel or nn.is3dot5DModel)):
                 for pm in nn.constants["LIST_PMS"]:
                     if pm not in pms.keys(): pms[pm] = []
                     crn_pm = row[pm] if train else row[pm].iloc[0]
-                    totimg = cv2.imread(crn_pm, nn.inputImgFlag)
+                    totimg = cv2.imread(crn_pm, nn.input_img_flag)
                     assert totimg is not None, "The image {} is None".format(crn_pm)
                     img = general_utils.getSlicingWindow(totimg, coord[0], coord[1], nn.constants, removeColorBar=True)
                     if train: img = general_utils.perform_DA_on_img(img, data_aug_idx)
@@ -214,21 +214,21 @@ def getCorrectXForInputModel(nn, current_folder, row, batch_idx, batch_len, X=No
                     img = np.reshape(img, (1, nn.constants["M"], nn.constants["N"], channels)) if nn.params["inflate_network"] and nn.params["concatenate_input"] else img
                     pms[pm].append(img)
 
-                if "cbf" in nn.multiInput.keys() and nn.multiInput["cbf"] == 1: X.append(np.array(pms["CBF"]))
-                if "cbv" in nn.multiInput.keys() and nn.multiInput["cbv"] == 1: X.append(np.array(pms["CBV"]))
-                if "ttp" in nn.multiInput.keys() and nn.multiInput["ttp"] == 1: X.append(np.array(pms["TTP"]))
-                if "mtt" in nn.multiInput.keys() and nn.multiInput["mtt"] == 1: X.append(np.array(pms["MTT"]))
-                if "tmax" in nn.multiInput.keys() and nn.multiInput["tmax"] == 1: X.append(np.array(pms["TMAX"]))
-                if "mip" in nn.multiInput.keys() and nn.multiInput["mip"] == 1: X.append(np.array(pms["MIP"]))
+                if "cbf" in nn.multi_input.keys() and nn.multi_input["cbf"] == 1: X.append(np.array(pms["CBF"]))
+                if "cbv" in nn.multi_input.keys() and nn.multi_input["cbv"] == 1: X.append(np.array(pms["CBV"]))
+                if "ttp" in nn.multi_input.keys() and nn.multi_input["ttp"] == 1: X.append(np.array(pms["TTP"]))
+                if "mtt" in nn.multi_input.keys() and nn.multi_input["mtt"] == 1: X.append(np.array(pms["MTT"]))
+                if "tmax" in nn.multi_input.keys() and nn.multi_input["tmax"] == 1: X.append(np.array(pms["TMAX"]))
+                if "mip" in nn.multi_input.keys() and nn.multi_input["mip"] == 1: X.append(np.array(pms["MIP"]))
 
-            if "nihss" in nn.multiInput.keys() and nn.multiInput["nihss"] == 1:
+            if "nihss" in nn.multi_input.keys() and nn.multi_input["nihss"] == 1:
                 nihss_row = row["NIHSS"] if train else row["NIHSS"].iloc[0]
                 if nihss_row == "": nihss_row = 0
                 X.append(np.array([int(nihss_row)]))
-            if "age" in nn.multiInput.keys() and nn.multiInput["age"] == 1:
+            if "age" in nn.multi_input.keys() and nn.multi_input["age"] == 1:
                 age_row = row["age"] if train else row["age"].iloc[0]
                 X.append(np.array([int(age_row)]))
-            if "gender" in nn.multiInput.keys() and nn.multiInput["gender"] == 1:
+            if "gender" in nn.multi_input.keys() and nn.multi_input["gender"] == 1:
                 gender_row = row["gender"] if train else row["gender"].iloc[0]
                 X.append(np.array([int(gender_row)]))
 

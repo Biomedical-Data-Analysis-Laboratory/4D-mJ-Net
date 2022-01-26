@@ -24,7 +24,7 @@ def VNet_Milletari(params):
 
     input_shape = (get_m(), get_n(), getNUMBER_OF_IMAGE_PER_SECTION(), 1) if is_timelast() else (getNUMBER_OF_IMAGE_PER_SECTION(),
                                                                                                  get_m(), get_n(), 1)
-    if getUSE_PM(): # use the PMs as input and concatenate them
+    if get_USE_PM(): # use the PMs as input and concatenate them
         list_input = []
         if "multiInput" in params.keys():
             for pm in ["cbf", "cbv", "ttp", "mip", "mtt", "tmax"]:
@@ -39,7 +39,7 @@ def VNet_Milletari(params):
     stage_1 = layers.Conv3D(channels[1],kernel_size=kernel_size_1,activation=layers.PReLU(), padding='same',kernel_initializer=kernel_init,kernel_constraint=kernel_constraint,bias_constraint=bias_constraint)(input_x)
     stage_1 = layers.Add()([input_x, stage_1])
     general_utils.print_int_shape(stage_1)  # (None, M, N, 30, 16)
-    stride_1 = (2, 2, params["strides"]["conv.1"]) if is_timelast() or getUSE_PM() else (params["strides"]["conv.1"], 2, 2)
+    stride_1 = (2, 2, params["strides"]["conv.1"]) if is_timelast() or get_USE_PM() else (params["strides"]["conv.1"], 2, 2)
     conv_1 = layers.Conv3D(channels[2],kernel_size=kernel_size_2,activation=layers.PReLU(),padding='same',bias_constraint=bias_constraint,kernel_initializer=kernel_init,kernel_constraint=kernel_constraint,strides=stride_1)(stage_1)
     general_utils.print_int_shape(conv_1)  # (None, M, N, 30, 16)
 
@@ -48,7 +48,7 @@ def VNet_Milletari(params):
     stage_2 = layers.Conv3D(channels[2],kernel_size=kernel_size_1,activation=layers.PReLU(),padding='same',kernel_initializer=kernel_init,kernel_constraint=kernel_constraint,bias_constraint=bias_constraint)(stage_2)
     stage_2 = layers.Add()([conv_1, stage_2])
     general_utils.print_int_shape(stage_2)  # (None, M/2, N/2, 15, 32)
-    stride_2 = (2, 2, params["strides"]["conv.2"]) if is_timelast() or getUSE_PM() else (params["strides"]["conv.2"], 2, 2)
+    stride_2 = (2, 2, params["strides"]["conv.2"]) if is_timelast() or get_USE_PM() else (params["strides"]["conv.2"], 2, 2)
     conv_2 = layers.Conv3D(channels[3],kernel_size=kernel_size_2,activation=layers.PReLU(),padding='same',bias_constraint=bias_constraint,kernel_initializer=kernel_init,kernel_constraint=kernel_constraint,strides=stride_2)(stage_2)
     general_utils.print_int_shape(conv_2)  # (None, M/2, N/2, 15, 32)
 
@@ -58,7 +58,7 @@ def VNet_Milletari(params):
     stage_3 = layers.Conv3D(channels[3],kernel_size=kernel_size_1,activation=layers.PReLU(),padding='same',kernel_initializer=kernel_init,kernel_constraint=kernel_constraint,bias_constraint=bias_constraint)(stage_3)
     stage_3 = layers.Add()([conv_2, stage_3])
     general_utils.print_int_shape(stage_3)  # (None, M/4, N/4, 5, 64)
-    stride_3 = (2, 2, params["strides"]["conv.3"]) if is_timelast() or getUSE_PM() else (params["strides"]["conv.3"], 2, 2)
+    stride_3 = (2, 2, params["strides"]["conv.3"]) if is_timelast() or get_USE_PM() else (params["strides"]["conv.3"], 2, 2)
     conv_3 = layers.Conv3D(channels[4],kernel_size=kernel_size_2,activation=layers.PReLU(),padding='same',strides=stride_3,kernel_initializer=kernel_init,kernel_constraint=kernel_constraint,bias_constraint=bias_constraint)(stage_3)
 
     # Stage 4
@@ -67,7 +67,7 @@ def VNet_Milletari(params):
     stage_4 = layers.Conv3D(channels[4],kernel_size=kernel_size_1,activation=layers.PReLU(),padding='same',kernel_initializer=kernel_init,kernel_constraint=kernel_constraint,bias_constraint=bias_constraint)(stage_4)
     stage_4 = layers.Add()([conv_3, stage_4])
     general_utils.print_int_shape(stage_4)  # (None, M/8, N/8, 1, 128)
-    stride_4 = (2, 2, params["strides"]["conv.4"]) if is_timelast() or getUSE_PM() else (params["strides"]["conv.4"], 2, 2)
+    stride_4 = (2, 2, params["strides"]["conv.4"]) if is_timelast() or get_USE_PM() else (params["strides"]["conv.4"], 2, 2)
     conv_4 = layers.Conv3D(channels[5],kernel_size=kernel_size_2,activation=layers.PReLU(),padding='same',strides=stride_4,kernel_initializer=kernel_init,kernel_constraint=kernel_constraint,bias_constraint=bias_constraint)(stage_4)
     general_utils.print_int_shape(conv_4)  # (None, M/16, N/16, 1, 128)
 
@@ -120,20 +120,20 @@ def VNet_Milletari(params):
         activation_func = "softmax"
         shape_output = (get_m(), get_n(), last_channels)
 
-    stride_5 = (1, 1, params["strides"]["conv.1"]) if is_timelast() or getUSE_PM()  else (params["strides"]["conv.1"], 1, 1)
+    stride_5 = (1, 1, params["strides"]["conv.1"]) if is_timelast() or get_USE_PM() else (params["strides"]["conv.1"], 1, 1)
     last_conv = layers.Conv3D(channels[2],kernel_size=stride_1,activation=layers.PReLU(),padding='same',kernel_initializer=kernel_init,strides=stride_5,kernel_constraint=kernel_constraint,bias_constraint=bias_constraint)(r_stage_1)
-    stride_6 = (1, 1, params["strides"]["conv.2"]) if is_timelast() or getUSE_PM() else (params["strides"]["conv.2"], 1, 1)
+    stride_6 = (1, 1, params["strides"]["conv.2"]) if is_timelast() or get_USE_PM() else (params["strides"]["conv.2"], 1, 1)
     last_conv = layers.Conv3D(channels[1],kernel_size=stride_2,activation=layers.PReLU(),padding='same',kernel_initializer=kernel_init,strides=stride_6,kernel_constraint=kernel_constraint,bias_constraint=bias_constraint)(last_conv)
-    stride_7 = (1, 1, params["strides"]["conv.3"]) if is_timelast() or getUSE_PM() else (params["strides"]["conv.3"], 1, 1)
+    stride_7 = (1, 1, params["strides"]["conv.3"]) if is_timelast() or get_USE_PM() else (params["strides"]["conv.3"], 1, 1)
     last_conv = layers.Conv3D(channels[0],kernel_size=stride_3,activation=layers.PReLU(),padding='same',kernel_initializer=kernel_init,strides=stride_7,kernel_constraint=kernel_constraint,bias_constraint=bias_constraint)(last_conv)
-    stride_8 = (1, 1, params["strides"]["conv.4"]) if is_timelast() or getUSE_PM() else (params["strides"]["conv.4"], 1, 1)
+    stride_8 = (1, 1, params["strides"]["conv.4"]) if is_timelast() or get_USE_PM() else (params["strides"]["conv.4"], 1, 1)
     last_conv = layers.Conv3D(channels[0],kernel_size=stride_4,activation=layers.PReLU(),padding='same',kernel_initializer=kernel_init,strides=stride_8,kernel_constraint=kernel_constraint,bias_constraint=bias_constraint)(last_conv)
     last_conv = layers.Conv3D(last_channels,kernel_size=(1,1,1),activation=activation_func,padding='same',kernel_initializer=kernel_init,kernel_constraint=kernel_constraint,bias_constraint=bias_constraint)(last_conv)
 
     output = layers.Reshape(shape_output)(last_conv)
     general_utils.print_int_shape(output)  # (None, M, N, 4)
 
-    model = models.Model(inputs=input_x, outputs=output) if not getUSE_PM() else models.Model(inputs=list_input, outputs=output)
+    model = models.Model(inputs=input_x, outputs=output) if not get_USE_PM() else models.Model(inputs=list_input, outputs=output)
     return model
 
 

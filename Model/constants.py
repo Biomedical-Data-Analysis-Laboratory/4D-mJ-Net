@@ -123,7 +123,7 @@ def set_prefix(prefix):
 
 
 ################################################################################
-def getUSE_PM():
+def get_USE_PM():
     return USE_PM
 
 
@@ -131,7 +131,7 @@ def get_list_PMS():
     return list_PMS
 
 
-def setUSE_PM(pm):
+def set_USE_PM(pm):
     global USE_PM, list_PMS
     USE_PM = pm
     if USE_PM and is_ISLES2018(): list_PMS = ["CBF", "CBV", "MTT", "TMAX"]

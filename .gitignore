@@ -3,6 +3,7 @@ Settings/
 SAVE/
 Standalone-scripts/Settings/
 venv/
+keras-tnc/
 
 Standalone-scripts/watchdog.py
 Standalone-scripts/test_for_model.py

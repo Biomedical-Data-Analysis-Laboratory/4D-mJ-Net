@@ -3,7 +3,7 @@ Settings/
 SAVE/
 Standalone-scripts/Settings/
 venv/
-/tcn/
+tcn/
 
 Standalone-scripts/watchdog.py
 Standalone-scripts/test_for_model.py

@@ -17,3 +17,4 @@ nihss_score.csv
 *.sh
 *.obj
 *.out
+/tcn/

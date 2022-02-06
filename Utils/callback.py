@@ -1,12 +1,22 @@
 from Model.constants import *
 from Utils import general_utils
 
-import os, glob, json
+import os, glob
 import numpy as np
-import tensorflow as tf
 from tensorflow.keras import callbacks
 import tensorflow.keras.backend as K
 from sklearn.metrics import roc_auc_score
+
+
+################################################################################
+# class DisplayCallback(callbacks.Callback):
+#     def get_img(self):
+#
+#
+#     def on_epoch_end(self, epoch, logs=None):
+#         img = self.get_img()
+#         self.model.predict(
+#         print('\nSample Prediction after epoch {}\n'.format(epoch + 1))
 
 
 ################################################################################
@@ -59,16 +69,16 @@ class RocCallback(callbacks.Callback):
         self.savedModelName = savedModelName
         self.modelName = self.savedModelName[self.savedModelName.rfind(os.path.sep):]
 
-    def on_train_begin(self, logs={}):
+    def on_train_begin(self, logs=None):
         return
 
-    def on_train_end(self, logs={}):
+    def on_train_end(self, logs=None):
         return
 
-    def on_epoch_begin(self, epoch, logs={}):
+    def on_epoch_begin(self, epoch, logs=None):
         return
 
-    def on_epoch_end(self, epoch, logs={}):
+    def on_epoch_end(self, epoch, logs=None):
         # TODO: predict_proba does NOT exist!
         y_pred_train = self.model.predict_proba(self.x)
         roc_train = roc_auc_score(self.y, y_pred_train, sample_weight=self.sample_weight)
@@ -82,10 +92,10 @@ class RocCallback(callbacks.Callback):
 
         return
 
-    def on_batch_begin(self, batch, logs={}):
+    def on_batch_begin(self, batch, logs=None):
         return
 
-    def on_batch_end(self, batch, logs={}):
+    def on_batch_end(self, batch, logs=None):
         return
 
 
@@ -160,45 +170,3 @@ def TerminateOnNaN():
 # Callback that streams epoch results to a CSV file.
 def CSVLogger(textFolderPath, nn_id, filename, separator):
     return callbacks.CSVLogger(textFolderPath + nn_id + general_utils.get_suffix() + filename, separator=separator, append=True)
-
-
-################################################################################
-#
-class SavePrediction(callbacks.Callback):
-    def __init__(self):
-        super().__init__()
-        self._get_pred = None
-        self.preds = dict()
-        self.n_pxl = 0
-
-    def _pred_callback(self, preds):
-        batch = K.eval((K.argmax(preds)*255) / (get_n_classes() - 1))
-        for val_idx in range(batch.shape[0]):
-            vals = dict(zip(*np.unique(batch[val_idx, :, :], return_counts=True)))
-            for key in vals.keys():
-                if key not in self.preds.keys(): self.preds[key] = 0
-                self.preds[key] += vals[key]
-                self.n_pxl += vals[key]
-
-    def set_model(self, model):
-        super().set_model(model)
-        if self._get_pred is None: self._get_pred = self.model.outputs[0]
-        # if self._get_inp is None: self._get_inp = self.model.inputs[0]
-        # if self._get_target is None: self._get_target = self.model._targets[0]
-
-    def on_test_begin(self, logs):
-        # pylint: disable=protected-access
-        self.model._make_test_function()
-        # pylint: enable=protected-access
-        if self._get_pred not in self.model.test_function.fetches:
-            self.model.test_function.fetches.append(self._get_pred)
-            self.model.test_function.fetch_callbacks[self._get_pred] = self._pred_callback
-
-    def on_test_end(self, logs):
-        if self._get_pred in self.model.test_function.fetches: self.model.test_function.fetches.remove(self._get_pred)
-        if self._get_pred in self.model.test_function.fetch_callbacks: self.model.test_function.fetch_callbacks.pop(self._get_pred)
-
-        print("\n {0} - {1}".format(self.preds, self.n_pxl / (get_img_weight() * get_img_width())))
-        self.preds = dict()
-        self.n_pxl = 0
-

@@ -19,8 +19,10 @@ def VNet_Milletari(params):
 
     # Hu initializer
     kernel_init = initializers.VarianceScaling(scale=(9/5), mode='fan_in', distribution='normal', seed=None)
-    kernel_constraint = None if "kernel_constraint" not in params.keys() else model_utils.getKernelBiasConstraint(params["kernel_constraint"])
-    bias_constraint = None if "bias_constraint" not in params.keys() else model_utils.getKernelBiasConstraint(params["bias_constraint"])
+    kernel_constraint = None if "kernel_constraint" not in params.keys() else model_utils.get_kernel_bias_constraint(
+        params["kernel_constraint"])
+    bias_constraint = None if "bias_constraint" not in params.keys() else model_utils.get_kernel_bias_constraint(
+        params["bias_constraint"])
 
     input_shape = (get_m(), get_n(), getNUMBER_OF_IMAGE_PER_SECTION(), 1) if is_timelast() else (getNUMBER_OF_IMAGE_PER_SECTION(),
                                                                                                  get_m(), get_n(), 1)
@@ -143,8 +145,10 @@ def VNet_Milletari(params):
 def VNet_Light(params):
     # Hu initializer
     kernel_init = initializers.VarianceScaling(scale=(9/5), mode='fan_in', distribution='normal', seed=None)
-    kernel_constraint = None if "kernel_constraint" not in params.keys() else model_utils.getKernelBiasConstraint(params["kernel_constraint"])
-    bias_constraint = None if "bias_constraint" not in params.keys() else model_utils.getKernelBiasConstraint(params["bias_constraint"])
+    kernel_constraint = None if "kernel_constraint" not in params.keys() else model_utils.get_kernel_bias_constraint(
+        params["kernel_constraint"])
+    bias_constraint = None if "bias_constraint" not in params.keys() else model_utils.get_kernel_bias_constraint(
+        params["bias_constraint"])
 
     input_shape = (get_m(), get_n(), getNUMBER_OF_IMAGE_PER_SECTION(), 1) if is_timelast() else (getNUMBER_OF_IMAGE_PER_SECTION(),
                                                                                                  get_m(), get_n(), 1)
@@ -272,8 +276,10 @@ def VNet_Milletari_PMS(params, multiInput):
 
     # Hu initializer
     kernel_init = initializers.VarianceScaling(scale=(9/5), mode='fan_in', distribution='normal', seed=None)
-    kernel_constraint = None if "kernel_constraint" not in params.keys() else model_utils.getKernelBiasConstraint(params["kernel_constraint"])
-    bias_constraint = None if "bias_constraint" not in params.keys() else model_utils.getKernelBiasConstraint(params["bias_constraint"])
+    kernel_constraint = None if "kernel_constraint" not in params.keys() else model_utils.get_kernel_bias_constraint(
+        params["kernel_constraint"])
+    bias_constraint = None if "bias_constraint" not in params.keys() else model_utils.get_kernel_bias_constraint(
+        params["bias_constraint"])
 
     list_input = []
     for pm in ["cbf", "cbv", "ttp", "mip", "mtt", "tmax"]:

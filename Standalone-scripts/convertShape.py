@@ -6,10 +6,10 @@ import pickle as pkl
 DATASET_NAME = "SUS2020_TIFF/"
 SCRIPT_PATH = "/local/home/lucat/DATASET/"+DATASET_NAME
 
-getIMAGE_WIDTH(), getIMAGE_HEIGHT() = 512, 512
+IMAGE_WIDTH, IMAGE_HEIGHT = 512, 512
 TILE_DIVISION = 16
 VERBOSE = 1
-M, N = int(getIMAGE_WIDTH()/TILE_DIVISION), int(getIMAGE_HEIGHT()/TILE_DIVISION)
+M, N = int(IMAGE_HEIGHT/TILE_DIVISION), int(IMAGE_HEIGHT / TILE_DIVISION)
 SLICING_PIXELS = int(M/4) # USE ALWAYS M/4
 
 ################################################################################

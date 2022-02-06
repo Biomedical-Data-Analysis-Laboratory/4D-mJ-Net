@@ -12,10 +12,13 @@ def ResUNet(params):
     channels = [32,64,128,256,512]
     channels = [int(ch/8) for ch in channels]
 
-    l1_l2_reg = None if "regularizer" not in params.keys() else model_utils.getRegularizer(params["regularizer"])
-    kernel_init = "glorot_uniform" if "kernel_init" not in params.keys() else model_utils.getKernelInit(params["kernel_init"])
-    kernel_constraint = None if "kernel_constraint" not in params.keys() else model_utils.getKernelBiasConstraint(params["kernel_constraint"])
-    bias_constraint = None if "bias_constraint" not in params.keys() else model_utils.getKernelBiasConstraint(params["bias_constraint"])
+    l1_l2_reg = None if "regularizer" not in params.keys() else model_utils.get_regularizer(params["regularizer"])
+    kernel_init = "glorot_uniform" if "kernel_init" not in params.keys() else model_utils.get_kernel_init(
+        params["kernel_init"])
+    kernel_constraint = None if "kernel_constraint" not in params.keys() else model_utils.get_kernel_bias_constraint(
+        params["kernel_constraint"])
+    bias_constraint = None if "bias_constraint" not in params.keys() else model_utils.get_kernel_bias_constraint(
+        params["bias_constraint"])
     input_shape = (get_m(), get_n(), getNUMBER_OF_IMAGE_PER_SECTION(), 1) if is_timelast() else (getNUMBER_OF_IMAGE_PER_SECTION(),
                                                                                                  get_m(), get_n(), 1)
 
@@ -34,39 +37,42 @@ def ResUNet(params):
     general_utils.print_int_shape(squeeze_exc_1)
 
     stride = (2,2,params["strides"]["1"]) if is_timelast() else (params["strides"]["1"], 2, 2)
-    resblock_1 = model_utils.resNetBlock(squeeze_exc_1, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint,
-                                         filter=channels[1], strides=stride)
+    resblock_1 = model_utils.block_resNet(squeeze_exc_1, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint,
+                                          filters=channels[1], strides=stride)
     general_utils.print_int_shape(resblock_1)
     stride = (2,2,params["strides"]["2"]) if is_timelast() else (params["strides"]["2"], 2, 2)
-    resblock_2 = model_utils.resNetBlock(resblock_1, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint,
-                                         filter=channels[2], strides=stride)
+    resblock_2 = model_utils.block_resNet(resblock_1, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint,
+                                          filters=channels[2], strides=stride)
     general_utils.print_int_shape(resblock_2)
     stride = (2,2,params["strides"]["3"]) if is_timelast() else (params["strides"]["3"], 2, 2)
-    resblock_3 = model_utils.resNetBlock(resblock_2, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint,
-                                         filter=channels[3], strides=stride)
+    resblock_3 = model_utils.block_resNet(resblock_2, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint,
+                                          filters=channels[3], strides=stride)
     general_utils.print_int_shape(resblock_3)
 
     bridge = model_utils.ASSP(resblock_3, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint, filt=channels[4])
     general_utils.print_int_shape(bridge)
 
-    att_1 = model_utils.attentionGateBlock(resblock_2, bridge, channels[4], l1_l2_reg, kernel_init, kernel_constraint, bias_constraint)
+    att_1 = model_utils.block_attentionGate(resblock_2, bridge, channels[4], l1_l2_reg, kernel_init, kernel_constraint,
+                                            bias_constraint)
     general_utils.print_int_shape(att_1)
-    resblock_4 = model_utils.resNetBlock(att_1, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint,
-                                         filter=channels[3], strides=(1, 1, 1))
+    resblock_4 = model_utils.block_resNet(att_1, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint,
+                                          filters=channels[3], strides=(1, 1, 1))
     general_utils.print_int_shape(resblock_4)
 
-    att_2 = model_utils.attentionGateBlock(resblock_1, resblock_4, channels[3], l1_l2_reg, kernel_init, kernel_constraint, bias_constraint)
+    att_2 = model_utils.block_attentionGate(resblock_1, resblock_4, channels[3], l1_l2_reg, kernel_init,
+                                            kernel_constraint, bias_constraint)
     general_utils.print_int_shape(att_2)
 
-    resblock_5 = model_utils.resNetBlock(att_2, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint,
-                                         filter=channels[2], strides=(1, 1, 1))
+    resblock_5 = model_utils.block_resNet(att_2, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint,
+                                          filters=channels[2], strides=(1, 1, 1))
     general_utils.print_int_shape(resblock_5)
 
-    att_3 = model_utils.attentionGateBlock(squeeze_exc_1, resblock_5, channels[2], l1_l2_reg, kernel_init, kernel_constraint, bias_constraint)
+    att_3 = model_utils.block_attentionGate(squeeze_exc_1, resblock_5, channels[2], l1_l2_reg, kernel_init,
+                                            kernel_constraint, bias_constraint)
     general_utils.print_int_shape(att_3)
 
-    resblock_6 = model_utils.resNetBlock(att_3, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint,
-                                         filter=channels[1], strides=(1, 1, 1))
+    resblock_6 = model_utils.block_resNet(att_3, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint,
+                                          filters=channels[1], strides=(1, 1, 1))
     general_utils.print_int_shape(resblock_6)
 
     assp_block = model_utils.ASSP(resblock_6, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint,

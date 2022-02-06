@@ -22,13 +22,13 @@ def load_train_DF(nn, patients):
     suffix = general_utils.get_suffix()  # es == "_4_16x16"
 
     suffix_filename = ".pkl"
-    if nn.use_hickle: suffix_filename = ".hkl"
+    if nn.model_info["use_hickle"]: suffix_filename = ".hkl"
     listOfFolders = glob.glob(nn.ds_folder + "*" + suffix + suffix_filename)
     with multiprocessing.Pool(processes=5) as pool:  # auto closing workers
         frames = pool.starmap(read_single_DF, list(zip(listOfFolders, [patients] * len(listOfFolders),
                                                        [suffix] * len(listOfFolders), [get_m()] * len(listOfFolders),
                                                        [get_n()] * len(listOfFolders), [get_labels()] * len(listOfFolders),
-                                                       [is_verbose()] * len(listOfFolders), [nn.use_hickle] * len(listOfFolders))))
+                                                       [is_verbose()] * len(listOfFolders), [nn.model_info["use_hickle"]] * len(listOfFolders))))
 
     if is_ISLES2018(): train_df = train_df.append(frames[1:], sort=False, ignore_index=True)
     else: train_df = train_df.append(frames, sort=False, ignore_index=True)
@@ -41,7 +41,7 @@ def read_single_DF(filename_train, patients, suffix, thisM, thisN, thisLABELS, t
     # don't load the dataframe if patient_id NOT in the list of patients
     tmp_df = pd.DataFrame(columns=get_DF_columns())
     if not general_utils.isFilenameInListOfPatient(filename_train, patients, suffix): return tmp_df
-    start = time.time()
+    s = time.time()
     tmp_df = read_pickle_or_hickle(filename_train, use_hickle)
 
     # Remove the overlapping tiles except if they are labeled as "core"
@@ -50,7 +50,7 @@ def read_single_DF(filename_train, patients, suffix, thisM, thisN, thisLABELS, t
     three = tmp_df.label.values == thisLABELS[-1]
     tmp_df = tmp_df[(one & two) | three]
 
-    if thisVerbose: print("{0} - {2} - {1}".format(filename_train, round(time.time() - start, 3), tmp_df.shape))
+    if thisVerbose: print("{0} - {2} - {1}".format(filename_train, round(time.time() - s, 3), tmp_df.shape))
     return tmp_df
 
 
@@ -68,15 +68,12 @@ def read_pickle_or_hickle(filename, flagHickle):
 # Return the dataset based on the patient id
 # First function that is been called to create the train_df!
 def get_ds(nn, listOfPatientsToTrainVal):
-    start = time.time()
-
     if is_verbose():
         general_utils.print_sep("-", 50)
         if nn.mp: print("[INFO] - Loading Dataset using MULTI-processing...")
         else: print("[INFO] - Loading Dataset using SINGLE-processing...")
 
     train_df = load_train_DF(nn, patients=listOfPatientsToTrainVal)
-    print("[INFO] - Total time to load the Dataset: {0}s".format(round(time.time() - start, 3)))
     if is_verbose(): generate_ds_summary(train_df, listOfPatientsToTrainVal)  # summary of the dataset
 
     return train_df
@@ -86,13 +83,12 @@ def get_ds(nn, listOfPatientsToTrainVal):
 # Function to divide the dataframe in train and test based on the patient id;
 # plus it reshape the pixel array and initialize the model.
 def split_ds(nn, patientlist_train_val, patientlist_test):
-    start = time.time()
     validation_list, test_list = list(), list()
 
     for flag in ["train", "val", "test"]: nn.dataset[flag]["indices"] = list()
     if nn.cross_validation["use"]==0:  # here only if: NO cross-validation set
         # We have set a number of testing patient(s) and we are inside a supervised learning
-        if nn.supervised:
+        if nn.model_info["supervised"]:
             if nn.val["number_patients_for_testing"] > 0 or len(patientlist_test) > 0:
                 random.seed(nn.val["seed"])
                 # if we already set the patient list in the setting file
@@ -124,9 +120,6 @@ def split_ds(nn, patientlist_train_val, patientlist_test):
         validation_list = patientlist_train_val[(int(nn.model_split) - 1) * n_val_pat:int(nn.model_split) * n_val_pat]
         nn = set_val_list(nn, validation_list)
         nn = set_train_indices(nn, validation_list, test_list)
-
-    if is_verbose(): print("[INFO] - Total time to split the Dataset: {}s".format(round(time.time() - start, 3)))
-
     return nn.dataset, validation_list, test_list
 
 
@@ -134,14 +127,12 @@ def split_ds(nn, patientlist_train_val, patientlist_test):
 # Print info regarding the validation list and set the indices in the nn dataset
 def set_val_list(nn, validation_list):
     if is_verbose():
-        if get_m() ==get_img_width() and get_n() ==get_img_weight():
-            if get_prefix_img() == "CTP_":
-                print("[INFO] - VALIDATION list LVO: {}".format([v for v in validation_list if "01_" in v or "00_" in v or "21_" in v or "20_" in v]))
-                print("[INFO] - VALIDATION list Non-LVO: {}".format([v for v in validation_list if "02_" in v or "22_" in v]))
-                print("[INFO] - VALIDATION list WIS: {}".format([v for v in validation_list if "03_" in v or "23_" in v]))
-            else: print("[INFO] - VALIDATION list {}".format(validation_list))
-    for val_p in validation_list: nn.dataset["val"]["indices"].extend(np.nonzero((nn.train_df.patient_id.values == general_utils.get_str_from_idx(
-        val_p)))[0])
+        if get_prefix_img() == "CTP_":
+            print("[INFO] - VALIDATION list LVO: {}".format([v for v in validation_list if "01_" in v or "00_" in v or "21_" in v or "20_" in v]))
+            print("[INFO] - VALIDATION list Non-LVO: {}".format([v for v in validation_list if "02_" in v or "22_" in v]))
+            print("[INFO] - VALIDATION list WIS: {}".format([v for v in validation_list if "03_" in v or "23_" in v]))
+        else: print("[INFO] - VALIDATION list {}".format(validation_list))
+    for val_p in validation_list: nn.dataset["val"]["indices"].extend(np.nonzero((nn.train_df.patient_id.values == general_utils.get_str_from_idx(val_p)))[0])
 
     return nn
 
@@ -158,7 +149,7 @@ def set_train_indices(nn, validation_list, test_list):
     if len(validation_list) == 0 and len(test_list) > 0 and nn.val["validation_perc"] > 0:
         train_val_dataset = nn.dataset["train"]["indices"]
         nn.dataset["train"]["indices"] = list()  # empty the indices, it will be set inside the next function
-        nn = getRandomOrWeightedValidationSelection(nn, train_val_dataset)
+        nn = get_rnd_or_weighted_val_selection(nn, train_val_dataset)
 
     return nn
 
@@ -166,7 +157,6 @@ def set_train_indices(nn, validation_list, test_list):
 ################################################################################
 # Prepare the dataset (NOT for the sequence class!!)
 def prepare_ds(nn):
-    start = time.time()
     # set the train data
     nn.dataset["train"]["data"] = get_data_from_idx(nn.train_df, nn.dataset["train"]["indices"], "train", nn.mp)
     # the validation data is None if validation_perc and number_patients_for_validation are BOTH equal to 0
@@ -175,7 +165,6 @@ def prepare_ds(nn):
 
     # DEFINE the data for the dataset TEST
     nn.dataset["test"]["data"] = get_data_from_idx(nn.train_df, nn.dataset["test"]["indices"], "test", nn.mp)
-    if is_verbose(): print("[INFO] - Total time to split the Dataset: {}s".format(round(time.time() - start, 3)))
 
     return nn.dataset
 
@@ -183,7 +172,7 @@ def prepare_ds(nn):
 ################################################################################
 # Return the train and val indices based on a random selection (val_mod) if nn.val["random_validation_selection"]
 # or a weighted selection based on the percentage (nn.val["validation_perc"]) for each class label
-def getRandomOrWeightedValidationSelection(nn, train_val_dataset):
+def get_rnd_or_weighted_val_selection(nn, train_val_dataset):
     # perform a random selection of the validation
     if nn.val["random_validation_selection"]:
         val_mod = int(100 / nn.val["validation_perc"])
@@ -235,14 +224,13 @@ def get_data_from_idx(train_df, indices, flag, mp):
 
 ################################################################################
 # Function that reshape the data in a MxN tile
-def getSingleLabelFromIndex(singledata):
-    return singledata.reshape(get_m(), get_n())
+def get_single_label_from_idx(singledata): return singledata.reshape(get_m(), get_n())
 
 
 ################################################################################
 # Function that convert the data into a categorical array based on the number of classes
-def getSingleLabelFromIndexCateg(singledata,thisN_CLASSES):
-    return np.array(utils.to_categorical(np.rint((singledata/255) * (thisN_CLASSES-1)), num_classes=thisN_CLASSES))
+def get_single_label_from_idx_categ(singledata,n_classes):
+    return np.array(utils.to_categorical(np.rint((singledata/255) * (n_classes - 1)), num_classes=n_classes))
 
 
 ################################################################################
@@ -259,7 +247,7 @@ def get_labels_from_idx(train_df, dataset, modelname, flag):
 
     if is_TO_CATEG():
         with multiprocessing.Pool(processes=1) as pool:  # auto closing workers
-            labels = pool.map(getSingleLabelFromIndexCateg, list(zip(data, [get_n_classes()] * len(data))))
+            labels = pool.map(get_single_label_from_idx_categ, list(zip(data, [get_n_classes()] * len(data))))
         if type(labels) is not np.array: labels = np.array(labels)
     else:
         if get_n_classes() == 3:

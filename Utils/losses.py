@@ -10,21 +10,21 @@ import tensorflow.keras.backend as K
 # Function that calculates the modified DICE coefficient loss. Util for the LOSS
 # function during the training of the model (for image in input and output)!
 def squared_dice_coef_loss(y_true, y_pred):
-    return 1 - metrics.squared_dice_coef(y_true, y_pred)
+    return 1-metrics.squared_dice_coef(y_true, y_pred, is_loss=True)
 
 
 ################################################################################
 # Calculate the real value for the Dice coefficient, but it returns lower values than
 # the other dice_coef + lower specificity and precision
 def dice_coef_loss(y_true, y_pred):
-    return 1-metrics.dice_coef(y_true, y_pred)
+    return 1-metrics.dice_coef(y_true, y_pred, is_loss=True)
 
 
 ################################################################################
 # Tversky loss.
 # Based on this paper: https://arxiv.org/abs/1706.05721
 def tversky_loss(y_true, y_pred):
-    tv = metrics.tversky_coef(y_true, y_pred)
+    tv = metrics.tversky_coef(y_true, y_pred, is_loss=True)
     return 1 - tv
 
 
@@ -33,7 +33,7 @@ def tversky_loss(y_true, y_pred):
 # From this paper: https://arxiv.org/abs/1810.07842
 def focal_tversky_loss(y_true, y_pred):
     gamma = get_Focal_Tversky()["gamma"]
-    tv = metrics.tversky_coef(y_true, y_pred)
+    tv = metrics.tversky_coef(y_true, y_pred, is_loss=True)
     return K.pow((1 - tv), (1/gamma))
 
 
@@ -60,17 +60,17 @@ def focal_loss(y_true, y_pred):
 ################################################################################
 # Tanimoto loss. https://arxiv.org/pdf/1904.00592.pdf
 def tanimoto_loss(y_true, y_pred):
-    return 1-metrics.tanimoto(y_true, y_pred)
+    return 1-metrics.tanimoto(y_true, y_pred, is_loss=True)
 
 
 ################################################################################
 # Tanimoto loss with its complement. https://arxiv.org/pdf/1904.00592.pdf
 def tanimoto_with_dual_loss(y_true, y_pred):
-    return 1-((metrics.tanimoto(y_true, y_pred)+metrics.tanimoto(1-y_true, 1-y_pred))/2)
+    return 1-((metrics.tanimoto(y_true, y_pred, is_loss=True)+metrics.tanimoto(1-y_true, 1-y_pred, is_loss=True))/2)
 
 
 ################################################################################
 # Hybrid loss containing the pixel wise cross-entropy and the soft dice coefficient
 # https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=8932614
 def pixelwise_crossentropy_plus_squared_dice_coeff(y_true, y_pred):
-    return 1-(metrics.categorical_crossentropy(y_true, y_pred) + metrics.squared_dice_coef(y_true, y_pred))
+    return 1-(metrics.categorical_crossentropy(y_true, y_pred)+metrics.squared_dice_coef(y_true, y_pred, is_loss=True))

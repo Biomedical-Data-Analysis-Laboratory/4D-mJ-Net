@@ -1,16 +1,13 @@
 import warnings
 
-import cv2, matplotlib, glob
+import matplotlib
 
 from Model.constants import *
-from Utils import callback, general_utils
+from Utils import callback
 
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-import numpy as np
-import tensorflow as tf
 from tensorflow.keras import optimizers
-import tensorflow.keras.backend as K
 
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
@@ -61,7 +58,7 @@ def get_optimizer(opt_info):
 # Return the callbacks defined in the setting
 def get_callbacks(info, root_path, filename, text_fold_path, dataset, sample_weights, nn_id, add_for_finetuning):
     # add by default the TerminateOnNaN callback
-    cbs = [callback.TerminateOnNaN()]  #, callback.SavePrediction()]
+    cbs = [callback.TerminateOnNaN()]
 
     for key in info.keys():
         # save the weights
@@ -96,8 +93,7 @@ def get_callbacks(info, root_path, filename, text_fold_path, dataset, sample_wei
 
 ################################################################################
 # Fit the model
-def fit_model(model, dataset, batch_size, epochs, callbacklist, sample_weights, initial_epoch, save_activation_filter,
-             intermediate_activation_path, use_multiprocessing):
+def fit_model(model, dataset, batch_size, epochs, callbacklist, sample_weights, initial_epoch, use_multiprocessing):
     validation_data = None
     if dataset["val"]["data"] is not None and dataset["val"]["labels"] is not None:
         validation_data = (dataset["val"]["data"], dataset["val"]["labels"])
@@ -121,10 +117,10 @@ def fit_model(model, dataset, batch_size, epochs, callbacklist, sample_weights, 
 # Function that call a fit_generator to load the training dataset on the fly
 def fit_generator(model, train_sequence, val_sequence, steps_per_epoch, validation_steps, epochs, callbacklist,
                   initial_epoch, use_multiprocessing):
-    multiplier = 16
+    multiplier = 5
     # steps_per_epoch is given by the len(train_sequence)*steps_per_epoch_ratio rounded to the nearest integer
-    training = model.fit_generator(
-        generator=train_sequence,
+    training = model.fit(
+        x=train_sequence,
         epochs=epochs,
         steps_per_epoch=steps_per_epoch,
         validation_data=val_sequence,
@@ -132,8 +128,8 @@ def fit_generator(model, train_sequence, val_sequence, steps_per_epoch, validati
         callbacks=callbacklist,
         initial_epoch=initial_epoch,
         verbose=1,
-        max_queue_size=10*multiplier,
-        workers=1*multiplier,
+        max_queue_size=10,
+        workers=1,
         shuffle=True,
         use_multiprocessing=use_multiprocessing)
 
@@ -151,5 +147,5 @@ def plot_loss_and_accuracy(nn):
         ax.set_ylabel(key, fontsize=16)
         ax.set_title(key + 'Curves', fontsize=16)
 
-        fig.savefig(nn.save_plot_folder + nn.get_network_id() + "_" + key + "_" + str(get_slice_pixels()) + "_" + str(get_m()) + "x" + str(get_n()) + ".png")
+        fig.savefig(nn.save_plot_folder + nn.get_nn_id() + "_" + key + "_" + str(get_slice_pixels()) + "_" + str(get_m()) + "x" + str(get_n()) + ".png")
         plt.close(fig)

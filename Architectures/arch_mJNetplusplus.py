@@ -11,15 +11,18 @@ import tensorflow.keras.backend as K
 def mJNet_plusplus(params, batch, drop):
     # The TimeDistributed layer works if the time dimension is on the first channel
     timedistr = not is_timelast()
-    l1_l2_reg = None if "regularizer" not in params.keys() else model_utils.getRegularizer(params["regularizer"])
+    l1_l2_reg = None if "regularizer" not in params.keys() else model_utils.get_regularizer(params["regularizer"])
     activ_func = None
     kernel_size = (3,3)
     size_two = (2,2)
     input_shape = (get_m(), get_n(), getNUMBER_OF_IMAGE_PER_SECTION(), 1) if is_timelast() else (getNUMBER_OF_IMAGE_PER_SECTION(),
                                                                                                  get_m(), get_n(), 1)
-    kernel_init = "glorot_uniform" if "kernel_init" not in params.keys() else model_utils.getKernelInit(params["kernel_init"])
-    kernel_constraint = None if "kernel_constraint" not in params.keys() else model_utils.getKernelBiasConstraint(params["kernel_constraint"])
-    bias_constraint = None if "bias_constraint" not in params.keys() else model_utils.getKernelBiasConstraint(params["bias_constraint"])
+    kernel_init = "glorot_uniform" if "kernel_init" not in params.keys() else model_utils.get_kernel_init(
+        params["kernel_init"])
+    kernel_constraint = None if "kernel_constraint" not in params.keys() else model_utils.get_kernel_bias_constraint(
+        params["kernel_constraint"])
+    bias_constraint = None if "bias_constraint" not in params.keys() else model_utils.get_kernel_bias_constraint(
+        params["bias_constraint"])
     channels = [16,32,64,64,128,256,512,1024]
 
     input_x = layers.Input(shape=input_shape, sparse=False)
@@ -109,7 +112,8 @@ def mJNet_plusplus(params, batch, drop):
                                       kernel_constraint=kernel_constraint, bias_constraint=bias_constraint)(conv_3_0)
     up_2_1 = Concatenate(-1)([transp_conv_3_0, conv_2_0])
     general_utils.print_int_shape(up_2_1)
-    up_2_1 = model_utils.convolutionLayer(up_2_1, channels[5], kernel_size, activ_func, l1_l2_reg, kernel_init, 'same', kernel_constraint, bias_constraint, leaky=True, timedistr=False, is2D=True)
+    up_2_1 = model_utils.convolution_layer(up_2_1, channels[5], kernel_size, activ_func, l1_l2_reg, kernel_init, 'same',
+                                           kernel_constraint, bias_constraint, leaky=True, is2D=True, timedistr=False)
     if batch: up_2_1 = layers.BatchNormalization()(up_2_1)
 
     transp_conv_2_0 = Conv2DTranspose(channels[4], kernel_size=kernel_size, strides=size_two, activation=activ_func,
@@ -117,7 +121,8 @@ def mJNet_plusplus(params, batch, drop):
                                       kernel_constraint=kernel_constraint, bias_constraint=bias_constraint)(conv_2_0)
     up_1_1 = Concatenate(-1)([transp_conv_2_0, conv_1_0])
     general_utils.print_int_shape(up_1_1)
-    up_1_1 = model_utils.convolutionLayer(up_1_1, channels[4], kernel_size, activ_func, l1_l2_reg, kernel_init, 'same', kernel_constraint, bias_constraint, leaky=True, timedistr=False, is2D=True)
+    up_1_1 = model_utils.convolution_layer(up_1_1, channels[4], kernel_size, activ_func, l1_l2_reg, kernel_init, 'same',
+                                           kernel_constraint, bias_constraint, leaky=True, is2D=True, timedistr=False)
     if batch: up_1_1 = layers.BatchNormalization()(up_1_1)
 
     transp_conv_1_0 = Conv2DTranspose(channels[3], kernel_size=kernel_size, strides=size_two, activation=activ_func,
@@ -125,7 +130,8 @@ def mJNet_plusplus(params, batch, drop):
                                       kernel_constraint=kernel_constraint, bias_constraint=bias_constraint)(conv_1_0)
     up_0_1 = Concatenate(-1)([transp_conv_1_0, conv_0_0])
     general_utils.print_int_shape(up_0_1)
-    up_0_1 = model_utils.convolutionLayer(up_0_1, channels[3], kernel_size, activ_func, l1_l2_reg, kernel_init, 'same', kernel_constraint, bias_constraint, leaky=True, timedistr=False, is2D=True)
+    up_0_1 = model_utils.convolution_layer(up_0_1, channels[3], kernel_size, activ_func, l1_l2_reg, kernel_init, 'same',
+                                           kernel_constraint, bias_constraint, leaky=True, is2D=True, timedistr=False)
     if batch: up_0_1 = layers.BatchNormalization()(up_0_1)
 
     transp_up_3_1 = Conv2DTranspose(channels[4], kernel_size=kernel_size, strides=size_two, activation=activ_func,
@@ -142,14 +148,16 @@ def mJNet_plusplus(params, batch, drop):
                                     kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init, padding='same',
                                     kernel_constraint=kernel_constraint, bias_constraint=bias_constraint)(up_2_1)
     up_1_2 = Concatenate(-1)([transp_up_2_1, up_1_1, conv_1_0])
-    up_1_2 = model_utils.convolutionLayer(up_1_2, channels[3], kernel_size, activ_func, l1_l2_reg, kernel_init, 'same', kernel_constraint, bias_constraint, leaky=True, timedistr=False, is2D=True)
+    up_1_2 = model_utils.convolution_layer(up_1_2, channels[3], kernel_size, activ_func, l1_l2_reg, kernel_init, 'same',
+                                           kernel_constraint, bias_constraint, leaky=True, is2D=True, timedistr=False)
     if batch: up_1_2 = layers.BatchNormalization()(up_1_2)
 
     transp_up_1_1 = Conv2DTranspose(channels[2], kernel_size=kernel_size, strides=size_two, activation=activ_func,
                                     kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init, padding='same',
                                     kernel_constraint=kernel_constraint, bias_constraint=bias_constraint)(up_1_1)
     up_0_2 = Concatenate(-1)([transp_up_1_1, up_0_1, conv_0_0])
-    up_0_2 = model_utils.convolutionLayer(up_0_2, channels[2], kernel_size, activ_func, l1_l2_reg, kernel_init, 'same', kernel_constraint, bias_constraint, leaky=True, timedistr=False, is2D=True)
+    up_0_2 = model_utils.convolution_layer(up_0_2, channels[2], kernel_size, activ_func, l1_l2_reg, kernel_init, 'same',
+                                           kernel_constraint, bias_constraint, leaky=True, is2D=True, timedistr=False)
     if batch: up_0_2 = layers.BatchNormalization()(up_0_2)
 
     transp_up_2_2 = Conv2DTranspose(channels[2], kernel_size=kernel_size, strides=size_two, activation=activ_func,
@@ -165,7 +173,8 @@ def mJNet_plusplus(params, batch, drop):
                                     kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init, padding='same',
                                     kernel_constraint=kernel_constraint, bias_constraint=bias_constraint)(up_1_2)
     up_0_3 = Concatenate(-1)([transp_up_1_2, up_0_2, up_0_1, conv_0_0])
-    up_0_3 = model_utils.convolutionLayer(up_0_3, channels[1], kernel_size, activ_func, l1_l2_reg, kernel_init, 'same', kernel_constraint, bias_constraint, leaky=True, timedistr=False, is2D=True)
+    up_0_3 = model_utils.convolution_layer(up_0_3, channels[1], kernel_size, activ_func, l1_l2_reg, kernel_init, 'same',
+                                           kernel_constraint, bias_constraint, leaky=True, is2D=True, timedistr=False)
     if batch: up_0_3 = layers.BatchNormalization()(up_0_3)
 
     # set the softmax activation function if the flag is set
@@ -177,19 +186,23 @@ def mJNet_plusplus(params, batch, drop):
                                     kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init, padding='same',
                                     kernel_constraint=kernel_constraint, bias_constraint=bias_constraint)(up_1_3)
     up_0_4 = Concatenate(-1)([transp_up_1_3, up_0_3, up_0_2, up_0_1, conv_0_0])
-    up_0_4 = model_utils.convolutionLayer(up_0_4,n_chann,(1,1),act_name,l1_l2_reg,kernel_init,'same',kernel_constraint,bias_constraint,is2D=True)
+    up_0_4 = model_utils.convolution_layer(up_0_4, n_chann, (1, 1), act_name, l1_l2_reg, kernel_init, 'same',
+                                           kernel_constraint, bias_constraint, is2D=True)
     general_utils.print_int_shape(up_0_4)
     y_0_4 = layers.Reshape(shape_output)(up_0_4)
 
-    up_0_3 = model_utils.convolutionLayer(up_0_3,n_chann,(1,1),act_name,l1_l2_reg,kernel_init,'same',kernel_constraint,bias_constraint,is2D=True)
+    up_0_3 = model_utils.convolution_layer(up_0_3, n_chann, (1, 1), act_name, l1_l2_reg, kernel_init, 'same',
+                                           kernel_constraint, bias_constraint, is2D=True)
     general_utils.print_int_shape(up_0_3)
     y_0_3 = layers.Reshape(shape_output)(up_0_3)
 
-    up_0_2 = model_utils.convolutionLayer(up_0_2,n_chann,(1,1),act_name,l1_l2_reg,kernel_init,'same',kernel_constraint,bias_constraint,is2D=True)
+    up_0_2 = model_utils.convolution_layer(up_0_2, n_chann, (1, 1), act_name, l1_l2_reg, kernel_init, 'same',
+                                           kernel_constraint, bias_constraint, is2D=True)
     general_utils.print_int_shape(up_0_2)
     y_0_2 = layers.Reshape(shape_output)(up_0_2)
 
-    up_0_1 = model_utils.convolutionLayer(up_0_1,n_chann,(1,1),act_name,l1_l2_reg,kernel_init,'same',kernel_constraint,bias_constraint,is2D=True)
+    up_0_1 = model_utils.convolution_layer(up_0_1, n_chann, (1, 1), act_name, l1_l2_reg, kernel_init, 'same',
+                                           kernel_constraint, bias_constraint, is2D=True)
     general_utils.print_int_shape(up_0_1)
     y_0_1 = layers.Reshape(shape_output)(up_0_1)
 

@@ -41,19 +41,16 @@ def main():
 
         # flag that states: run the train on all the patients in the "patient" folder
         if "ALL" == patientlist_train_val[0]:
-            # check if we want to get the dataset JUST based on the severity
+            # check if we want to get the dataset JUST based on the severity: i.e. --> "ALL_01"
             severity = patientlist_train_val[0].split("_")[1] + "_" if "_" in patientlist_train_val[0] else ""
             # different for SUS2020_v2 dataset since the dataset is not complete and the prefix is different
             if "SUS2020" in nn.ds_folder:
-                patientlist_train_val = [d[len(get_prefix_img()):] for d in
-                                         os.listdir(nn.patients_folder) if
-                                         os.path.isdir(os.path.join(nn.patients_folder, d)) and
-                                         severity in d]
-            else:
-                patientlist_train_val = [int(d[len(get_prefix_img()):]) for d in
-                                         os.listdir(nn.patients_folder) if
-                                         os.path.isdir(os.path.join(nn.patients_folder, d)) and
-                                         severity in d]
+                patientlist_train_val = [d[len(DATASET_PREFIX):-(len(general_utils.get_suffix())+4)]
+                                         for d in os.listdir(nn.ds_folder) if severity in d]
+            else: patientlist_train_val = [int(d[len(get_prefix_img()):]) for d in
+                                           os.listdir(nn.patients_folder) if
+                                           os.path.isdir(os.path.join(nn.patients_folder, d)) and
+                                           severity in d]
 
         # if DEBUG mode: use only a fix number of patients in the list
         if is_debug():
@@ -93,15 +90,12 @@ def main():
                 # SET THE CALLBACKS & LOAD MODEL
                 nn.set_callbacks()
                 nn.load_saved_model()
-            else:
-                nn.init_and_start_training(n_gpu, args.jump)
+            else: nn.init_and_start_training(n_gpu, args.jump)
 
             # TRAIN SET: only for ISLES2018 dataset
             if is_ISLES2018():
-                nn.predict_and_save_img([general_utils.get_str_from_idx(x) for x in patientlist_train_val if x < 1000],
-                                        nn.is_model_saved())
-            else: nn.predict_and_save_img(val_list,
-                                          nn.is_model_saved())  # VALIDATION SET: predict the images for decision on the model
+                nn.predict_and_save_img([general_utils.get_str_from_idx(x) for x in patientlist_train_val if x < 1000], nn.is_model_saved())
+            else: nn.predict_and_save_img(val_list, nn.is_model_saved())  # VALIDATION SET: predict the images for decision on the model
             # PERFORM TESTING: predict and save the images
             nn.predict_and_save_img(patientlist_test, nn.is_model_saved())
 

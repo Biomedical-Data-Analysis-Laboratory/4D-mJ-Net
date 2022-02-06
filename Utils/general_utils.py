@@ -1,10 +1,11 @@
 # DO NOT import dataset_utils here!
+import functools
 import warnings
 
 from Model.constants import *
 from Utils import metrics, losses
 
-import sys, argparse, os, json, time, pickle
+import argparse, os, json, pickle
 import numpy as np
 import tensorflow as tf
 import tensorflow.keras.backend as K
@@ -108,6 +109,7 @@ def setupEnvironmentForGPUs(args, setting):
     os.environ["CUDA_VISIBLE_DEVICES"] = GPU
     os.environ["TF_CPP_MIN_LOG_LEVEL"] = setting["init"]["TF_CPP_MIN_LOG_LEVEL"]
 
+    K.set_floatx('float32')
     config = tf.compat.v1.ConfigProto()
     if setting["init"]["allow_growth"]:
         config.gpu_options.allow_growth = True
@@ -127,7 +129,7 @@ def setupEnvironmentForGPUs(args, setting):
 
 ################################################################################
 # return the selected window for an image
-def getSlicingWindow(img, startX, startY, constants, isgt=False, removeColorBar=False):
+def get_slice_window(img, startX, startY, constants, is_gt=False, remove_colorbar=False):
     M, N = constants["M"], constants["N"]
     sliceWindow = img[startX:startX+M,startY:startY+N]
 
@@ -136,13 +138,13 @@ def getSlicingWindow(img, startX, startY, constants, isgt=False, removeColorBar=
         where = list(map(list, np.argwhere(np.isnan(sliceWindow))))
         for w in where: sliceWindow[w] = constants["PIXELVALUES"][0]
 
-    if isgt:
+    if is_gt:
         for pxval in constants["PIXELVALUES"]:
             sliceWindow = np.where(np.logical_and(
                 sliceWindow>=np.rint(pxval-(256/6)), sliceWindow<=np.rint(pxval+(256/6))
             ), pxval, sliceWindow)
     # Remove the colorbar! starting coordinate: (129,435)
-    if removeColorBar and not is_ISLES2018():
+    if remove_colorbar and not is_ISLES2018():
         if M==constants["IMAGE_WIDTH"] and N==constants["IMAGE_HEIGHT"]: sliceWindow[:,colorbar_coord[1]:] = 0
         # if the tile is smaller than the entire image
         elif startY+N>=colorbar_coord[1]: sliceWindow[:,colorbar_coord[1]-startY:] = 0
@@ -232,9 +234,9 @@ def getClassWeights(classtype):
     three_cat = [[1,0,0]] if classtype == "rest" else [[0, 1, 0]] if classtype == "penumbra" else [[0, 0, 1]]
     two_cat = [[1,0]] if classtype == "rest" else [[0, 1]]
 
-    class_weights = tf.constant(four_cat, dtype=tf.float32)
-    if get_n_classes() == 3: class_weights = tf.constant(three_cat, dtype=tf.float32)
-    elif get_n_classes() == 2: class_weights = tf.constant(two_cat, dtype=tf.float32)
+    class_weights = tf.constant(four_cat, dtype=K.floatx())
+    if get_n_classes() == 3: class_weights = tf.constant(three_cat, dtype=K.floatx())
+    elif get_n_classes() == 2: class_weights = tf.constant(two_cat, dtype=K.floatx())
     return class_weights
 
 
@@ -335,45 +337,43 @@ def stopPIDToWatchdog():
 
 ################################################################################
 def pickle_save(variable_to_save, path):
-    with open(path, 'wb') as handle:
-        pickle.dump(variable_to_save, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    with open(path, 'wb') as handle: pickle.dump(variable_to_save, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 
 ################################################################################
 def pickle_load(path):
-    with open(path, 'rb') as handle:
-        output = pickle.load(handle)
+    with open(path, 'rb') as handle: output = pickle.load(handle)
     return output
 
 
 ################################################################################
 # Check memory usage of the model
-def get_model_memory_usage(model, batch_size):
+def get_model_memory_usage(model, batch_size, first=True):
     shapes_mem_count = 0
     internal_model_mem_count = 0
     for l in model.layers:
         layer_type = l.__class__.__name__
-        if layer_type == 'Model':
-            internal_model_mem_count += get_model_memory_usage(l, batch_size)
+        if layer_type == 'Model': internal_model_mem_count += get_model_memory_usage(l, batch_size, first=False)
         single_layer_mem = 1
         out_shape = l.output_shape
-        if type(out_shape) is list:
-            out_shape = out_shape[0]
+        if type(out_shape) is list: out_shape = out_shape[0]
         for s in out_shape:
-            if s is None:
-                continue
+            if s is None: continue
             single_layer_mem *= s
         shapes_mem_count += single_layer_mem
 
     trainable_count = np.sum([K.count_params(p) for p in model.trainable_weights])
     non_trainable_count = np.sum([K.count_params(p) for p in model.non_trainable_weights])
+    if is_verbose() and first:
+        print('Total params: {:,}'.format(trainable_count + non_trainable_count))
+        print('Trainable params: {:,}'.format(trainable_count))
+        print('Non-trainable params: {:,}'.format(non_trainable_count))
 
     number_size = 4.0
-    if K.floatx() == 'float16':
-        number_size = 2.0
-    if K.floatx() == 'float64':
-        number_size = 8.0
+    if K.floatx() == 'float16': number_size = 2.0
+    if K.floatx() == 'float64': number_size = 8.0
 
     total_memory = number_size * (batch_size * shapes_mem_count + trainable_count + non_trainable_count)
     gbytes = np.round(total_memory / (1024.0 ** 3), 3) + internal_model_mem_count
     return gbytes
+

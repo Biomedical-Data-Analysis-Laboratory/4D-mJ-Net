@@ -10,12 +10,13 @@ import tensorflow.keras.backend as K
 # mJ-Net model version for the parametric maps as input
 def PMs_segmentation(params, multiInput, batch=True):
     activ_func = 'relu'
-    l1_l2_reg = None if "regularizer" not in params.keys() else model_utils.getRegularizer(params["regularizer"])
+    l1_l2_reg = None if "regularizer" not in params.keys() else model_utils.get_regularizer(params["regularizer"])
     kernel_init = "glorot_uniform"  # Xavier uniform initializer.
     kernel_constraint, bias_constraint = max_norm(2.), max_norm(2.)
     layersAfterTransferLearning, inputs, block5_conv3, block4_conv3, block3_conv3, block2_conv2, block1_conv2 = [], [], [], [], [], [], []
     pre_input, pre_layer = [], None
-    PMS = model_utils.getPMsList(multiInput, params, activ_func, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint, batch)
+    PMS = model_utils.get_PMs_list(multiInput, params, activ_func, l1_l2_reg, kernel_init, kernel_constraint,
+                                   bias_constraint, batch)
 
     for pm in PMS:
         layersAfterTransferLearning.append(pm.conv_2)
@@ -42,7 +43,9 @@ def PMs_segmentation(params, multiInput, batch=True):
             block1_conv2.append(pm.layer_dict["block1_conv2" + pm.name].output)
 
     # check if there is a need to add more info in the input (NIHSS, gender, ...)
-    inputs, layersAfterTransferLearning, pre_input, pre_layer = model_utils.addMoreInfo(multiInput, inputs, layersAfterTransferLearning, pre_input, pre_layer)
+    inputs, layersAfterTransferLearning, pre_input, pre_layer = model_utils.add_more_info(multiInput, inputs,
+                                                                                          layersAfterTransferLearning,
+                                                                                          pre_input, pre_layer)
     if len(layersAfterTransferLearning)==1: conc_layer = layersAfterTransferLearning[0]
     else: conc_layer = layers.Concatenate(-1)(layersAfterTransferLearning)
 
@@ -55,10 +58,18 @@ def PMs_segmentation(params, multiInput, batch=True):
     up_1 = layers.Concatenate(-1)([transp_1,block5_conv3_conc])
 
     # going up with the layers
-    up_2 = model_utils.upLayers(up_1, block4_conv3, [128*len(PMS),128*len(PMS),128*len(PMS)], (3,3), (2,2), activ_func, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint, params, is2D=True, batch=batch)
-    up_3 = model_utils.upLayers(up_2, block3_conv3, [64*len(PMS),64*len(PMS),64*len(PMS)], (3,3), (2,2), activ_func, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint, params, is2D=True, batch=batch)
-    up_4 = model_utils.upLayers(up_3, block2_conv2, [32*len(PMS),32*len(PMS),32*len(PMS)], (3,3), (2,2), activ_func, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint, params, is2D=True, batch=batch)
-    up_5 = model_utils.upLayers(up_4, block1_conv2, [16*len(PMS),16*len(PMS),16*len(PMS)], (3,3), (2,2), activ_func, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint, params, is2D=True, batch=batch)
+    up_2 = model_utils.up_layers(up_1, block4_conv3, [128 * len(PMS), 128 * len(PMS), 128 * len(PMS)], (3, 3), (2, 2),
+                                 activ_func, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint, params,
+                                 is2D=True, batch=batch)
+    up_3 = model_utils.up_layers(up_2, block3_conv3, [64 * len(PMS), 64 * len(PMS), 64 * len(PMS)], (3, 3), (2, 2),
+                                 activ_func, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint, params,
+                                 is2D=True, batch=batch)
+    up_4 = model_utils.up_layers(up_3, block2_conv2, [32 * len(PMS), 32 * len(PMS), 32 * len(PMS)], (3, 3), (2, 2),
+                                 activ_func, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint, params,
+                                 is2D=True, batch=batch)
+    up_5 = model_utils.up_layers(up_4, block1_conv2, [16 * len(PMS), 16 * len(PMS), 16 * len(PMS)], (3, 3), (2, 2),
+                                 activ_func, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint, params,
+                                 is2D=True, batch=batch)
 
     final_conv_1 = layers.Conv2D(16, kernel_size=(3, 3), padding='same',activation=activ_func,
                                  kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init,

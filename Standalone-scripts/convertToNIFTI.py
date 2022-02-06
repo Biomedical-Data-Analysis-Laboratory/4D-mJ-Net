@@ -15,7 +15,7 @@ def convertStudyImages(patient):
             img = cv2.imread(imagename)
             CTP_study[:,:,i_s,i_t] = img
 
-    niftiStudy = nb.Nifti1Image(CTP_study)
+    niftiStudy = nib.Nifti1Image(CTP_study)
     save_path = savePatientFolder+"study.nii.gz"
     nib.save(niftiStudy, save_path)
 

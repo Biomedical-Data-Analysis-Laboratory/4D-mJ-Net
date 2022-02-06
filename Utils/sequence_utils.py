@@ -1,5 +1,4 @@
 import warnings
-warnings.simplefilter(action='ignore', category=FutureWarning)
 
 import math, cv2, platform
 from typing import Set, Dict, Any
@@ -11,12 +10,14 @@ from tensorflow.keras.utils import Sequence
 from Model.constants import *
 from Utils import general_utils, dataset_utils, model_utils
 
+warnings.simplefilter(action='ignore', category=FutureWarning)
+
 
 ################################################################################
 # https://faroit.com/keras-docs/2.1.3/models/sequential/#fit_generator
-class datasetSequence(Sequence):
-    def __init__(self, dataframe, indices, sample_weights, x_label, y_label, multiInput, batch_size, params, back_perc,
-                 is3dot5DModel, is4DModel, inputImgFlag, supervised, patients_folder, labeledImagesFolder, constants,
+class ds_sequence(Sequence):
+    def __init__(self, dataframe, indices, sample_weights, x_label, y_label, multi_input, batch_size, params, back_perc,
+                 is3dot5DModel, is4DModel, inputImgFlag, supervised, patients_folder, labeled_img_folder, constants,
                  name, SVO_focus=False, flagtype="train", loss=None):
         self.indices = indices
         self.dataframe = dataframe.iloc[self.indices]
@@ -24,7 +25,7 @@ class datasetSequence(Sequence):
         self.sample_weights = sample_weights
         self.x_label = x_label
         self.y_label = y_label
-        self.multiInput = multiInput
+        self.multi_input = multi_input
         self.batch_size = batch_size
         self.params = params
         self.back_perc = back_perc
@@ -36,7 +37,7 @@ class datasetSequence(Sequence):
         self.inputImgFlag = inputImgFlag  # only works when the input are the PMs (concatenate)
         self.supervised = supervised
         self.patients_folder = patients_folder
-        self.labeledImagesFolder = labeledImagesFolder
+        self.labeled_img_folder = labeled_img_folder
         self.constants = constants
 
         if self.flag_type != "test":
@@ -89,7 +90,8 @@ class datasetSequence(Sequence):
         for index, (row_index, row) in enumerate(current_batch.iterrows()):
             # add the index into the correct set
             self.index_pd_DA[str(row["data_aug_idx"])].add(row_index)
-            X = model_utils.getCorrectXForInputModel(self, row[self.x_label], row, batch_idx=index, batch_len=len(current_batch), X=X, train=True)
+            X = model_utils.get_correct_X_for_input_model(self, row[self.x_label], row, batch_idx=index,
+                                                          batch_len=len(current_batch), X=X, train=True)
             if self.y_label=="ground_truth": Y, weights = self.get_Y(Y, row, index, weights)
 
         return X, np.array(Y), weights
@@ -99,13 +101,13 @@ class datasetSequence(Sequence):
     def get_Y(self, Y, row, index, weights):
         aug_idx = str(row["data_aug_idx"])  # index if there's augmentation
         filename = row[self.y_label]
-        if platform.system()=="Windows": filename = filename.replace(filename[:filename.rfind("/",0,len(filename)-7)],self.labeledImagesFolder)
+        if platform.system()=="Windows": filename = filename.replace(filename[:filename.rfind("/",0,len(filename)-7)], self.labeled_img_folder)
         if not isinstance(filename,str): print(filename)
 
         coord = row["x_y"]  # coordinates of the slice window
         img = cv2.imread(filename,cv2.IMREAD_GRAYSCALE)
         assert img is not None, "The image {} is None".format(filename)
-        img = general_utils.getSlicingWindow(img, coord[0], coord[1], self.constants, isgt=True)
+        img = general_utils.get_slice_window(img, coord[0], coord[1], self.constants, is_gt=True)
 
         # remove the brain from the image ==> it becomes background
         if self.constants["N_CLASSES"]<=3: img[img == 85] = self.constants["PIXELVALUES"][0]
@@ -140,7 +142,7 @@ class datasetSequence(Sequence):
         img = general_utils.perform_DA_on_img(img, int(aug_idx))
         if self.constants["TO_CATEG"] and not self.loss == "sparse_categorical_crossentropy":
             # Convert the image to categorical if needed
-            img = dataset_utils.getSingleLabelFromIndexCateg(img, self.constants["N_CLASSES"])
+            img = dataset_utils.get_single_label_from_idx_categ(img, self.constants["N_CLASSES"])
 
         Y.append(img)
 

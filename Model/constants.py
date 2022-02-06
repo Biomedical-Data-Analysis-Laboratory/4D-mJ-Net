@@ -165,11 +165,11 @@ def set_limited_columns(limcols):
     if limcols:
         limited_columns = True
         DF_columns = ["patient_id", "label", "pixels", "CBF", "CBV", "MTT", "TMAX", "ground_truth", "label_code",
-                            "x_y", "data_aug_idx", "timeIndex", "sliceIndex"]
+                      "x_y", "data_aug_idx", "timeIndex", "sliceIndex"]
     else:
         limited_columns = False
         DF_columns = ['patient_id', 'label', 'pixels', 'CBF', 'CBV', 'TTP', 'TMAX', "MIP", "NIHSS", 'ground_truth',
-                            'x_y', 'data_aug_idx','timeIndex', 'sliceIndex', 'severity', "age", "gender", 'label_code']
+                      'x_y', 'data_aug_idx','timeIndex', 'sliceIndex', 'severity', "age", "gender", 'label_code']
 
 
 ################################################################################

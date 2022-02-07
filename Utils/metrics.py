@@ -59,9 +59,10 @@ def sdc_c(y_true, y_pred, is_loss=False):
 # but it returns lower values than the other dice_coef + lower specificity and precision
 # == to F1 score for boolean values
 def dice_coef(y_true, y_pred, is_loss):
+    """ Compute weighted Dice loss. """
+
     # y_pred = K.clip(y_pred,0,1)
     class_weights = tf.constant(get_weights(), dtype=K.floatx())
-    """ Compute weighted Dice loss. """
 
     axis_to_reduce = -1 if not is_TO_CATEG() else list(range(1, K.ndim(y_pred)))
     class_weights = tf.constant(1, dtype=K.floatx()) if not is_TO_CATEG() else class_weights

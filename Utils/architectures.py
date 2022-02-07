@@ -45,14 +45,14 @@ def TCNet_single_encoder(params, multi_input):
 
 ################################################################################
 # Temporal Convolutional Network (TCN)
-def TCNet_3D(params, multi_input):
-    return arch_TCN.TCNet(params,is3D=True)
+def TCNet_3dot5D(params, multi_input):
+    return arch_TCN.TCNet_3dot5D(params)
 
 
 ################################################################################
 # Temporal Convolutional Network (TCN)
-def TCNet_single_encoder_3D(params, multi_input):
-    return arch_TCN.TCNet(params,single_enc=True,is3D=True)
+def TCNet_3dot5D_single_encoder(params, multi_input):
+    return arch_TCN.TCNet_3dot5D(params, single_enc=True)
 
 ################################################################################
 # mJ-Net model version 2

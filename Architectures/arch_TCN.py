@@ -110,7 +110,7 @@ def TCNet(params, batch=True, drop=True, leaky=True, MCD=True, single_enc=False)
 
 ################################################################################
 # model with Temporal Convolutional Network (TCN) 3.5D with single/multi encoders
-def TCNet_3D(params, batch=True, drop=True, leaky=True, MCD=True, single_enc=False):
+def TCNet_3dot5D(params, batch=True, drop=True, leaky=True, MCD=True, single_enc=False):
     vars_3D = model_utils.get_init_params_3D(params, leaky)
     vars_3D["kernel_size"] = (3,3,3)
     vars_2D = model_utils.get_init_params_2D(params, leaky)
@@ -134,12 +134,31 @@ def TCNet_3D(params, batch=True, drop=True, leaky=True, MCD=True, single_enc=Fal
             if key not in skip_conn.keys(): skip_conn[key] = []
             channels = [int(2**i/limchan),int(2**i/limchan),int(2**i/limchan)]
             strides = [1, 1, vars_3D["size_two"]]
-            reshape = [False,False,True]
+            reshape_and_skip = [False, False, True]
             for x in range(len(channels)):
-                if reshape[x]:
-                    shape = (K.int_shape(inp)[-2], K.int_shape(inp)[-3], 1, int(2 ** i / limchan)) if is_timelast() else (1, K.int_shape(inp)[-2], K.int_shape(inp)[-3], int(2 ** i / limchan))
+                if reshape_and_skip[x]:
+                    inp_tmp = inp
+                    keyskip = key+"_"+str(idx)+"_skip"
+                    if keyskip not in dict_layers.keys():
+                        dict_layers[keyskip] = Conv3D(channels[x], kernel_size=vars_3D["kernel_size"],
+                                                      activation=vars_3D["activ_func"], padding="same",
+                                                      kernel_regularizer=vars_3D["l1_l2_reg"],
+                                                      kernel_initializer=vars_3D["kernel_init"],
+                                                      kernel_constraint=vars_3D["kernel_constraint"],
+                                                      strides=(vars_3D["n_slices"],1,1),
+                                                      bias_constraint=vars_3D["bias_constraint"])
+                    inp_tmp = dict_layers[keyskip](inp_tmp)
+                    if leaky:
+                        leakykey = keyskip+"_leaky"
+                        if leakykey not in dict_layers.keys(): dict_layers[leakykey] = layers.LeakyReLU(alpha=0.33)
+                        inp = dict_layers[leakykey](inp_tmp)
+                    if batch:
+                        batchkey = keyskip+"_batch"
+                        if batchkey not in dict_layers.keys(): dict_layers[batchkey] = layers.BatchNormalization()
+                        inp = dict_layers[batchkey](inp_tmp)
+                    shape = (1, K.int_shape(inp_tmp)[-2], K.int_shape(inp_tmp)[-3], int(2**i/limchan))
                     if key+"_"+str(idx)+"_reshape" not in dict_layers.keys(): dict_layers[key+"_"+str(idx)+"_reshape"] = layers.Reshape(shape)
-                    skip_conn[key].append(dict_layers[key+"_"+str(idx)+"_reshape"](inp))
+                    skip_conn[key].append(dict_layers[key+"_"+str(idx)+"_reshape"](inp_tmp))
 
                 if key+"_"+str(idx) not in dict_layers.keys():
                     dict_layers[key+"_"+str(idx)] = Conv3D(channels[x], kernel_size=vars_3D["kernel_size"],
@@ -163,18 +182,18 @@ def TCNet_3D(params, batch=True, drop=True, leaky=True, MCD=True, single_enc=Fal
         if drop and MCD: inp = model_utils.MonteCarloDropout(params["dropout"]["1"])(inp)
         elif drop and not MCD: inp = Dropout(params["dropout"]["1"])(inp)
 
-        if not single_enc: dict_layers = {}
         i+=1
         channels = [int(2**i/limchan),int(2**i/limchan),int(2**i/limchan)]
         strides = [1, 1, (vars_3D["n_slices"],1,1)]
         for x in range(len(channels)):
-            dict_layers["conv3D_"+str(x)] = Conv3D(channels[x], kernel_size=vars_3D["kernel_size"],
-                                                   activation=vars_3D["activ_func"], padding="same",
-                                                   kernel_regularizer=vars_3D["l1_l2_reg"],
-                                                   kernel_initializer=vars_3D["kernel_init"],
-                                                   kernel_constraint=vars_3D["kernel_constraint"],
-                                                   strides=strides[x],
-                                                   bias_constraint=vars_3D["bias_constraint"])
+            if "conv3D_"+str(x) not in dict_layers.keys():
+                dict_layers["conv3D_"+str(x)] = Conv3D(channels[x], kernel_size=vars_3D["kernel_size"],
+                                                       activation=vars_3D["activ_func"], padding="same",
+                                                       kernel_regularizer=vars_3D["l1_l2_reg"],
+                                                       kernel_initializer=vars_3D["kernel_init"],
+                                                       kernel_constraint=vars_3D["kernel_constraint"],
+                                                       strides=strides[x],
+                                                       bias_constraint=vars_3D["bias_constraint"])
             inp = dict_layers["conv3D_"+str(x)](inp)
             if leaky:
                 leakykey = "conv3D_"+str(x) + "_leaky"
@@ -226,7 +245,7 @@ def TCNet_3D(params, batch=True, drop=True, leaky=True, MCD=True, single_enc=Fal
     act_name = "softmax" if is_TO_CATEG() else "sigmoid"
     n_chann = len(get_labels()) if is_TO_CATEG() else 1
 
-    y = model_utils.convolution_layer(inp, n_chann, (1, 1), act_name, vars_2D["l1_l2_reg"], vars_2D["kernel_init"],
+    y = model_utils.convolution_layer(inp, n_chann, (1,1), act_name, vars_2D["l1_l2_reg"], vars_2D["kernel_init"],
                                       'same', vars_2D["kernel_constraint"], vars_2D["bias_constraint"],
                                       leaky=leaky, is2D=True)
     general_utils.print_int_shape(y)

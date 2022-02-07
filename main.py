@@ -46,7 +46,8 @@ def main():
             # different for SUS2020_v2 dataset since the dataset is not complete and the prefix is different
             if "SUS2020" in nn.ds_folder:
                 patientlist_train_val = [d[len(DATASET_PREFIX):-(len(general_utils.get_suffix())+4)]
-                                         for d in os.listdir(nn.ds_folder) if severity in d]
+                                         for d in os.listdir(nn.ds_folder) if severity in d and
+                                         general_utils.get_suffix() in d]
             else: patientlist_train_val = [int(d[len(get_prefix_img()):]) for d in
                                            os.listdir(nn.patients_folder) if
                                            os.path.isdir(os.path.join(nn.patients_folder, d)) and

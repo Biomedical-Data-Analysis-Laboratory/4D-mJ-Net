@@ -13,6 +13,7 @@ colorbar_coord = (129, 435)
 
 suffix_partial_weights = "__"
 ONE_TIME_POINT = ""
+focal_tversky_loss = {"alpha": 0.7, "gamma": 1.33}
 
 ENABLE_WATCHDOG = True
 PID_WATCHDOG_PICKLE_PATH = os.getcwd()+'/PID_list_{}.obj'.format(socket.gethostname())
@@ -258,12 +259,7 @@ def get_Focal_Tversky():
 
 def set_Focal_Tversky(hyperparameters):
     global focal_tversky_loss
-
-    focal_tversky_loss = {
-        "alpha": 0.7,
-        "gamma": 1.33
-    }
-
+    focal_tversky_loss = {"alpha": 0.7, "gamma": 1.33}
     for key in hyperparameters.keys(): focal_tversky_loss[key] = hyperparameters[key]
 
 

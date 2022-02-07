@@ -188,74 +188,44 @@ def get_correct_X_for_input_model(ds_seq, current_folder, row, batch_idx, batch_
     # Get the shape of the input X
     if not train:
         x_shape = (ds_seq.constants["M"], ds_seq.constants["N"], ds_seq.constants["NUMBER_OF_IMAGE_PER_SECTION"]) if ds_seq.constants["TIME_LAST"] else (ds_seq.constants["NUMBER_OF_IMAGE_PER_SECTION"], ds_seq.constants["M"], ds_seq.constants["N"])
-        X = np.zeros(shape=(1,)+x_shape+(1,))
+        X = np.empty(shape=(1,)+x_shape+(1,))
     # Important flag. Check if the input X should be an array or not
     isXarray = True if len(folders) > 1 or (ds_seq.x_label == ds_seq.constants["LIST_PMS"] or (ds_seq.x_label == "pixels" and (ds_seq.is4DModel or ds_seq.is3dot5DModel))) else False
-    isXarray = False if "TCNet" in ds_seq.name else isXarray
+    isXarray = False if "TCNet" in ds_seq.name else isXarray  # set it to False if we're dealing with TCN
     if not train or (train and batch_idx == 0):  # create a list of empty spots: [None,None,...]
         if isXarray: X = [None] * len(folders)
         if "TCNet" in ds_seq.name: X = [None] * ds_seq.constants["NUMBER_OF_IMAGE_PER_SECTION"]
 
-    for z, folder in enumerate(folders):
+    for z, folder in enumerate(folders):  # main loop for number of folders involved (Z dim)
         tmp_X = np.empty((batch_len, ds_seq.constants["M"], ds_seq.constants["N"], ds_seq.constants["NUMBER_OF_IMAGE_PER_SECTION"], 1)) if ds_seq.constants["TIME_LAST"] else np.empty((batch_len, ds_seq.constants["NUMBER_OF_IMAGE_PER_SECTION"], ds_seq.constants["M"], ds_seq.constants["N"], 1))
         if isXarray and train and batch_idx>0: tmp_X = X[z]
 
         if platform.system()=="Windows": folder = folder.replace(folder[:folder.rfind("/",0,len(folder)-4)], ds_seq.patients_folder)
 
-        howmany = len(glob.glob(folder + "*.*"))
-        interpX = np.empty((ds_seq.constants["M"], ds_seq.constants["N"], howmany, 1)) if ds_seq.constants["TIME_LAST"] else np.empty((howmany, ds_seq.constants["M"], ds_seq.constants["N"], 1))
-
-        # initialize single_X if batch_idx==0, otherwise single_X = X[time_idx]
-        single_X = np.empty((batch_len, ds_seq.constants["M"], ds_seq.constants["N"], 1))
-        if "TCNet" in ds_seq.name:
-            if ds_seq.is3dot5DModel and batch_idx==0 and z==0:
-                single_X = np.empty((batch_len, len(folders), ds_seq.constants["M"], ds_seq.constants["N"], 1))
-
-        for time_idx, filename in enumerate(np.sort(glob.glob(folder + "*.*"))):
-            if batch_idx>0 or z>0: single_X = X[time_idx]
-            totimg = cv2.imread(filename, cv2.IMREAD_GRAYSCALE)
-            assert totimg is not None, "The image {} is None".format(filename)
-            # Get the slice and if we are training, also perform augmentation
-            slc_w = general_utils.get_slice_window(totimg, coord[0], coord[1], ds_seq.constants)
-            if train and not ds_seq.constants["isISLES"]: slc_w = general_utils.perform_DA_on_img(slc_w, data_aug_idx)
-            if not ds_seq.supervised or ds_seq.patients_folder != "OLDPREPROC_PATIENTS/":
-                # reshape it for the correct input in the model
-                if ds_seq.constants["TIME_LAST"]:
-                    if not ds_seq.constants["isISLES"]:
-                        if isXarray:  # 3.5D / 4D
-                            tmp_X[batch_idx, :, :, time_idx, :] = slc_w.reshape(slc_w.shape + (1,))
-                        elif "TCNet" in ds_seq.name:  # TCN input
-                            if ds_seq.is3dot5DModel: single_X[batch_idx, z, :, :, :] = slc_w.reshape(slc_w.shape + (1,))
-                            else: single_X[batch_idx, :, :, :] = slc_w.reshape(slc_w.shape + (1,))
-                        else:  # mJNet input (2.5D)
-                            X[batch_idx, :, :, time_idx, :] = slc_w.reshape(slc_w.shape + (1,))
-                    else:  # append the image into a list if ISLES
-                        interpX[:, :, time_idx, :] = slc_w.reshape(slc_w.shape + (1,) + (1,))
-                else:
-                    if not ds_seq.constants["isISLES"]:
-                        if isXarray:  # 3.5D / 4D
-                            tmp_X[batch_idx, time_idx, :, :, :] = slc_w.reshape(slc_w.shape + (1,))
-                        elif "TCNet" in ds_seq.name:  # TCN input
-                            if ds_seq.is3dot5DModel: single_X[batch_idx, z, :, :, :] = slc_w.reshape(slc_w.shape + (1,))
-                            else: single_X[batch_idx, :, :, :] = slc_w.reshape(slc_w.shape + (1,))
-                        else:  # mJNet input (2.5D)
-                            X[batch_idx, time_idx, :, :, :] = slc_w.reshape(slc_w.shape + (1,))
-                    else:  # append the image into a list if ISLES
-                        interpX[time_idx, :, :, :] = slc_w.reshape((1,) + slc_w.shape + (1,))
-            else:  # here is for the old pre-processing patients (Master 2019)
-                if filename != "01.png":
-                    if ds_seq.constants["TIME_LAST"]: X[:, :, time_idx] = slc_w
-                    else: X[time_idx, :, :] = slc_w
-
-            if "TCNet" in ds_seq.name: X[time_idx] = single_X
-        # ISLES2018
-        # Interpolation if we are dealing with the ISLES2018 dataset
-        if ds_seq.constants["isISLES"]:
-            axis = -2 if ds_seq.constants["TIME_LAST"] else 0
-            zoom_val = ds_seq.constants["NUMBER_OF_IMAGE_PER_SECTION"] / interpX.shape[axis]
-            arr_zoom = [1,1,zoom_val,1] if ds_seq.constants["TIME_LAST"] else [zoom_val, 1, 1, 1]
-            if isXarray:tmp_X[batch_idx, :, :, :, :] = ndimage.zoom(interpX, arr_zoom, output=np.float32)
-            else:X[batch_idx, :, :, :, :] = ndimage.zoom(interpX, arr_zoom, output=np.float32)
+        if ds_seq.constants["isISLES"]: X, tmp_X = get_ISLES_input(ds_seq,folder,coord,X,tmp_X,isXarray,batch_idx)
+        else:
+            if "TCNet" in ds_seq.name:
+                X = get_TCN_input(ds_seq, batch_idx, z, X, coord, train, data_aug_idx, batch_len, folder, folders)
+            else:
+                for time_idx, filename in enumerate(np.sort(glob.glob(folder + "*.*"))):
+                    totimg = cv2.imread(filename, cv2.IMREAD_GRAYSCALE)
+                    assert totimg is not None, "The image {} is None".format(filename)
+                    # Get the slice and if we are training, also perform augmentation
+                    slc_w = general_utils.get_slice_window(totimg, coord[0], coord[1], ds_seq.constants)
+                    if train: slc_w = general_utils.perform_DA_on_img(slc_w, data_aug_idx)
+                    if not ds_seq.supervised or ds_seq.patients_folder != "OLDPREPROC_PATIENTS/":
+                        # reshape it for the correct input in the model
+                        slc_w = slc_w.reshape(slc_w.shape + (1,))
+                        if ds_seq.constants["TIME_LAST"]:
+                            if isXarray: tmp_X[batch_idx, :, :, time_idx, :] = slc_w  # 3.5D / 4D
+                            else: X[batch_idx, :, :, time_idx, :] = slc_w  # mJNet input (2.5D)
+                        else:
+                            if isXarray: tmp_X[batch_idx, time_idx, :, :, :] = slc_w  # 3.5D / 4D
+                            else: X[batch_idx, time_idx, :, :, :] = slc_w  # mJNet input (2.5D)
+                    else:  # here is for the old pre-processing patients (Master 2019)
+                        if filename != "01.png":
+                            if ds_seq.constants["TIME_LAST"]: X[:, :, time_idx] = slc_w
+                            else: X[time_idx, :, :] = slc_w
 
         if isXarray: X[z] = tmp_X
         # Check if we are going to add/use the PMs or the additional input (NIHSS, age, gender)
@@ -297,6 +267,55 @@ def get_correct_X_for_input_model(ds_seq, current_folder, row, batch_idx, batch_
     if "TCNet" in ds_seq.name: assert len(X)==ds_seq.constants["NUMBER_OF_IMAGE_PER_SECTION"], "Input does not contain the right amount of TIMEPOINTS"
     if isXarray: assert len(X)==len(folders), "Input does not contain the right amount of FOLDERS"
     return X
+
+
+################################################################################
+# Get the right input if we're using a TCN model
+def get_TCN_input(ds_seq, batch_idx, z, X, coord, train, data_aug_idx, batch_len, folder, folders):
+    # initialize single_X if batch_idx==0, otherwise single_X = X[time_idx]
+    single_X = np.empty((batch_len, ds_seq.constants["M"], ds_seq.constants["N"], 1))
+    if ds_seq.is3dot5DModel and batch_idx==0 and z==0:
+        single_X = np.empty((batch_len, len(folders), ds_seq.constants["M"], ds_seq.constants["N"], 1))
+    for time_idx, filename in enumerate(np.sort(glob.glob(folder + "*.*"))):
+        if batch_idx > 0 or z > 0: single_X = X[time_idx]
+        totimg = cv2.imread(filename, cv2.IMREAD_GRAYSCALE)
+        assert totimg is not None, "The image {} is None".format(filename)
+        # Get the slice and if we are training, also perform augmentation
+        slc_w = general_utils.get_slice_window(totimg, coord[0], coord[1], ds_seq.constants)
+        if train: slc_w = general_utils.perform_DA_on_img(slc_w, data_aug_idx)
+        if ds_seq.constants["TIME_LAST"]:
+            if ds_seq.is3dot5DModel: single_X[batch_idx, z, :, :, :] = slc_w.reshape(slc_w.shape + (1,))
+            else: single_X[batch_idx, :, :, :] = slc_w.reshape(slc_w.shape + (1,))
+        else:
+            if ds_seq.is3dot5DModel: single_X[batch_idx, z, :, :, :] = slc_w.reshape(slc_w.shape + (1,))
+            else: single_X[batch_idx, :, :, :] = slc_w.reshape(slc_w.shape + (1,))
+        X[time_idx] = single_X
+
+    return X
+
+
+################################################################################
+# Get the right input if we're dealing with the ISLES2018 dataset
+def get_ISLES_input(ds_seq, folder, coord, X, tmp_X, isXarray, batch_idx):
+    howmany = len(glob.glob(folder + "*.*"))
+    interpX = np.empty((ds_seq.constants["M"], ds_seq.constants["N"], howmany, 1)) if ds_seq.constants["TIME_LAST"] else np.empty((howmany, ds_seq.constants["M"], ds_seq.constants["N"], 1))
+    for time_idx, filename in enumerate(np.sort(glob.glob(folder + "*.*"))):
+        totimg = cv2.imread(filename, cv2.IMREAD_GRAYSCALE)
+        assert totimg is not None, "The image {} is None".format(filename)
+        # Get the slice and if we are training, also perform augmentation
+        slc_w = general_utils.get_slice_window(totimg, coord[0], coord[1], ds_seq.constants)
+        # reshape it for the correct input in the model
+        if ds_seq.constants["TIME_LAST"]: interpX[:, :, time_idx, :] = slc_w.reshape(slc_w.shape + (1,) + (1,))
+        else: interpX[time_idx, :, :, :] = slc_w.reshape((1,) + slc_w.shape + (1,))
+
+    # Interpolation if we are dealing with the ISLES2018 dataset
+    axis = -2 if ds_seq.constants["TIME_LAST"] else 0
+    zoom_val = ds_seq.constants["NUMBER_OF_IMAGE_PER_SECTION"] / interpX.shape[axis]
+    arr_zoom = [1,1,zoom_val,1] if ds_seq.constants["TIME_LAST"] else [zoom_val, 1, 1, 1]
+    if isXarray: tmp_X[batch_idx, :, :, :, :] = ndimage.zoom(interpX, arr_zoom, output=np.float32)
+    else: X[batch_idx, :, :, :, :] = ndimage.zoom(interpX, arr_zoom, output=np.float32)
+
+    return X, tmp_X
 
 
 ################################################################################

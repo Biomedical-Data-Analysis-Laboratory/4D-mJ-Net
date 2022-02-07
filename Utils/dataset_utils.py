@@ -286,20 +286,12 @@ def generate_ds_summary(train_df, listOfPatientsToTrainVal=None):
 # Return the number of element per class of the dataset
 def get_number_of_elem(train_df):
     N_BRAIN, N_PENUMBRA = 0, 0
-    back_v, brain_v, penumbra_v, core_v = get_labels()[0], 0, 0, 0
-
-    if get_n_classes() ==4:
-        brain_v = get_labels()[1]
-        penumbra_v = get_labels()[2]
-        core_v = get_labels()[3]
-    elif get_n_classes() ==3:
-        penumbra_v = get_labels()[1]
-        core_v = get_labels()[2]
-    elif get_n_classes() ==2: core_v = get_labels()[1]
+    back_v, brain_v, penumbra_v, core_v = get_labels()[0], "brain", "penumbra", get_labels()[-1]
 
     N_BACKGROUND = len([x for x in train_df.label if x == back_v])
     N_CORE = len([x for x in train_df.label if x == core_v])
-    if get_n_classes() >3: N_BRAIN = len([x for x in train_df.label if x == brain_v])
+    N_BRAIN = len([x for x in train_df.label if x == brain_v])
+    if get_n_classes()==3: N_BACKGROUND+=N_BRAIN
     if get_n_classes() >2: N_PENUMBRA = len([x for x in train_df.label if x == penumbra_v])
     N_TOT = train_df.shape[0]
 

@@ -24,17 +24,16 @@ def dice_coef_loss(y_true, y_pred):
 # Tversky loss.
 # Based on this paper: https://arxiv.org/abs/1706.05721
 def tversky_loss(y_true, y_pred):
-    tv = metrics.tversky_coef(y_true, y_pred, is_loss=True)
-    return 1 - tv
+    return 1-metrics.tversky_coef(y_true, y_pred, is_loss=True)
 
 
 ################################################################################
 # Focal Tversky loss: a generalisation of the tversky loss.
 # From this paper: https://arxiv.org/abs/1810.07842
 def focal_tversky_loss(y_true, y_pred):
-    gamma = get_Focal_Tversky()["gamma"]
+    ft_params = get_Focal_Tversky()
     tv = metrics.tversky_coef(y_true, y_pred, is_loss=True)
-    return K.pow((1 - tv), (1/gamma))
+    return K.pow((1 - tv), (1/ft_params["gamma"]))
 
 
 ################################################################################
@@ -73,4 +72,16 @@ def tanimoto_with_dual_loss(y_true, y_pred):
 # Hybrid loss containing the pixel wise cross-entropy and the soft dice coefficient
 # https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=8932614
 def pixelwise_crossentropy_plus_squared_dice_coeff(y_true, y_pred):
-    return 1-(metrics.categorical_crossentropy(y_true, y_pred)+metrics.squared_dice_coef(y_true, y_pred, is_loss=True))
+    cce = metrics.categorical_crossentropy(y_true, y_pred)
+    sdc = metrics.squared_dice_coef(y_true, y_pred, is_loss=True)
+    return -((cce + sdc) / K.cast(K.prod(K.shape(y_true)[:-1]), K.floatx()))
+
+
+################################################################################
+# Variant of the UNet++ loss
+def pixelwise_crossentropy_plus_focal_tversky_loss(y_true, y_pred):
+    cce = metrics.categorical_crossentropy(y_true, y_pred)
+    ft_params = get_Focal_Tversky()
+    tv = metrics.tversky_coef(y_true, y_pred, is_loss=True)
+    ftl = K.pow((1 - tv), (1 / ft_params["gamma"]))
+    return -((cce + ftl) / K.cast(K.prod(K.shape(y_true)[:-1]), K.floatx()))

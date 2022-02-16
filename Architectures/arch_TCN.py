@@ -78,7 +78,7 @@ def TCNet(params, batch=True, drop=True, leaky=True, MCD=True, single_enc=False)
     while K.int_shape(inp)[-3]<get_m() and K.int_shape(inp)[-2]<get_n():
         key = str(K.int_shape(inp)[-3] * 2)
         where = -1 if is_timelast() else 1
-        # Concatenate layers for the skip connectio
+        # Concatenate layers for the skip connections
         block = Concatenate(where)(skip_conn[key])
         general_utils.print_int_shape(block)
         block = model_utils.convolution_layer(block, int(2 ** i / limchan), k_skip, activ_func, l1_l2_reg, kernel_init, 'same', kernel_constraint, bias_constraint, leaky=leaky)

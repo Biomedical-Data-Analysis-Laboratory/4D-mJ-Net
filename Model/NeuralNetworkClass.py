@@ -33,7 +33,6 @@ class NeuralNetwork(object):
         # use only for the fit_generator
         self.steps_per_epoch_ratio = model_info["steps_per_epoch_ratio"] if "steps_per_epoch_ratio" in model_info.keys() else 1
         self.validation_steps_ratio = model_info["validation_steps_ratio"] if "validation_steps_ratio" in model_info.keys() else 1
-        self.back_perc = model_info["back_perc"] if "back_perc" in model_info.keys() else 1
 
         self.val = {
             "validation_perc": model_info["val"]["validation_perc"],
@@ -51,7 +50,7 @@ class NeuralNetwork(object):
         self.optimizer_info = model_info["optimizer"]
         self.params = model_info["params"]
         self.loss = general_utils.get_loss(model_info)
-        self.metric_func = general_utils.getMetricFunctions(model_info["metrics"])
+        self.metric_func = general_utils.get_metrics(model_info["metrics"])
 
         # inflate and concatenate only work with PMs_segmentation architectures!
         for key in ["concatenate_input","convertImgToGray","inflate_network"]:
@@ -99,6 +98,7 @@ class NeuralNetwork(object):
         self.initial_epoch = 0
         self.train_df, self.val_list, self.test_list = None, None, None
         self.N_BACKGROUND, self.N_BRAIN, self.N_PENUMBRA, self.N_CORE, self.N_TOT = 0, 0, 0, 0, 0
+        self.back_perc = 100
         self.optimizer = None
         self.sample_weights = None
         self.train = None
@@ -127,6 +127,7 @@ class NeuralNetwork(object):
         self.initial_epoch = 0
         self.train_df, self.val_list, self.test_list = None, None, None
         self.N_BACKGROUND, self.N_BRAIN, self.N_PENUMBRA, self.N_CORE, self.N_TOT = 0, 0, 0, 0, 0
+        self.back_perc = 100
         self.optimizer = None
         self.sample_weights = None
         self.train = None
@@ -140,16 +141,14 @@ class NeuralNetwork(object):
 
     ################################################################################
     # Initialize the callbacks
-    def set_callbacks(self, sample_weights=None, add_for_finetuning=""):
+    def set_callbacks(self, add_for_finetuning=""):
         if is_verbose():
             general_utils.print_sep("-", 50)
             print("[INFO] - Setting callbacks...")
-
-        self.callbacks = training.get_callbacks(info=self.info_callbacks, root_path=self.rootpath,
+        self.callbacks = training.get_callbacks(info=self.info_callbacks,root_path=self.rootpath,nn_id=self.get_nn_id(),
                                                 filename=self.getSavedInformation(path=self.save_partial_model_folder),
                                                 text_fold_path=self.save_text_folder, dataset=self.dataset,
-                                                sample_weights=sample_weights, nn_id=self.get_nn_id(),
-                                                add_for_finetuning=add_for_finetuning)
+                                                ds_seq=self.train_sequence,add_for_finetuning=add_for_finetuning)
 
     ################################################################################
     # return a Boolean to control if the model was already saved
@@ -193,7 +192,7 @@ class NeuralNetwork(object):
     def load_model_from_partial_weights(self):
         if self.partial_weights_path!= "":
             self.model.load_weights(self.partial_weights_path)
-            self.initial_epoch = general_utils.getEpochFromPartialWeightFilename(self.partial_weights_path)
+            self.initial_epoch = general_utils.get_epoch_from_partial_weights_path(self.partial_weights_path)
 
             if is_verbose():
                 general_utils.print_sep("+", 100)
@@ -208,7 +207,7 @@ class NeuralNetwork(object):
         # split the dataset (return in dataset just the indices and labels)
         self.dataset, self.val_list, self.test_list = dataset_utils.split_ds(self, patientlist_train_val, patientlist_test)
         # get the number of element per class in the dataset
-        self.N_BACKGROUND, self.N_BRAIN, self.N_PENUMBRA, self.N_CORE, self.N_TOT = dataset_utils.get_number_of_elem(self.train_df)
+        self.N_BACKGROUND, self.N_BRAIN, self.N_PENUMBRA, self.N_CORE, self.N_TOT, _ = dataset_utils.get_number_of_elem(self.train_df)
 
         return self.val_list
 
@@ -229,6 +228,8 @@ class NeuralNetwork(object):
     ################################################################################
     # Function to route the right initialization and training
     def init_and_start_training(self, n_gpu, jump):
+        self.sample_weights = self.get_sample_weights("train")  # Get the sample weights for training
+
         if self.use_sequence:  # if we are doing a sequence train (for memory issue)
             self.prepare_sequence_class()
             self.init_training(n_gpu)
@@ -268,8 +269,7 @@ class NeuralNetwork(object):
         if self.are_partial_weights_saved(): self.load_model_from_partial_weights()
 
         self.compile_model()  # Compile the model with optimizer, loss function, and metrics
-        self.sample_weights = self.get_sample_weights("train")  # Get the sample weights for training
-        self.set_callbacks(self.sample_weights)
+        self.set_callbacks()
 
     ################################################################################
     # Run the training over the dataset based on the model
@@ -300,12 +300,11 @@ class NeuralNetwork(object):
         self.train_sequence = sequence_utils.ds_sequence(
             dataframe=self.train_df,
             indices=self.dataset["train"]["indices"],
-            sample_weights=self.get_sample_weights("train"),
             x_label=self.x_label, y_label=self.y_label,
             multi_input=self.multi_input,
             batch_size=self.batch_size,
             params=self.params,
-            back_perc=self.back_perc if not get_USE_PM() and (get_m() != get_img_width() and get_n() != get_img_weight()) else 100,
+            back_perc=self.back_perc if not get_USE_PM() and (get_m() != get_img_width() and get_n() != get_img_height()) else 100,
             is3dot5DModel=self.is3dot5DModel,
             is4DModel=self.is4DModel,
             inputImgFlag=self.input_img_flag,
@@ -314,8 +313,8 @@ class NeuralNetwork(object):
             labeled_img_folder=self.labeled_img_folder,
             constants={"M": get_m(), "N": get_m(), "NUMBER_OF_IMAGE_PER_SECTION": getNUMBER_OF_IMAGE_PER_SECTION(),
                        "TIME_LAST": is_timelast(), "N_CLASSES": get_n_classes(), "PIXELVALUES": get_pixel_values(),
-                       "weights": get_weights(), "TO_CATEG": is_TO_CATEG(), "isISLES": is_ISLES2018(),
-                       "USE_PM": get_USE_PM(), "LIST_PMS": get_list_PMS(), "IMAGE_HEIGHT": get_img_weight(),
+                       "weights": get_class_weights(), "TO_CATEG": is_TO_CATEG(), "isISLES": is_ISLES2018(),
+                       "USE_PM": get_USE_PM(), "LIST_PMS": get_list_PMS(), "IMAGE_HEIGHT": get_img_height(),
                        "IMAGE_WIDTH": get_img_width()},
             name=self.name,
             SVO_focus=self.model_info["SVO_focus"],
@@ -325,13 +324,12 @@ class NeuralNetwork(object):
         self.val_sequence = sequence_utils.ds_sequence(
             dataframe=self.train_df,
             indices=self.dataset["val"]["indices"],
-            sample_weights=self.get_sample_weights("val"),
             x_label=self.x_label,
             y_label=self.y_label,
             multi_input=self.multi_input,
             batch_size=self.batch_size,
             params=self.params,
-            back_perc=self.back_perc if not get_USE_PM() and (get_m() != get_img_width() and get_n() != get_img_weight()) else 100,
+            back_perc=self.back_perc if not get_USE_PM() and (get_m() != get_img_width() and get_n() != get_img_height()) else 100,
             is3dot5DModel=self.is3dot5DModel,
             is4DModel=self.is4DModel,
             inputImgFlag=self.input_img_flag,
@@ -340,8 +338,8 @@ class NeuralNetwork(object):
             labeled_img_folder=self.labeled_img_folder,
             constants={"M": get_m(), "N": get_m(), "NUMBER_OF_IMAGE_PER_SECTION": getNUMBER_OF_IMAGE_PER_SECTION(),
                        "TIME_LAST": is_timelast(), "N_CLASSES": get_n_classes(), "PIXELVALUES": get_pixel_values(),
-                       "weights": get_weights(), "TO_CATEG": is_TO_CATEG(), "isISLES": is_ISLES2018(),
-                       "USE_PM": get_USE_PM(), "LIST_PMS": get_list_PMS(), "IMAGE_HEIGHT": get_img_weight(),
+                       "weights": get_class_weights(), "TO_CATEG": is_TO_CATEG(), "isISLES": is_ISLES2018(),
+                       "USE_PM": get_USE_PM(), "LIST_PMS": get_list_PMS(), "IMAGE_HEIGHT": get_img_height(),
                        "IMAGE_WIDTH": get_img_width()},
             name=self.name,
             flagtype="val",
@@ -357,6 +355,7 @@ class NeuralNetwork(object):
             steps_per_epoch=math.ceil((self.train_sequence.__len__()*self.steps_per_epoch_ratio)),
             validation_steps=math.ceil((self.val_sequence.__len__()*self.validation_steps_ratio)),
             epochs=self.epochs,
+            class_weight=get_class_weights() if (get_m() != get_img_width() and get_n() != get_img_height()) else None,
             callbacklist=self.callbacks,
             initial_epoch=self.initial_epoch,
             use_multiprocessing=self.mp_in_nn
@@ -400,13 +399,14 @@ class NeuralNetwork(object):
                 if is_verbose(): print("Fine-tuning setting: {} layers trainable".format(layer_indexes[len(layer_indexes) // 2:]))
                 if self.are_partial_weights_saved():
                     if not self.params["concatenate_input"]: self.model.load_weights(self.partial_weights_path)
-                    self.initial_epoch = general_utils.getEpochFromPartialWeightFilename(self.partial_weights_path) + previousEarlyStoppingPatience
+                    self.initial_epoch = general_utils.get_epoch_from_partial_weights_path(
+                        self.partial_weights_path) + previousEarlyStoppingPatience
                 # Compile the model again
                 self.compile_model()
                 # Get the sample weights
                 self.sample_weights = self.get_sample_weights("train")
                 # Set the callbacks
-                self.set_callbacks(self.sample_weights, "_half")
+                self.set_callbacks("_half")
                 # Train the model again
                 self.run_train_sequence()
                 finished_first_half = False if "only" in self.params["gradual_finetuning_solution"].keys() and self.params["gradual_finetuning_solution"]["only"] == "half" else True
@@ -420,61 +420,66 @@ class NeuralNetwork(object):
                 if is_verbose(): print("Fine-tuning setting: {} layers trainable".format(layer_indexes))
                 if self.are_partial_weights_saved():
                     if not self.params["concatenate_input"]: self.model.load_weights(self.partial_weights_path)
-                    self.initial_epoch = general_utils.getEpochFromPartialWeightFilename(self.partial_weights_path) + previousEarlyStoppingPatience
+                    self.initial_epoch = general_utils.get_epoch_from_partial_weights_path(
+                        self.partial_weights_path) + previousEarlyStoppingPatience
                 self.compile_model()  # Compile the model again
                 self.sample_weights = self.get_sample_weights("train")  # Get the sample weights
-                self.set_callbacks(self.sample_weights, "_full")  # Set the callbacks
+                self.set_callbacks("_full")  # Set the callbacks
                 self.run_train_sequence()  # Train the model again
 
     ################################################################################
     # Get the sample weight from the dataset
     def get_sample_weights(self, flagDataset):
         sample_weights = None
-        self.N_BACKGROUND, self.N_BRAIN, self.N_PENUMBRA, self.N_CORE, self.N_TOT = dataset_utils.get_number_of_elem(self.train_df)
+        self.N_BACKGROUND, self.N_BRAIN, self.N_PENUMBRA, self.N_CORE, self.N_TOT, _ = dataset_utils.get_number_of_elem(self.train_df)
 
-        if get_n_classes() ==4:
-            if get_m() == get_img_width() and get_n() == get_img_weight():  # and the (M,N) == image dimension
-                if self.use_sequence:  # set everything == 1
-                    sample_weights = self.train_df.assign(ground_truth=1)
-                    sample_weights = sample_weights.ground_truth
-                else:  # function that map each getPIXELVALUES()[2] with 150, getPIXELVALUES()[3] with 20 and the rest with 0.1 and sum them
-                    f = lambda x: np.sum(np.where(np.array(x) == get_pixel_values()[2], get_weights()[0][3],
-                                                  np.where(np.array(x) == get_pixel_values()[3], get_weights()[0][2],
-                                                           HOT_ONE_WEIGHTS[0][0])))
+        assert get_n_classes() in [2,3,4], "Wrong number of classes!"
+
+        if get_m() == get_img_width() and get_n() == get_img_height():
+            if self.use_sequence:  # set sample_weights.ground_truth==1 --> set everything == 1
+                sample_weights = self.train_df.assign(ground_truth=1)
+                sample_weights = sample_weights.ground_truth
+        else:
+            if get_n_classes()==4:
+                if self.use_sequence:
+                    # see: "ISBI 2019 C-NMC Challenge: Classification in Cancer Cell Imaging" section 4.1 pag 68
+                    sample_weights = self.train_df.label.map({
+                        get_labels()[0]: self.N_TOT/(get_n_classes()*self.N_BACKGROUND) if self.N_BACKGROUND>0 else 0,
+                        get_labels()[1]: self.N_TOT / (get_n_classes() * self.N_BRAIN) if self.N_BRAIN > 0 else 0,
+                        get_labels()[2]: self.N_TOT / (get_n_classes() * self.N_PENUMBRA) if self.N_PENUMBRA > 0 else 0,
+                        get_labels()[3]: self.N_TOT / (get_n_classes() * self.N_CORE) if self.N_CORE > 0 else 0,
+                    })
+                else:
+                    f = lambda x: np.sum(np.where(np.array(x) == get_pixel_values()[2], get_class_weights()["3"],
+                                                  np.where(np.array(x) == get_pixel_values()[3], get_class_weights()["2"],
+                                                           get_class_weights()["0"])))
 
                     sample_weights = self.train_df.ground_truth.map(f)
-                    sample_weights = sample_weights/(get_m() * get_n())
-            else:  # see: "ISBI 2019 C-NMC Challenge: Classification in Cancer Cell Imaging" section 4.1 pag 68
-                sample_weights = self.train_df.label.map({
-                    get_labels()[0]: self.N_TOT / (get_n_classes() * self.N_BACKGROUND) if self.N_BACKGROUND > 0 else 0,
-                    get_labels()[1]: self.N_TOT / (get_n_classes() * self.N_BRAIN) if self.N_BRAIN > 0 else 0,
-                    get_labels()[2]: self.N_TOT / (get_n_classes() * self.N_PENUMBRA) if self.N_PENUMBRA > 0 else 0,
-                    get_labels()[3]: self.N_TOT / (get_n_classes() * self.N_CORE) if self.N_CORE > 0 else 0,
-                })
-        elif get_n_classes() ==3:
-            if get_m() == get_img_width() and get_n() == get_img_weight():  # and the (M,N) == image dimension
-                if self.use_sequence:  # set everything == 1
-                    sample_weights = self.train_df.assign(ground_truth=1)
-                    sample_weights = sample_weights.ground_truth
-                else:  # function that map each getPIXELVALUES()[2] with 150, getPIXELVALUES()[3] with 20 and the rest with 0.1 and sum them
+            elif get_n_classes()==3:
+                if self.use_sequence:
+                    # see: "ISBI 2019 C-NMC Challenge: Classification in Cancer Cell Imaging" section 4.1 pag 68
+                    sample_weights = self.train_df.label.map({
+                        get_labels()[0]: self.N_TOT/(get_n_classes()*self.N_BACKGROUND) if self.N_BACKGROUND>0 else 0,
+                        "brain": self.N_TOT/(get_n_classes()*self.N_BACKGROUND) if self.N_BACKGROUND>0 else 0,
+                        get_labels()[1]: self.N_TOT/(get_n_classes()*self.N_PENUMBRA) if self.N_PENUMBRA>0 else 0,
+                        get_labels()[2]: self.N_TOT/(get_n_classes()*self.N_CORE) if self.N_CORE>0 else 0,
+                    })
+                else:
+                    # function that map each pixel==150 with 150, pixel==76 with 20 and the rest with 0.1 and sum them
                     f = lambda x: np.sum(np.where(np.array(x)==150,150,np.where(np.array(x)==76,20,0.1)))
 
                     sample_weights = self.train_df.ground_truth.map(f)
                     sample_weights = sample_weights/(get_m() * get_n())
-            else: # see: "ISBI 2019 C-NMC Challenge: Classification in Cancer Cell Imaging" section 4.1 pag 68
-                sample_weights = self.train_df.label.map({
-                    get_labels()[0]: self.N_TOT / (get_n_classes() * (self.N_BACKGROUND + self.N_BRAIN)) if self.N_BACKGROUND + self.N_BRAIN > 0 else 0,
-                    get_labels()[1]: self.N_TOT / (get_n_classes() * self.N_PENUMBRA) if self.N_PENUMBRA > 0 else 0,
-                    get_labels()[2]: self.N_TOT / (get_n_classes() * self.N_CORE) if self.N_CORE > 0 else 0,
-                })
-        elif get_n_classes() ==2:  # we are in a binary class problem
-            # f = lambda x : np.sum(np.array(x))
-            # sample_weights = self.train_df.ground_truth.map(f)
-            sample_weights = self.train_df.label.map({
-                get_labels()[0]: self.N_TOT / (get_n_classes() * self.N_BACKGROUND) if self.N_BACKGROUND > 0 else 0,
-                get_labels()[1]: self.N_TOT / (get_n_classes() * self.N_CORE) if self.N_CORE > 0 else 0,
-            })
+            else:  # we are in a binary class problem
+                # sample_weights = self.train_df.label.map({
+                #     get_labels()[0]: self.N_TOT / (get_n_classes() * self.N_BACKGROUND) if self.N_BACKGROUND > 0 else 0,
+                #     "brain": self.N_TOT / (get_n_classes() * self.N_BACKGROUND) if self.N_BACKGROUND > 0 else 0,
+                #     "penumbra": self.N_TOT / (get_n_classes() * self.N_CORE) if self.N_CORE > 0 else 0,
+                #     get_labels()[1]: self.N_TOT / (get_n_classes() * self.N_CORE) if self.N_CORE > 0 else 0,
+                # })
+                sample_weights = self.train_df.label.map({get_labels()[0]: 1,"brain": 1,"penumbra": 1,get_labels()[1]: 1,})
 
+        self.train_df = self.train_df.assign(weights=sample_weights)  # add a new column "weights" in the dataframe
         return np.array(sample_weights.values[self.dataset[flagDataset]["indices"]])
 
     ################################################################################

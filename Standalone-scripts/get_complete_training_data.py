@@ -457,7 +457,7 @@ def setSettings():
 
     if not os.path.isdir(SCRIPT_PATH): os.mkdir(SCRIPT_PATH)
 
-    if NEW_GROUNDTRUTH_VALUES:
+    if NEW_GROUNDTRUTH_VALUES and not BINARY_CLASSIFICATION:
         LABELS_THRESHOLDS = [0, 70, 155, 230]  # [250, 0 , 30, 100]
         LABELS_REALVALUES = [0, 85, 170, 255]
 

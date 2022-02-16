@@ -16,13 +16,12 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 ################################################################################
 # https://faroit.com/keras-docs/2.1.3/models/sequential/#fit_generator
 class ds_sequence(Sequence):
-    def __init__(self, dataframe, indices, sample_weights, x_label, y_label, multi_input, batch_size, params, back_perc,
+    def __init__(self, dataframe, indices, x_label, y_label, multi_input, batch_size, params, back_perc,
                  is3dot5DModel, is4DModel, inputImgFlag, supervised, patients_folder, labeled_img_folder, constants,
                  name, SVO_focus=False, flagtype="train", loss=None):
         self.indices = indices
         self.dataframe = dataframe.iloc[self.indices]
         self.name = name
-        self.sample_weights = sample_weights
         self.x_label = x_label
         self.y_label = y_label
         self.multi_input = multi_input
@@ -39,6 +38,7 @@ class ds_sequence(Sequence):
         self.patients_folder = patients_folder
         self.labeled_img_folder = labeled_img_folder
         self.constants = constants
+        self.train = True if self.flag_type != "test" else False
 
         if self.flag_type != "test":
             # get ALL the rows with label != from background
@@ -72,7 +72,9 @@ class ds_sequence(Sequence):
         X = np.empty((len(current_batch), self.constants["NUMBER_OF_IMAGE_PER_SECTION"], self.constants["M"], self.constants["N"], 1))
         if self.constants["TIME_LAST"]: X = np.empty((len(current_batch), self.constants["M"], self.constants["N"], self.constants["NUMBER_OF_IMAGE_PER_SECTION"], 1))
         Y = []
-        weights = np.empty((len(current_batch),))
+        weights = np.empty((len(current_batch),)) if self.constants["M"]==self.constants["IMAGE_WIDTH"] \
+                                                     and self.constants["N"]==self.constants["IMAGE_HEIGHT"] \
+            else np.array(current_batch.weights)
 
         if self.constants["USE_PM"]: X = np.empty((len(current_batch), self.constants["M"], self.constants["N"]))
 
@@ -82,7 +84,10 @@ class ds_sequence(Sequence):
         # path to the folder containing the getNUMBER_OF_IMAGE_PER_SECTION() time point images
         X, Y, weights = self.get_XY(X, Y, weights, current_batch)
 
-        return X, Y, weights
+        # print(weights)
+        # Return the sample_weights if M==WIDTH && N==HEIGHT
+        if self.constants["M"]==self.constants["IMAGE_WIDTH"] and self.constants["N"]==self.constants["IMAGE_HEIGHT"]: return X, np.array(Y), np.array(weights)
+        else: return X, np.array(Y)  # , np.array(weights)
 
     ################################################################################
     # return the X set and the relative weights based on the pixels column
@@ -94,7 +99,7 @@ class ds_sequence(Sequence):
                                                           batch_len=len(current_batch), X=X, train=True)
             if self.y_label=="ground_truth": Y, weights = self.get_Y(Y, row, index, weights)
 
-        return X, np.array(Y), weights
+        return X, Y, weights
 
     ################################################################################
     # Return the Y set and the weights
@@ -107,33 +112,36 @@ class ds_sequence(Sequence):
         coord = row["x_y"]  # coordinates of the slice window
         img = cv2.imread(filename,cv2.IMREAD_GRAYSCALE)
         assert img is not None, "The image {} is None".format(filename)
-        img = general_utils.get_slice_window(img, coord[0], coord[1], self.constants, is_gt=True)
+        img = general_utils.get_slice_window(img, coord[0], coord[1], self.constants, train=self.train, is_gt=True)
 
         # remove the brain from the image ==> it becomes background
         if self.constants["N_CLASSES"]<=3: img[img == 85] = self.constants["PIXELVALUES"][0]
         # remove the penumbra ==> it becomes core
         if self.constants["N_CLASSES"]==2: img[img == 170] = self.constants["PIXELVALUES"][1]
 
-        # Override the weights based on the pixel values
-        if self.constants["N_CLASSES"]>2:
-            core_idx, penumbra_idx = 3, 2
-            if self.constants["N_CLASSES"] == 3: core_idx, penumbra_idx = 2, 1
-            core_value, core_weight = self.constants["PIXELVALUES"][core_idx], self.constants["weights"][0][core_idx]
-            penumbra_value, penumbra_weight = self.constants["PIXELVALUES"][penumbra_idx], self.constants["weights"][0][penumbra_idx]
+        # Override the weights based on the pixel values (ONLY IF X==WIDTH && Y==HEIGHT)
+        if self.constants["M"]==self.constants["IMAGE_WIDTH"] and self.constants["N"]==self.constants["IMAGE_HEIGHT"]:
+            if self.constants["N_CLASSES"]>2:
+                core_idx, penumbra_idx = 3, 2
+                if self.constants["N_CLASSES"] == 3: core_idx, penumbra_idx = 2, 1
+                core_value, core_weight = self.constants["PIXELVALUES"][core_idx], self.constants["weights"][core_idx]
+                penumbra_value, penumbra_weight = self.constants["PIXELVALUES"][penumbra_idx], self.constants["weights"][penumbra_idx]
 
-            # focus on the SVO core only during training (only for SUS2020 dataset)!
-            if self.SVO_focus and row["severity"]=="02":
-                core_weight *= 6
-                penumbra_weight *= 6
+                # focus on the SVO core only during training (only for SUS2020 dataset)!
+                if self.SVO_focus and row["severity"]=="02":
+                    core_weight *= 6
+                    penumbra_weight *= 6
 
-            # sum the pixel value for the image with the corresponding "weight" for class
-            sumpixweight = lambda x: np.sum(np.where(np.array(x) == core_value, core_weight,
-                                                     np.where(np.array(x) == penumbra_value, penumbra_weight, self.constants["weights"][0][0])))
-            weights[index] = sumpixweight(img) / (self.constants["M"] * self.constants["N"])
-        elif self.constants["N_CLASSES"] == 2:
-            core_value, core_weight = self.constants["PIXELVALUES"][1], self.constants["weights"][0][1]
-            sumpixweight = lambda x: np.sum(np.where(np.array(x) == core_value, core_weight, self.constants["weights"][0][0]))
-            weights[index] = sumpixweight(img) / (self.constants["M"] * self.constants["N"])
+                # sum the pixel value for the image with the corresponding "weight" for class
+                sumpixweight = lambda x: np.sum(np.where(np.array(x) == core_value, core_weight,
+                                                         np.where(np.array(x) == penumbra_value, penumbra_weight,
+                                                                  self.constants["weights"][0])))
+                weights[index] = sumpixweight(img) / (self.constants["M"] * self.constants["N"])
+            elif self.constants["N_CLASSES"] == 2:
+                core_value, core_weight = self.constants["PIXELVALUES"][1], self.constants["weights"][1]
+                sumpixweight = lambda x: np.sum(np.where(np.array(x) == core_value, core_weight,
+                                                         self.constants["weights"][0]))
+                weights[index] = sumpixweight(img) / (self.constants["M"] * self.constants["N"])
 
         # convert the label in [0, 1] values,
         # for to_categ the division happens inside dataset_utils.getSingleLabelFromIndexCateg

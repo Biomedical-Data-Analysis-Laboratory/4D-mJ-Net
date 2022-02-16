@@ -56,9 +56,9 @@ def get_optimizer(opt_info):
 
 ################################################################################
 # Return the callbacks defined in the setting
-def get_callbacks(info, root_path, filename, text_fold_path, dataset, sample_weights, nn_id, add_for_finetuning):
-    # add by default the TerminateOnNaN callback
-    cbs = [callback.TerminateOnNaN()]
+def get_callbacks(info, root_path, filename, text_fold_path, dataset, nn_id, ds_seq, add_for_finetuning):
+    # add by default the TerminateOnNaN callback and the predict img after each epoch
+    cbs = [callback.TerminateOnNaN(), callback.DisplayCallback(ds_seq,text_fold_path)]
 
     for key in info.keys():
         # save the weights
@@ -83,9 +83,6 @@ def get_callbacks(info, root_path, filename, text_fold_path, dataset, sample_wei
         elif key == "RocCallback":
             training_data = (dataset["train"]["data"], dataset["train"]["labels"])
             validation_data = (dataset["val"]["data"], dataset["val"]["labels"])
-            # # TODO: no model passed!
-            # # TODO: filename is different (is the TMP_MODELS not MODELS folder)
-            cbs.append(callback.RocCallback(training_data, validation_data, model, sample_weights, filename, text_fold_path))
         # elif key=="TensorBoard": cbs.append(callback.TensorBoard(log_dir=textFolderPath, update_freq=info[key]["update_freq"], histogram_freq=info[key]["histogram_freq"]))
 
     return cbs
@@ -116,7 +113,7 @@ def fit_model(model, dataset, batch_size, epochs, callbacklist, sample_weights, 
 ################################################################################
 # Function that call a fit_generator to load the training dataset on the fly
 def fit_generator(model, train_sequence, val_sequence, steps_per_epoch, validation_steps, epochs, callbacklist,
-                  initial_epoch, use_multiprocessing):
+                  initial_epoch, use_multiprocessing, class_weight):
     multiplier = 5
     # steps_per_epoch is given by the len(train_sequence)*steps_per_epoch_ratio rounded to the nearest integer
     training = model.fit(
@@ -128,8 +125,8 @@ def fit_generator(model, train_sequence, val_sequence, steps_per_epoch, validati
         callbacks=callbacklist,
         initial_epoch=initial_epoch,
         verbose=1,
-        max_queue_size=10,
-        workers=1,
+        max_queue_size=2*multiplier,
+        workers=1*multiplier,
         shuffle=True,
         use_multiprocessing=use_multiprocessing)
 

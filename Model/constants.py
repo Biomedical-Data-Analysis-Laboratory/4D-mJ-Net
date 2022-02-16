@@ -4,7 +4,7 @@ import os
 global M,N,SLICING_PIXELS,verbose,USE_PM,DEBUG,ORIGINAL_SHAPE,TIME_LAST,isISLES,root_path,IMAGE_WIDTH,IMAGE_HEIGH,\
     NUMBER_OF_IMAGE_PER_SECTION,N_CLASSES,LABELS,PIXELVALUES,HOT_ONE_WEIGHTS,TO_CATEG,ALPHA,GAMMA,focal_tversky_loss,\
     PREFIX_IMAGES,DATASET_PREFIX,SUFFIX_IMG,colorbar_coord,suffix_partial_weights,threeD_flag,ONE_TIME_POINT,list_PMS,\
-    DF_columns,limited_columns,ENABLE_WATCHDOG,PID_WATCHDOG_PICKLE_PATH,PID_WATCHDOG_FINISHED_PICKLE_PATH
+    DF_columns,limited_columns,ENABLE_WATCHDOG,PID_WATCHDOG_PICKLE_PATH,PID_WATCHDOG_FINISHED_PICKLE_PATH, TO_FLAT
 
 
 DATASET_PREFIX = "patient"
@@ -40,7 +40,17 @@ def is_debug():
 def set_debug(d):
     global DEBUG
     DEBUG = d
-    
+
+
+################################################################################
+def is_to_flat():
+    return True  # Todo change here
+
+
+def set_to_flat(f):
+    global TO_FLAT
+    TO_FLAT = f
+
 
 ################################################################################
 def get_m():
@@ -72,7 +82,7 @@ def get_img_width():
     return IMAGE_WIDTH
 
 
-def get_img_weight():
+def get_img_height():
     return IMAGE_HEIGHT
     
     
@@ -234,19 +244,19 @@ def set_classes(c):
     if N_CLASSES == 2:
         LABELS = ["background", "core"]
         PIXELVALUES = [0, 255]
-        HOT_ONE_WEIGHTS = [[0.1, 100]]
+        HOT_ONE_WEIGHTS = {0:1, 1:1}  # [[0.1, 100]]
         GAMMA = [[2., 2.]]
         ALPHA = [[0.25,0.25]]
     elif N_CLASSES == 3:
         LABELS = ["background", "penumbra", "core"]
         PIXELVALUES = [0, 170, 255]
-        HOT_ONE_WEIGHTS = [[0.1, 50, 440]]
+        HOT_ONE_WEIGHTS = {0:1, 1:1, 2:1}  # [[0.1, 50, 440]]
         GAMMA = [[2., 2., 2.]]
         ALPHA = [[0.25, 0.25, 0.25]]
     else:
         LABELS = ["background", "brain", "penumbra", "core"]  # background:0, brain:85, penumbra:170, core:255
         PIXELVALUES = [0, 85, 170, 255]
-        HOT_ONE_WEIGHTS = [[0, 0.1, 50, 440]]
+        HOT_ONE_WEIGHTS = {0:1, 1:1, 2:1, 3:1}   # [[0, 0.1, 50, 440]]
         # hyperparameters for the multi focal loss
         ALPHA = [[0.25, 0.25, 0.25, 0.25]]
         GAMMA = [[2., 2., 2., 2.]]
@@ -264,13 +274,16 @@ def set_Focal_Tversky(hyperparameters):
 
 
 ################################################################################
-def get_weights():
+def get_class_weights():
     return HOT_ONE_WEIGHTS
 
 
-def set_weights(weights):
+def set_class_weights(weights):
     global HOT_ONE_WEIGHTS
-    if weights is not None: HOT_ONE_WEIGHTS = [weights]
+    if weights is not None:
+        sorted_keys = sorted(HOT_ONE_WEIGHTS.keys())
+        for i,w in enumerate(weights): HOT_ONE_WEIGHTS[sorted_keys[i]] = w
+
 
 
 

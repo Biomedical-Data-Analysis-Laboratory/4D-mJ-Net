@@ -2,12 +2,10 @@ import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 from Model.constants import *
-from Utils import callback, general_utils
-import numpy as np
+from Utils import general_utils
 import tensorflow as tf
-from tensorflow.keras import metrics, utils
+from tensorflow.keras import metrics, utils, losses
 import tensorflow.keras.backend as K
-from sklearn.metrics import roc_auc_score, average_precision_score, auc, multilabel_confusion_matrix
 
 
 ################################################################################
@@ -20,36 +18,37 @@ def _squared_dice_coef(y_true, y_pred, class_weights, is_loss):
          =  2*sum(|A*B|)/(sum(A^2)+sum(B^2))
     ref: https://arxiv.org/pdf/1606.04797v1.pdf
     """
-    # y_pred = K.clip(y_pred,0,1)  # Clip the prediction to be 0<=y_pred<=max(y_pred)
-    axis_to_reduce = -1 if not is_TO_CATEG() else list(range(1, K.ndim(y_pred)))  # Reduce all axis but first (batch)
-    class_weights = tf.constant(1, dtype=K.floatx()) if not is_TO_CATEG() else class_weights
-    numerator = y_true * y_pred * class_weights  # Broadcasting
-    numerator = 2. * K.sum(numerator, axis=axis_to_reduce)
 
-    denominator = (K.square(y_true) + K.square(y_pred)) * class_weights  # Broadcasting
-    denominator = K.sum(denominator, axis=axis_to_reduce)
-    # Average over each data point/image in batch
+    # general_utils.pickle_save(K.eval(y_true), "/bhome/lucat/y_true.pkl")
+    # general_utils.pickle_save(K.eval(y_pred), "/bhome/lucat/y_pred.pkl")
+
+    class_weights = tf.constant(1, dtype=K.floatx()) if not is_TO_CATEG() else class_weights
+
+    y_true,y_pred,axis_to_reduce = process_input(y_true, y_pred, class_weights, is_loss)
+
+    numerator = 2. * K.sum(y_true * y_pred, axis=axis_to_reduce)
+    denominator = K.sum(K.square(y_true) + K.square(y_pred), axis=axis_to_reduce)
     out = numerator / (denominator+K.epsilon())
-    return out if is_loss else K.mean(out,axis=0)
+    return out
 
 
 def squared_dice_coef(y_true, y_pred, is_loss=False):
-    class_weights = tf.constant(get_weights(), dtype=K.floatx())
+    class_weights = tf.constant(1, dtype=K.floatx())
     return _squared_dice_coef(y_true, y_pred, class_weights, is_loss)
 
 
 def sdc_rest(y_true, y_pred, is_loss=False):
-    class_weights = general_utils.getClassWeights("rest")
+    class_weights = general_utils.get_class_weights("rest")
     return _squared_dice_coef(y_true, y_pred, class_weights, is_loss)
 
 
 def sdc_p(y_true, y_pred, is_loss=False):
-    class_weights = general_utils.getClassWeights("penumbra")
+    class_weights = general_utils.get_class_weights("penumbra")
     return _squared_dice_coef(y_true, y_pred, class_weights, is_loss)
 
 
 def sdc_c(y_true, y_pred, is_loss=False):
-    class_weights = general_utils.getClassWeights("core")
+    class_weights = general_utils.get_class_weights("core")
     return _squared_dice_coef(y_true, y_pred, class_weights, is_loss)
 
 
@@ -60,58 +59,54 @@ def sdc_c(y_true, y_pred, is_loss=False):
 # == to F1 score for boolean values
 def dice_coef(y_true, y_pred, is_loss):
     """ Compute weighted Dice loss. """
+    class_weights = tf.constant(1, dtype=K.floatx())
 
-    # y_pred = K.clip(y_pred,0,1)
-    class_weights = tf.constant(get_weights(), dtype=K.floatx())
+    y_true,y_pred,axis_to_reduce = process_input(y_true, y_pred, class_weights, is_loss)
 
-    axis_to_reduce = -1 if not is_TO_CATEG() else list(range(1, K.ndim(y_pred)))
-    class_weights = tf.constant(1, dtype=K.floatx()) if not is_TO_CATEG() else class_weights
-    numerator = y_true * y_pred * class_weights  # Broadcasting
-    numerator = 2. * K.sum(numerator, axis=axis_to_reduce)
-
-    denominator = (y_true + y_pred) * class_weights  # Broadcasting
-    denominator = K.sum(denominator, axis=axis_to_reduce)
-    # Average over each data point/image in batch
+    numerator = 2. * K.sum(y_true * y_pred, axis=axis_to_reduce)
+    denominator = K.sum(y_true + y_pred, axis=axis_to_reduce)
     out = numerator / (denominator+K.epsilon())
-    return out if is_loss else K.mean(out,axis=0)
+    return out
 
 
 ################################################################################
 # Implementation of the Tversky Index (TI),
-# which is a asymmetric similarity measure that is a generalisation of the dice coefficient and the Jaccard index.
+# which is an asymmetric similarity measure that is a generalisation of the dice coefficient and the Jaccard index.
 def _tversky_coef(y_true, y_pred, class_weights, is_loss):
-    # y_pred = K.clip(y_pred,0,1)
     alpha = get_Focal_Tversky()["alpha"]
     beta = 1-alpha
-
-    axis_to_reduce = -1 if not is_TO_CATEG() else list(range(1, K.ndim(y_pred)))  # All axis but first (batch)
     class_weights = tf.constant(1, dtype=K.floatx()) if not is_TO_CATEG() else class_weights
-    numerator = (y_true * y_pred) * class_weights  # Broadcasting
-    numerator = K.sum(numerator, axis=axis_to_reduce)
+    y_true, y_pred, axis_to_reduce = process_input(y_true, y_pred, class_weights, is_loss)
+
+    # y_true = K.print_tensor(y_true, message='y_true = ')
+    # y_pred = K.print_tensor(y_pred, message='y_pred = ')
+
+    numerator = K.sum(y_true * y_pred, axis=axis_to_reduce)
     denominator = (y_true * y_pred) + alpha * (y_true * (1 - y_pred)) + beta * ((1 - y_true) * y_pred)
-    denominator *= class_weights  # Broadcasting
     denominator = K.sum(denominator, axis=axis_to_reduce)
-    out = numerator / (denominator + K.epsilon())
-    return out if is_loss else K.mean(out, axis=0)
+
+    out = (numerator+ K.epsilon()) / (denominator + K.epsilon())
+    # out = K.print_tensor(out, message='out = ')
+    return out
 
 
 def tversky_coef(y_true, y_pred, is_loss=False):
-    class_weights = tf.constant(get_weights(), dtype=K.floatx())
+    class_weights = tf.constant(1, dtype=K.floatx())
     return _tversky_coef(y_true, y_pred, class_weights, is_loss)
 
 
 def tversky_rest(y_true, y_pred, is_loss=False):
-    class_weights = general_utils.getClassWeights("rest")
+    class_weights = general_utils.get_class_weights("rest")
     return _tversky_coef(y_true, y_pred, class_weights, is_loss)
 
 
 def tversky_p(y_true, y_pred, is_loss=False):
-    class_weights = general_utils.getClassWeights("penumbra")
+    class_weights = general_utils.get_class_weights("penumbra")
     return _tversky_coef(y_true, y_pred, class_weights, is_loss)
 
 
 def tversky_c(y_true, y_pred, is_loss=False):
-    class_weights = general_utils.getClassWeights("core")
+    class_weights = general_utils.get_class_weights("core")
     return _tversky_coef(y_true, y_pred, class_weights, is_loss)
 
 
@@ -125,7 +120,6 @@ def tversky_c(y_true, y_pred, is_loss=False):
 #
 # http://www.bmva.org/bmvc/2013/Papers/paper0032/paper0032.pdf
 def jaccard_distance(y_true, y_pred):
-    # y_pred = K.clip(y_pred,0,1)
     intersection = K.sum(K.abs(y_true * y_pred), axis=-1)
     sum_ = K.sum(K.abs(y_true) + K.abs(y_pred), axis=-1)
     return intersection / (sum_ - intersection + K.epsilon())
@@ -134,17 +128,16 @@ def jaccard_distance(y_true, y_pred):
 ################################################################################
 # Function that calculate the metrics for the CATEGORICAL CROSS ENTROPY
 def categorical_crossentropy(y_true, y_pred):
-    y_true = K.flatten(y_true)
-    y_pred = K.flatten(y_pred)
-    # y_pred = K.clip(y_pred,0,1)
-    return metrics.categorical_accuracy(y_true, y_pred)
+    y_true = K.reshape(y_true, K.stack([K.prod(K.shape(y_true)[:-1]),-1]))
+    y_pred = K.reshape(y_pred, K.stack([K.prod(K.shape(y_pred)[:-1]),-1]))
+    cce_f = losses.CategoricalCrossentropy()
+    return cce_f(y_true, y_pred)
 
 
 ################################################################################
 # Function that calculate the metrics for the WEIGHTED CATEGORICAL CROSS ENTROPY
 def weighted_categorical_cross_entropy(y_true, y_pred):
-    # y_pred = K.clip(y_pred,0,1)
-    class_weights = tf.constant(1, dtype=K.floatx()) if not is_TO_CATEG() else tf.constant(get_weights(), dtype=K.floatx())
+    class_weights = tf.constant(1, dtype=K.floatx())
     lambda_0 = 1
     lambda_1 = 1e-6
     lambda_2 = 1e-5
@@ -161,7 +154,6 @@ def weighted_categorical_cross_entropy(y_true, y_pred):
 # Implementation of the Focal loss.
 # first proposed here: https://openaccess.thecvf.com/content_ICCV_2017/papers/Lin_Focal_Loss_for_ICCV_2017_paper.pdf
 def _focal_loss(y_true, y_pred, alpha, is_loss):
-    # y_pred = K.clip(y_pred,0,1)
     gamma = tf.constant(GAMMA, dtype=y_pred.dtype)
     axis_to_reduce = -1 if not is_TO_CATEG() else list(range(1, K.ndim(y_pred)))
     # Clip the prediction value to prevent NaN's and Inf's
@@ -169,8 +161,7 @@ def _focal_loss(y_true, y_pred, alpha, is_loss):
     # Calculate Cross Entropy
     cross_entropy = -(y_true * K.log(y_pred))
     f_loss = alpha * K.pow((1 - y_pred), gamma) * cross_entropy
-    # Average over each data point/image in batch
-    return f_loss if is_loss else K.mean(f_loss, axis=axis_to_reduce)
+    return f_loss
 
 
 def focal_loss(y_true, y_pred, is_loss=False):
@@ -207,64 +198,60 @@ def tanimoto(y_true, y_pred, is_loss):
     Defined in the paper "ResUNet-a: a deep learning framework for semantic segmentation of remotely sensed data",
     under 3.2.4. Generalization to multiclass imbalanced problems. See https://arxiv.org/pdf/1904.00592.pdf
     """
-    # y_pred = K.clip(y_pred,0,1)
-    class_weights = tf.constant(1, dtype=K.floatx()) if not is_TO_CATEG() else tf.constant(get_weights(), dtype=K.floatx())
+    class_weights = tf.constant(1, dtype=K.floatx())
+    y_true,y_pred,axis_to_reduce = process_input(y_true, y_pred, class_weights, is_loss)
 
-    axis_to_reduce = -1 if not is_TO_CATEG() else list(range(1, K.ndim(y_pred)))  # All axis but first (batch)
-    numerator = y_true * y_pred * class_weights
-    numerator = K.sum(numerator, axis=axis_to_reduce)
-
-    denominator = (K.square(y_true) + K.square(y_pred) - y_true * y_pred) * class_weights
+    numerator = K.sum(y_true * y_pred, axis=axis_to_reduce)
+    denominator = K.square(y_true) + K.square(y_pred) - y_true * y_pred
     denominator = K.sum(denominator, axis=axis_to_reduce)
     out = numerator / (denominator+K.epsilon())
-    return out if is_loss else K.mean(out, axis=0)
+    return out
 
 
 ################################################################################
 # Return precision as a metric
 def prec_p(y_true, y_pred):
-    class_weights = general_utils.getClassWeights("penumbra")
+    class_weights = general_utils.get_class_weights("penumbra")
     return _precision(y_true, y_pred, class_weights)
 
 
 def prec_c(y_true, y_pred):
-    class_weights = general_utils.getClassWeights("core")
+    class_weights = general_utils.get_class_weights("core")
     return _precision(y_true, y_pred, class_weights)
 
 
 def _precision(y_true, y_pred, class_weights, thres=0.5):
-    # y_pred = K.clip(y_pred,0,1)
-    axis_to_reduce = -1 if not is_TO_CATEG() else list(range(1, K.ndim(y_pred)))  # All axis but first (batch)
     class_weights = tf.constant(1, dtype=K.floatx()) if not is_TO_CATEG() else class_weights
-    # y_pred_bin = K.clip(K.round(y_pred + thres), 0, 1)
-    numerator = y_true * y_pred * class_weights
-    numerator = K.sum(numerator, axis=axis_to_reduce)
-    denominator = K.sum(y_pred * class_weights, axis=axis_to_reduce)
-    return K.mean(numerator / (denominator + K.epsilon()), axis=0)
+
+    y_true, y_pred, axis_to_reduce = process_input(y_true, y_pred, class_weights)
+
+    numerator = K.sum(y_true * y_pred, axis=axis_to_reduce)
+    denominator = K.sum(y_pred, axis=axis_to_reduce)
+    out = numerator / (denominator + K.epsilon())
+    return out
 
 
 ################################################################################
 # Return recall as a metric
 def rec_p(y_true, y_pred):
-    class_weights = general_utils.getClassWeights("penumbra")
+    class_weights = general_utils.get_class_weights("penumbra")
     return _recall(y_true, y_pred, class_weights)
 
 
 def rec_c(y_true, y_pred):
-    class_weights = general_utils.getClassWeights("core")
+    class_weights = general_utils.get_class_weights("core")
     return _recall(y_true, y_pred, class_weights)
 
 
 def _recall(y_true, y_pred, class_weights, thres=0.5):
-    # y_pred = K.clip(y_pred,0,1)
-    axis_to_reduce = -1 if not is_TO_CATEG() else list(range(1, K.ndim(y_pred)))  # All axis but first (batch)
     class_weights = tf.constant(1, dtype=K.floatx()) if not is_TO_CATEG() else class_weights
-    # y_pred_bin = K.clip(K.round(y_pred + thres), 0, 1)
-    numerator = y_true * y_pred * class_weights
-    numerator = K.sum(numerator, axis=axis_to_reduce)
-    denominator = y_true * class_weights
-    denominator = K.sum(denominator, axis=axis_to_reduce)
-    return K.mean(numerator / (denominator + K.epsilon()), axis=0)
+
+    y_true, y_pred, axis_to_reduce = process_input(y_true, y_pred, class_weights)
+
+    numerator = K.sum(y_true * y_pred, axis=axis_to_reduce)
+    denominator = K.sum(y_true, axis=axis_to_reduce)
+    out = numerator / (denominator + K.epsilon())
+    return out
 
 
 ################################################################################
@@ -279,3 +266,53 @@ def f1_c(y_true, y_pred):
     p = prec_c(y_true, y_pred)
     r = rec_c(y_true, y_pred)
     return 2. * ((p*r)/(p+r+K.epsilon()))
+
+
+################################################################################
+# https://gist.github.com/Kautenja/69d306c587ccdf464c45d28c1545e580
+def _iou(y_true, y_pred, label: int):
+    """
+    Return the Intersection over Union (IoU) for a given label.
+    Args:
+        y_true: the expected y values as a one-hot
+        y_pred: the predicted y values as a one-hot or softmax output
+        label: the label to return the IoU for
+    Returns:
+        the IoU for the given label
+    """
+    # extract the label values using the argmax operator then
+    # calculate equality of the predictions and truths to the label
+    y_true = K.cast(K.equal(K.argmax(y_true), label), K.floatx())
+    y_pred = K.cast(K.equal(K.argmax(y_pred), label), K.floatx())
+    # calculate the |intersection| (AND) of the labels
+    intersection = K.sum(y_true * y_pred)
+    # calculate the |union| (OR) of the labels
+    union = K.sum(y_true) + K.sum(y_pred) - intersection
+    # avoid divide by zero - if the union is zero, return 1
+    # otherwise, return the intersection over union
+    return K.switch(K.equal(union, 0), 1.0, intersection / union)
+
+
+def iou_p(y_true, y_pred):
+    return _iou(y_true,y_pred,1)
+
+
+def iou_c(y_true, y_pred):
+    return _iou(y_true,y_pred,get_n_classes()-1)
+
+
+def iou_rest(y_true, y_pred):
+    return _iou(y_true,y_pred,0)
+
+
+################################################################################
+# Function to return the flatten couple (true/pred) or not, already multiplied by the class weight
+def process_input(y_true, y_pred, class_weights, is_loss=False):
+    y_true *= class_weights
+    y_pred *= class_weights
+    if is_to_flat() and not is_loss:
+        y_true = K.flatten(y_true)
+        y_pred = K.flatten(y_pred)
+        axis_to_reduce = -1
+    else: axis_to_reduce = -1 if not is_TO_CATEG() else list(range(1, K.ndim(y_pred)))  # All axis but first (batch)
+    return y_true, y_pred, axis_to_reduce

@@ -89,7 +89,7 @@ def main():
             # Check if the model was already trained and saved
             if nn.is_model_saved():
                 # SET THE CALLBACKS & LOAD MODEL
-                nn.set_callbacks()
+                # nn.set_callbacks()
                 nn.load_saved_model()
             else: nn.init_and_start_training(n_gpu, args.jump)
 

@@ -1,35 +1,67 @@
 from Model.constants import *
-from Utils import general_utils
+from Utils import general_utils, dataset_utils, model_utils
 
-import os, glob
+import os, glob, cv2, time
 import numpy as np
 from tensorflow.keras import callbacks
 import tensorflow.keras.backend as K
-from sklearn.metrics import roc_auc_score
 
 
 ################################################################################
-# class DisplayCallback(callbacks.Callback):
-#     def get_img(self):
-#
-#
-#     def on_epoch_end(self, epoch, logs=None):
-#         img = self.get_img()
-#         self.model.predict(
-#         print('\nSample Prediction after epoch {}\n'.format(epoch + 1))
+class DisplayCallback(callbacks.Callback):
+    def __init__(self, ds_seq,text_fold_path):
+        self.ds_seq = ds_seq
+        self.text_fold_path = text_fold_path
+        self.patient = "01_031"
+
+    def on_epoch_end(self, epoch, logs=None):
+        f = "/bhome/lucat/DATASET/SUS2020/COMBINED_Najm_v21-0.5/"+DATASET_PREFIX+self.patient+general_utils.get_suffix()+".pkl"
+        df = dataset_utils.read_pickle_or_hickle(f,flagHickle=False)
+        slice_idx = "03"
+        x,y = 0,0
+        s = time.time()
+        X, coords = [], []
+        img = np.empty((get_img_height(),get_img_height()))
+
+        while True:
+            coords.append((x,y))
+            # if we reach the end of the image, break the while loop.
+            if x>=get_img_width()-get_m() and y>=get_img_height()-get_n(): break
+            if get_m()==get_img_width() and get_n()==get_img_height(): break  # check for M == WIDTH & N == HEIGHT
+            if y<(get_img_height()-get_n()): y+=get_n()  # going to the next slicingWindow
+            else:
+                if x<get_img_width():
+                    y = 0
+                    x += get_m()
+
+        for i, coord in enumerate(coords):
+            row = df[df.x_y == coord]
+            row = row[row.sliceIndex == slice_idx]
+            row = row[row.data_aug_idx == 0]
+            assert len(row) == 1, "The length of the row to analyze should be 1."
+            X = model_utils.get_correct_X_for_input_model(ds_seq=self.ds_seq, current_folder=row["pixels"].iloc[0],
+                                                          row=row, batch_idx=i, batch_len=len(coords), X=X)
+        tmp_img_arr = self.model.predict(X)
+        general_utils.pickle_save(tmp_img_arr, "/bhome/lucat/tmp_img_arr.pkl")
+        for i,tmp_img in enumerate(tmp_img_arr):
+            x,y = coords[i]
+            if is_TO_CATEG(): img[x:x+get_m(),y:y+get_n()] = K.eval((K.argmax(tmp_img) * 255) / (get_n_classes() - 1))
+            else: img[x:x+get_m(),y:y+get_n()] = tmp_img*255
+
+        cv2.imwrite(self.text_fold_path+self.patient+"_"+slice_idx+"_"+str(epoch+1)+".png", img)
+        print('\nSample Prediction ({0}s) after epoch {1}\n'.format(round(time.time()-s, 3), epoch + 1))
 
 
 ################################################################################
 # Return information about the loss and accuracy
 class CollectBatchStats(callbacks.Callback):
-    def __init__(self, root_path, savedModelName, textFolderPath, acc="acc"):
+    def __init__(self, root_path, saved_mdl_name, txt_fold_path, acc="acc"):
         self.batch_losses = []
         self.batch_acc = []
         self.root_path = root_path
-        self.savedModelName = savedModelName
-        self.textFolderPath = textFolderPath
-        # self.folderOfSavedModel = self.savedModelName[:self.savedModelName.rfind("/")+1]
-        self.modelName = self.savedModelName[self.savedModelName.rfind(os.path.sep):]
+        self.saved_mdl_name = saved_mdl_name
+        self.txt_fold_path = txt_fold_path
+        self.model_name = self.saved_mdl_name[self.saved_mdl_name.rfind(os.path.sep):]
         self.acc = acc
 
     def on_batch_end(self, batch, logs=None):
@@ -43,60 +75,15 @@ class CollectBatchStats(callbacks.Callback):
         for k, v in logs.items():
             textToSave += ", {}: {}".format(k, round(v, 6))
         textToSave += '\n'
-        with open(self.textFolderPath+self.modelName+"_logs.txt", "a+") as loss_file:
+        with open(self.txt_fold_path + self.model_name + "_logs.txt", "a+") as loss_file:
             loss_file.write(textToSave)
 
-        tmpSavedModels = glob.glob(self.savedModelName + suffix_partial_weights + "*.h5")
+        tmpSavedModels = glob.glob(self.saved_mdl_name + suffix_partial_weights + "*.h5")
         if len(tmpSavedModels) > 1:  # just to be sure and not delete everything
             for file in tmpSavedModels:
-                if self.savedModelName+ suffix_partial_weights in file:
-                    tmpEpoch = general_utils.getEpochFromPartialWeightFilename(file)
+                if self.saved_mdl_name+ suffix_partial_weights in file:
+                    tmpEpoch = general_utils.get_epoch_from_partial_weights_path(file)
                     if tmpEpoch < epoch: os.remove(file)  # Remove the old saved weights
-
-
-################################################################################
-# Callback for the AUC_ROC
-# TODO: NOT working!! <-- use it just for testing
-class RocCallback(callbacks.Callback):
-    def __init__(self, training_data, validation_data, model, sample_weight, savedModelName, textFolderPath):
-        self.x = training_data[0]
-        self.y = training_data[1]
-        self.x_val = validation_data[0]
-        self.y_val = validation_data[1]
-        self.model = model
-        self.sample_weight = sample_weight
-
-        self.savedModelName = savedModelName
-        self.modelName = self.savedModelName[self.savedModelName.rfind(os.path.sep):]
-
-    def on_train_begin(self, logs=None):
-        return
-
-    def on_train_end(self, logs=None):
-        return
-
-    def on_epoch_begin(self, epoch, logs=None):
-        return
-
-    def on_epoch_end(self, epoch, logs=None):
-        # TODO: predict_proba does NOT exist!
-        y_pred_train = self.model.predict_proba(self.x)
-        roc_train = roc_auc_score(self.y, y_pred_train, sample_weight=self.sample_weight)
-        y_pred_val = self.model.predict_proba(self.x_val)
-        roc_val = roc_auc_score(self.y_val, y_pred_val, sample_weight=self.sample_weight)
-
-        print('\r roc-auc_train: %s - roc-auc_val: %s' % (str(round(roc_train,4)),str(round(roc_val,4))),end=100*' '+'\n')
-
-        with open(self.textFolderPath+self.modelName+"_aucroc.txt", "a+") as aucroc_file:
-            aucroc_file.write('\r roc-auc_train: %s - roc-auc_val: %s' % (str(round(roc_train,4)),str(round(roc_val,4))),end=100*' '+'\n')
-
-        return
-
-    def on_batch_begin(self, batch, logs=None):
-        return
-
-    def on_batch_end(self, batch, logs=None):
-        return
 
 
 ################################################################################
@@ -104,11 +91,11 @@ class RocCallback(callbacks.Callback):
 def modelCheckpoint(filename, monitor, mode, period):
     return callbacks.ModelCheckpoint(
         filename + suffix_partial_weights + "{epoch:02d}.h5",
-            monitor=monitor,
-            verbose=is_verbose(),
-            save_best_only=True,
-            mode=mode,
-            period=period
+        monitor=monitor,
+        verbose=is_verbose(),
+        save_best_only=True,
+        mode=mode,
+        period=period
     )
 
 

@@ -82,7 +82,7 @@ class PM_obj(object):
         weights, biases = np.empty(0), np.empty(0)
         config = layer.get_config()
         if len(layer.weights) > 0:
-            weights, biases = layer.get_weights()
+            weights = layer.get_class_weights()
             weights = np.stack([weights/3]*3, axis=0)
 
         # overwrite the input shape and inflate the conv and pooling layers from 2D to 3D
@@ -176,6 +176,7 @@ def get_init_params_3D(params,leaky):
 ################################################################################
 # Function to get the input X depending on the correct model
 def get_correct_X_for_input_model(ds_seq, current_folder, row, batch_idx, batch_len, X=None, train=False):
+    # TODO: add the possibility to infer the entire image
     pms = dict()
     # Extract the information: coordinates, data_aug_idx, ...
     coord = row["x_y"] if train else row["x_y"].iloc[0]
@@ -186,23 +187,28 @@ def get_correct_X_for_input_model(ds_seq, current_folder, row, batch_idx, batch_
     # Ger the right folders and add them in the list
     if (ds_seq.is4DModel or ds_seq.is3dot5DModel) and ds_seq.n_slices > 1: folders = get_prev_next_folder(current_folder, slice_idx)
     # Get the shape of the input X
-    if not train:
-        x_shape = (ds_seq.constants["M"], ds_seq.constants["N"], ds_seq.constants["NUMBER_OF_IMAGE_PER_SECTION"]) if ds_seq.constants["TIME_LAST"] else (ds_seq.constants["NUMBER_OF_IMAGE_PER_SECTION"], ds_seq.constants["M"], ds_seq.constants["N"])
-        X = np.empty(shape=(1,)+x_shape+(1,))
+    # if not train:
+    #     x_shape = (ds_seq.constants["M"], ds_seq.constants["N"], ds_seq.constants["NUMBER_OF_IMAGE_PER_SECTION"]) \
+    #         if ds_seq.constants["TIME_LAST"] else (ds_seq.constants["NUMBER_OF_IMAGE_PER_SECTION"], ds_seq.constants["M"], ds_seq.constants["N"])
+    #     X = np.empty(shape=(1,)+x_shape+(1,))
     # Important flag. Check if the input X should be an array or not
     isXarray = True if len(folders) > 1 or (ds_seq.x_label == ds_seq.constants["LIST_PMS"] or (ds_seq.x_label == "pixels" and (ds_seq.is4DModel or ds_seq.is3dot5DModel))) else False
     isXarray = False if "TCNet" in ds_seq.name else isXarray  # set it to False if we're dealing with TCN
-    if not train or (train and batch_idx == 0):  # create a list of empty spots: [None,None,...]
+    if batch_idx == 0:  # create a list of empty spots: [None,None,...]
         if isXarray: X = [None] * len(folders)
         if "TCNet" in ds_seq.name: X = [None] * ds_seq.constants["NUMBER_OF_IMAGE_PER_SECTION"]
 
     for z, folder in enumerate(folders):  # main loop for number of folders involved (Z dim)
-        tmp_X = np.empty((batch_len, ds_seq.constants["M"], ds_seq.constants["N"], ds_seq.constants["NUMBER_OF_IMAGE_PER_SECTION"], 1)) if ds_seq.constants["TIME_LAST"] else np.empty((batch_len, ds_seq.constants["NUMBER_OF_IMAGE_PER_SECTION"], ds_seq.constants["M"], ds_seq.constants["N"], 1))
-        if isXarray and train and batch_idx>0: tmp_X = X[z]
+        x_shape = (batch_len, ds_seq.constants["M"], ds_seq.constants["N"], ds_seq.constants["NUMBER_OF_IMAGE_PER_SECTION"], 1) \
+            if ds_seq.constants["TIME_LAST"] else (batch_len, ds_seq.constants["NUMBER_OF_IMAGE_PER_SECTION"], ds_seq.constants["M"], ds_seq.constants["N"], 1)
+        tmp_X = np.empty(x_shape)
+        if isXarray and batch_idx>0: tmp_X = X[z]
 
-        if platform.system()=="Windows": folder = folder.replace(folder[:folder.rfind("/",0,len(folder)-4)], ds_seq.patients_folder)
+        if platform.system()=="Windows":
+            folder = folder.replace(folder[:folder.rfind("/",0,len(folder)-4)], ds_seq.patients_folder)
 
-        if ds_seq.constants["isISLES"]: X, tmp_X = get_ISLES_input(ds_seq,folder,coord,X,tmp_X,isXarray,batch_idx)
+        if ds_seq.constants["isISLES"]:
+            X, tmp_X = get_ISLES_input(ds_seq,folder,coord,X,tmp_X,isXarray,batch_idx, train=train)
         else:
             if "TCNet" in ds_seq.name:
                 X = get_TCN_input(ds_seq, batch_idx, z, X, coord, train, data_aug_idx, batch_len, folder, folders)
@@ -211,11 +217,11 @@ def get_correct_X_for_input_model(ds_seq, current_folder, row, batch_idx, batch_
                     totimg = cv2.imread(filename, cv2.IMREAD_GRAYSCALE)
                     assert totimg is not None, "The image {} is None".format(filename)
                     # Get the slice and if we are training, also perform augmentation
-                    slc_w = general_utils.get_slice_window(totimg, coord[0], coord[1], ds_seq.constants)
+                    slc_w = general_utils.get_slice_window(totimg, coord[0], coord[1], ds_seq.constants, train=train)
                     if train: slc_w = general_utils.perform_DA_on_img(slc_w, data_aug_idx)
                     if not ds_seq.supervised or ds_seq.patients_folder != "OLDPREPROC_PATIENTS/":
                         # reshape it for the correct input in the model
-                        slc_w = slc_w.reshape(slc_w.shape + (1,))
+                        slc_w = np.expand_dims(slc_w, axis=-1)
                         if ds_seq.constants["TIME_LAST"]:
                             if isXarray: tmp_X[batch_idx, :, :, time_idx, :] = slc_w  # 3.5D / 4D
                             else: X[batch_idx, :, :, time_idx, :] = slc_w  # mJNet input (2.5D)
@@ -239,7 +245,7 @@ def get_correct_X_for_input_model(ds_seq, current_folder, row, batch_idx, batch_
                     crn_pm = row[pm] if train else row[pm].iloc[0]
                     totimg = cv2.imread(crn_pm, ds_seq.input_img_flag)
                     assert totimg is not None, "The image {} is None".format(crn_pm)
-                    img = general_utils.get_slice_window(totimg, coord[0], coord[1], ds_seq.constants, remove_colorbar=True)
+                    img = general_utils.get_slice_window(totimg, coord[0], coord[1], ds_seq.constants, train=train, remove_colorbar=True)
                     if train: img = general_utils.perform_DA_on_img(img, data_aug_idx)
                     channels = 1 if ds_seq.params["convertImgToGray"] else 3
                     img = np.reshape(img, (ds_seq.constants["M"], ds_seq.constants["N"], channels)) if ds_seq.params["convertImgToGray"] else img
@@ -272,6 +278,7 @@ def get_correct_X_for_input_model(ds_seq, current_folder, row, batch_idx, batch_
 ################################################################################
 # Get the right input if we're using a TCN model
 def get_TCN_input(ds_seq, batch_idx, z, X, coord, train, data_aug_idx, batch_len, folder, folders):
+    # TODO: add the possibility to infer the entire image
     # initialize single_X if batch_idx==0, otherwise single_X = X[time_idx]
     single_X = np.empty((batch_len, ds_seq.constants["M"], ds_seq.constants["N"], 1))
     if ds_seq.is3dot5DModel and batch_idx==0 and z==0:
@@ -281,29 +288,26 @@ def get_TCN_input(ds_seq, batch_idx, z, X, coord, train, data_aug_idx, batch_len
         totimg = cv2.imread(filename, cv2.IMREAD_GRAYSCALE)
         assert totimg is not None, "The image {} is None".format(filename)
         # Get the slice and if we are training, also perform augmentation
-        slc_w = general_utils.get_slice_window(totimg, coord[0], coord[1], ds_seq.constants)
+        slc_w = general_utils.get_slice_window(totimg, coord[0], coord[1], ds_seq.constants, train=train)
         if train: slc_w = general_utils.perform_DA_on_img(slc_w, data_aug_idx)
-        if ds_seq.constants["TIME_LAST"]:
-            if ds_seq.is3dot5DModel: single_X[batch_idx, z, :, :, :] = slc_w.reshape(slc_w.shape + (1,))
-            else: single_X[batch_idx, :, :, :] = slc_w.reshape(slc_w.shape + (1,))
-        else:
-            if ds_seq.is3dot5DModel: single_X[batch_idx, z, :, :, :] = slc_w.reshape(slc_w.shape + (1,))
-            else: single_X[batch_idx, :, :, :] = slc_w.reshape(slc_w.shape + (1,))
+        slc_w = np.expand_dims(slc_w, axis=-1)
+        if ds_seq.is3dot5DModel: single_X[batch_idx, z, :, :, :] = slc_w
+        else: single_X[batch_idx, :, :, :] = slc_w
         X[time_idx] = single_X
-
     return X
 
 
 ################################################################################
 # Get the right input if we're dealing with the ISLES2018 dataset
-def get_ISLES_input(ds_seq, folder, coord, X, tmp_X, isXarray, batch_idx):
+def get_ISLES_input(ds_seq, folder, coord, X, tmp_X, isXarray, batch_idx, train):
+    # TODO: add the possibility to infer the entire image
     howmany = len(glob.glob(folder + "*.*"))
     interpX = np.empty((ds_seq.constants["M"], ds_seq.constants["N"], howmany, 1)) if ds_seq.constants["TIME_LAST"] else np.empty((howmany, ds_seq.constants["M"], ds_seq.constants["N"], 1))
     for time_idx, filename in enumerate(np.sort(glob.glob(folder + "*.*"))):
         totimg = cv2.imread(filename, cv2.IMREAD_GRAYSCALE)
         assert totimg is not None, "The image {} is None".format(filename)
         # Get the slice and if we are training, also perform augmentation
-        slc_w = general_utils.get_slice_window(totimg, coord[0], coord[1], ds_seq.constants)
+        slc_w = general_utils.get_slice_window(totimg, coord[0], coord[1], ds_seq.constants, train=train)
         # reshape it for the correct input in the model
         if ds_seq.constants["TIME_LAST"]: interpX[:, :, time_idx, :] = slc_w.reshape(slc_w.shape + (1,) + (1,))
         else: interpX[time_idx, :, :, :] = slc_w.reshape((1,) + slc_w.shape + (1,))

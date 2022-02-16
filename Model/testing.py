@@ -1,8 +1,8 @@
 # Run the testing function, save the images ..
-import cv2, time, glob
+import cv2, time, glob, os
 import matplotlib.pyplot as plt
 import numpy as np
-import os
+import multiprocessing
 from tensorflow.keras import models
 import warnings
 
@@ -18,7 +18,7 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 ################################################################################
 # Get the labeled image processed (= GT)
 def get_check_img_processed(nn, p_id, idx):
-    check_img_proc = np.zeros(shape=(get_img_width(), get_img_weight()))
+    check_img_proc = np.zeros(shape=(get_img_width(), get_img_height()))
     if nn.labeled_img_folder != "":  # get the label image only if the path is set
         filename = None
         filename_1 = nn.labeled_img_folder + get_prefix_img() + p_id + os.path.sep + idx + SUFFIX_IMG
@@ -110,6 +110,8 @@ def predict_and_save_img(nn, p_id):
 ################################################################################
 def predict_img(nn, subfolder, p_id, patient_folder, rel_patient_folder, rel_patient_fold_heatmap,  rel_patient_fold_GT,
                 rel_patient_folder_tmp, filename_test):
+    # TODO: add the possibility to infer the entire image
+
     """
     Generate a SINGLE image for the patient and save it.
 
@@ -124,10 +126,9 @@ def predict_img(nn, subfolder, p_id, patient_folder, rel_patient_folder, rel_pat
     - rel_patient_folder_tmp        : relative name of the patient tmp folder
     - filename_test                 : Name of the test pandas dataframe
     """
+    img_pred = np.zeros(shape=(get_img_width(), get_img_height()))
+    categ_img = np.zeros(shape=(get_img_width(), get_img_height(), get_n_classes()))
     start_x, start_y = 0, 0
-    img_pred = np.zeros(shape=(get_img_width(), get_img_weight()))
-    categ_img = np.zeros(shape=(get_img_width(), get_img_weight(), get_n_classes()))
-
     idx = general_utils.get_str_from_idx(subfolder.replace(patient_folder, '').replace(os.path.sep, ""))  # image index
     # remove the old logs.
     logs_name = nn.save_img_folder + rel_patient_folder + idx + "_logs.txt"
@@ -137,11 +138,11 @@ def predict_img(nn, subfolder, p_id, patient_folder, rel_patient_folder, rel_pat
     check_img_proc = get_check_img_processed(nn, str(p_id), idx)
     binary_mask = check_img_proc != get_pixel_values()[0]
 
+    test_df = dataset_utils.read_pickle_or_hickle(filename_test, nn.model_info["use_hickle"])
+
     # Portion for the prediction of the image
     if is_3D() != "":
         assert os.path.exists(filename_test), "[ERROR] - File {} does NOT exist".format(filename_test)
-
-        test_df = dataset_utils.read_pickle_or_hickle(filename_test, nn.model_info["use_hickle"])
         # get only the rows with data_aug_idx==0 (no rotation or any data augmentation)
         test_df = test_df[test_df.data_aug_idx==0]
         print(test_df.shape)
@@ -150,10 +151,9 @@ def predict_img(nn, subfolder, p_id, patient_folder, rel_patient_folder, rel_pat
         img_pred = generate_time_img_and_consensus(nn, test_df, rel_patient_folder_tmp, idx)
     else:  # usual behaviour
         while True:
-            test_df = dataset_utils.read_pickle_or_hickle(filename_test, nn.model_info["use_hickle"])
-            test_df = test_df[test_df.x_y == (start_x, start_y)]
-            test_df = test_df[test_df.sliceIndex == idx]
-            row = test_df[test_df.data_aug_idx == 0]
+            row = test_df[test_df.x_y == (start_x, start_y)]
+            row = row[row.sliceIndex == idx]
+            row = row[row.data_aug_idx == 0]
             # Control that the analyzed row is == 1
             assert len(row) == 1, "The length of the row to analyze should be 1."
             X = model_utils.get_correct_X_for_input_model(nn.test_sequence, subfolder, row, batch_idx=0, batch_len=1)
@@ -161,9 +161,9 @@ def predict_img(nn, subfolder, p_id, patient_folder, rel_patient_folder, rel_pat
             img_pred, categ_img = generate_2D_img(nn, X, (start_x, start_y), img_pred, categ_img, binary_mask, idx)
 
             # if we reach the end of the image, break the while loop.
-            if start_x>=get_img_width()-get_m() and start_y>=get_img_weight()-get_n(): break
+            if start_x>=get_img_width()-get_m() and start_y>=get_img_height()-get_n(): break
 
-            if start_y < get_img_weight() - get_n(): start_y += get_n()  # going to the next slicing window
+            if start_y < get_img_height() - get_n(): start_y += get_n()  # going to the next slicing window
             else:
                 if start_x < get_img_width():
                     start_y = 0
@@ -330,13 +330,14 @@ def generate_time_img_and_consensus(nn, test_df, rel_patient_folder_tmp, idx):
     - categ_img             : the categorical image predicted
     """
 
-    img_pred = np.zeros(shape=(get_img_width(), get_img_weight()))
-    categ_img = np.zeros(shape=(get_img_width(), get_img_weight(), get_n_classes()))
-    check_img_processed = np.zeros(shape=(get_img_width(), get_img_weight()))
+    img_pred = np.zeros(shape=(get_img_width(), get_img_height()))
+    categ_img = np.zeros(shape=(get_img_width(), get_img_height(), get_n_classes()))
+    check_img_processed = np.zeros(shape=(get_img_width(), get_img_height()))
     array_time_idx_img = dict()
 
     for test_row in test_df.itertuples():  # for every rows of the same image
-        if str(test_row.timeIndex) not in array_time_idx_img.keys(): array_time_idx_img[str(test_row.timeIndex)] = np.zeros(shape=(get_img_width(), get_img_weight()), dtype=np.uint8)
+        if str(test_row.timeIndex) not in array_time_idx_img.keys(): array_time_idx_img[str(test_row.timeIndex)] = np.zeros(shape=(get_img_width(),
+                                                                                                                                   get_img_height()), dtype=np.uint8)
         if is_3D() == "": test_row.pixels = test_row.pixels.reshape(1, test_row.pixels.shape[0], test_row.pixels.shape[1], test_row.pixels.shape[2], 1)
         else: test_row.pixels = test_row.pixels.reshape(1, test_row.pixels.shape[0], test_row.pixels.shape[1], test_row.pixels.shape[2])
         array_time_idx_img[str(test_row.timeIndex)], categ_img = generate_2D_img(nn, test_row.pixels, test_row.x_y,
@@ -350,8 +351,7 @@ def generate_time_img_and_consensus(nn, test_df, rel_patient_folder_tmp, idx):
         for tidx in array_time_idx_img.keys():
             curr_image = array_time_idx_img[tidx]
             # save the images
-            cv2.imwrite(nn.save_img_folder + rel_patient_folder_tmp + idx + "_" + general_utils.get_str_from_idx(
-                tidx) + SUFFIX_IMG, curr_image)
+            cv2.imwrite(nn.save_img_folder + rel_patient_folder_tmp + idx + "_" + general_utils.get_str_from_idx(tidx) + SUFFIX_IMG, curr_image)
             # add the predicted image in the imagePredicted for consensus
             img_pred += curr_image
 
@@ -378,13 +378,13 @@ def generate_img_from_PMS(nn, test_df, idx):
     - categ_img                 : the categorical image predicted
     """
 
-    img_pred = np.zeros(shape=(get_img_width(), get_img_weight()))
-    categ_img = np.zeros(shape=(get_img_width(), get_img_weight(), get_n_classes()))
+    img_pred = np.zeros(shape=(get_img_width(), get_img_height()))
+    categ_img = np.zeros(shape=(get_img_width(), get_img_height(), get_n_classes()))
     start_x, start_y = 0, 0
     constants ={"M": get_m(), "N": get_m(), "NUMBER_OF_IMAGE_PER_SECTION": getNUMBER_OF_IMAGE_PER_SECTION(),
                 "TIME_LAST": is_timelast(), "N_CLASSES": get_n_classes(), "PIXELVALUES": get_pixel_values(),
-                "weights": get_weights(), "TO_CATEG": is_TO_CATEG(), "isISLES": is_ISLES2018(), "USE_PM":get_USE_PM(),
-                "LIST_PMS":get_list_PMS(), "IMAGE_HEIGHT":get_img_weight(), "IMAGE_WIDTH": get_img_width()}
+                "weights": get_class_weights(), "TO_CATEG": is_TO_CATEG(), "isISLES": is_ISLES2018(), "USE_PM":get_USE_PM(),
+                "LIST_PMS":get_list_PMS(), "IMAGE_HEIGHT":get_img_height(), "IMAGE_WIDTH": get_img_width()}
 
     while True:
         row_to_analyze = test_df[test_df.x_y == (start_x, start_y)]
@@ -396,7 +396,7 @@ def generate_img_from_PMS(nn, test_df, idx):
         for pm_name in get_list_PMS():
             filename = row_to_analyze[pm_name].iloc[0]
             pm = cv2.imread(filename, nn.input_img_flag)
-            pms[pm_name] = general_utils.get_slice_window(pm, start_x, start_y, constants, remove_colorbar=True)
+            pms[pm_name] = general_utils.get_slice_window(pm, start_x, start_y, constants, train=True, remove_colorbar=True)
             # add the mask of the pixels that are > 0 only if it's the MIP image
             if pm_name=="MIP":
                 if nn.params["convertImgToGray"]: binary_mask += pms[pm_name] > 0
@@ -421,13 +421,11 @@ def generate_img_from_PMS(nn, test_df, idx):
         img_pred, categ_img = generate_2D_img(nn, X, (start_x, start_y), img_pred, categ_img, binary_mask, idx)
 
         # if we reach the end of the image, break the while loop.
-        if start_x>= get_img_width() - get_m() and start_y>= get_img_weight() - get_n(): break
-
+        if start_x>=get_img_width()-get_m() and start_y>=get_img_height()-get_n(): break
         # check for M == WIDTH & N == HEIGHT
-        if get_m() == get_img_width() and get_n() == get_img_weight(): break
-
+        if get_m()==get_img_width() and get_n()==get_img_height(): break
         # going to the next slicingWindow
-        if start_y<=(get_img_weight() - get_n()): start_y+= get_n()
+        if start_y<(get_img_height()-get_n()): start_y+=get_n()
         else:
             if start_x < get_img_width():
                 start_y = 0
@@ -458,7 +456,6 @@ def evaluate_model(nn, p_id, is_already_saved, i):
         nn.test_sequence = sequence_utils.ds_sequence(
             dataframe=nn.train_df,
             indices=nn.dataset["test"]["indices"],
-            sample_weights=sample_weights,
             x_label=nn.x_label,
             y_label=nn.y_label,
             multi_input=nn.multi_input,
@@ -473,9 +470,9 @@ def evaluate_model(nn, p_id, is_already_saved, i):
             labeled_img_folder=nn.labeled_img_folder,
             constants={"M": get_m(), "N": get_m(), "NUMBER_OF_IMAGE_PER_SECTION": getNUMBER_OF_IMAGE_PER_SECTION(),
                        "TIME_LAST": is_timelast(), "N_CLASSES": get_n_classes(), "PIXELVALUES": get_pixel_values(),
-                       "weights": get_weights(), "TO_CATEG": is_TO_CATEG(), "isISLES": is_ISLES2018(),
+                       "weights": get_class_weights(), "TO_CATEG": is_TO_CATEG(), "isISLES": is_ISLES2018(),
                        "USE_PM": get_USE_PM(), "LIST_PMS": get_list_PMS(),
-                       "IMAGE_HEIGHT": get_img_weight(), "IMAGE_WIDTH": get_img_width()},
+                       "IMAGE_HEIGHT": get_img_height(), "IMAGE_WIDTH": get_img_width()},
             name=nn.name,
             flagtype="test",
             loss=nn.loss["name"])

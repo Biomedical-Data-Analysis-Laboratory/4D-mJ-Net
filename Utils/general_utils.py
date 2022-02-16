@@ -49,7 +49,7 @@ def get_commandline_args():
     set_tile_dim(args.tile)
     set_img_dim(args.dimension)
     set_classes(args.classes)
-    set_weights(args.weights)
+    set_class_weights(args.weights)
     set_timelast(args.timelast)
     set_prefix(args.prefix)
     set_limited_columns(args.limcols)
@@ -65,8 +65,13 @@ def get_setting_file(filename):
     with open(os.path.join(os.getcwd(), filename)) as f: setting = json.load(f)
 
     if is_verbose():
-        print_sep("-", 50)
-        print("Load setting file: {}".format(filename))
+        print_sep("+", 150)
+        print_sep("+", 150)
+        print("""Load \n 
+            \t Setting file: {0} \n 
+            \t Experiment: {1}""".format(filename,setting["EXPERIMENT"]))
+        print_sep("+", 150)
+        print_sep("+", 150)
 
     return setting
 
@@ -80,12 +85,10 @@ def setup_env(args, setting):
     if "NUMBER_OF_IMAGE_PER_SECTION" in setting["init"].keys(): setImagePerSection(setting["init"]["NUMBER_OF_IMAGE_PER_SECTION"])
     else: setImagePerSection(30)
     set_3D_flag(True) if "3D" in setting["init"].keys() and setting["init"]["3D"] else set_3D_flag(False)
-    if "ONE_TIME_POINT" in setting["init"].keys() and setting["init"]["ONE_TIME_POINT"]: set_onetimepoint(
-        get_str_from_idx(
-            setting["init"]["ONE_TIME_POINT"]))
+    if "ONE_TIME_POINT" in setting["init"].keys() and setting["init"]["ONE_TIME_POINT"]: set_onetimepoint(get_str_from_idx(setting["init"]["ONE_TIME_POINT"]))
 
     experimentFolder = "EXP" + convert_expnum_to_str(setting["EXPERIMENT"]) + os.path.sep
-    N_GPU = setupEnvironmentForGPUs(args, setting)
+    N_GPU = setup_env_GPUs(args, setting)
 
     for key, rel_path in setting["relative_paths"].items():
         if isinstance(rel_path, dict):
@@ -102,7 +105,7 @@ def setup_env(args, setting):
 
 ################################################################################
 # setup the environment for the GPUs
-def setupEnvironmentForGPUs(args, setting):
+def setup_env_GPUs(args, setting):
     GPU = args.gpu
     N_GPU = len(GPU.split(","))
 
@@ -118,6 +121,7 @@ def setupEnvironmentForGPUs(args, setting):
 
     config.gpu_options.per_process_gpu_memory_fraction = setting["init"]["per_process_gpu_memory_fraction"] * N_GPU
     tf.compat.v1.disable_eager_execution()
+    # tf.config.experimental_run_functions_eagerly(True)
     # session = tf.compat.v1.Session(config=config)
 
     if is_verbose():
@@ -129,29 +133,32 @@ def setupEnvironmentForGPUs(args, setting):
 
 ################################################################################
 # return the selected window for an image
-def get_slice_window(img, startX, startY, constants, is_gt=False, remove_colorbar=False):
+def get_slice_window(img, startX, startY, constants, train, is_gt=False, remove_colorbar=False):
     M, N = constants["M"], constants["N"]
-    sliceWindow = img[startX:startX+M,startY:startY+N]
+    # if not train: M, N = constants["IMAGE_WIDTH"], constants["IMAGE_HEIGHT"]
+    slice_wind = img[startX:startX + M, startY:startY + N]
 
     # check if there are any NaN elements
-    if np.isnan(sliceWindow).any():
-        where = list(map(list, np.argwhere(np.isnan(sliceWindow))))
-        for w in where: sliceWindow[w] = constants["PIXELVALUES"][0]
+    if np.isnan(slice_wind).any():
+        where = list(map(list, np.argwhere(np.isnan(slice_wind))))
+        for w in where: slice_wind[w] = constants["PIXELVALUES"][0]
 
     if is_gt:
-        for pxval in constants["PIXELVALUES"]:
-            sliceWindow = np.where(np.logical_and(
-                sliceWindow>=np.rint(pxval-(256/6)), sliceWindow<=np.rint(pxval+(256/6))
-            ), pxval, sliceWindow)
+        if constants["N_CLASSES"]==2:  # binary classes
+            slice_wind = np.where(slice_wind > constants["PIXELVALUES"][0], constants["PIXELVALUES"][-1], constants["PIXELVALUES"][0])
+        else:
+            howmuch = (256 / len(constants["PIXELVALUES"]))
+            for pxval in constants["PIXELVALUES"]:
+                slice_wind = np.where(np.logical_and(slice_wind >= np.rint(pxval-howmuch), slice_wind <= np.rint(pxval+howmuch)), pxval, slice_wind)
     # Remove the colorbar! starting coordinate: (129,435)
     if remove_colorbar and not is_ISLES2018():
-        if M==constants["IMAGE_WIDTH"] and N==constants["IMAGE_HEIGHT"]: sliceWindow[:,colorbar_coord[1]:] = 0
+        if M==constants["IMAGE_WIDTH"] and N==constants["IMAGE_HEIGHT"]:slice_wind[:, colorbar_coord[1]:] = 0
         # if the tile is smaller than the entire image
-        elif startY+N>=colorbar_coord[1]: sliceWindow[:,colorbar_coord[1]-startY:] = 0
+        elif startY+N>=colorbar_coord[1]:slice_wind[:, colorbar_coord[1] - startY:] = 0
 
-    sliceWindow = np.cast["float32"](sliceWindow)  # cast the window into a float
+    slice_wind = np.cast["float32"](slice_wind)  # cast the window into a float
 
-    return sliceWindow
+    return slice_wind
 
 
 ################################################################################
@@ -168,7 +175,7 @@ def perform_DA_on_img(img, data_aug_idx):
 
 ################################################################################
 # Get the epoch number from the partial weight filename
-def getEpochFromPartialWeightFilename(partialWeightsPath):
+def get_epoch_from_partial_weights_path(partialWeightsPath):
     return int(partialWeightsPath[partialWeightsPath.index(suffix_partial_weights)+len(suffix_partial_weights):partialWeightsPath.index(".h5")])
 
 
@@ -181,7 +188,6 @@ def get_loss(modelInfo):
 
     general_losses = {
         "binary_crossentropy": tf.keras.losses.BinaryCrossentropy(from_logits=True),
-        "categorical_crossentropy": tf.keras.losses.CategoricalCrossentropy(),
         "sparse_categorical_crossentropy": tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
         "mean_squared_error": tf.keras.losses.MeanSquaredError()
     }
@@ -197,7 +203,7 @@ def get_loss(modelInfo):
 
 ################################################################################
 # Get the statistic functions (& metrics) defined in the settings
-def getMetricFunctions(listStats):
+def get_metrics(listStats):
     general_metrics = [
         "binary_crossentropy",
         "categorical_crossentropy",
@@ -217,7 +223,7 @@ def getMetricFunctions(listStats):
 
 ################################################################################
 # Return a flag to check if the filename (partial) is inside the list of patients
-def isFilenameInListOfPatient(filename, patients, suffix):
+def is_filename_in_patientlist(filename, patients, suffix):
     start_idx = filename.rfind(os.path.sep) + len(DATASET_PREFIX) + 1
     end_idx = filename.find(suffix)
     patient_id = filename[start_idx:end_idx]
@@ -229,7 +235,7 @@ def isFilenameInListOfPatient(filename, patients, suffix):
 
 ################################################################################
 # Get the correct class weights for the metrics
-def getClassWeights(classtype):
+def get_class_weights(classtype):
     four_cat = [[1,1,0,0]] if classtype == "rest" else [[0, 0, 1, 0]] if classtype == "penumbra" else [[0, 0, 0, 1]]
     three_cat = [[1,0,0]] if classtype == "rest" else [[0, 1, 0]] if classtype == "penumbra" else [[0, 0, 1]]
     two_cat = [[1,0]] if classtype == "rest" else [[0, 1]]

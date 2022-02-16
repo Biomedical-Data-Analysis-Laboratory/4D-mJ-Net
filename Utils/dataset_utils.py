@@ -27,7 +27,7 @@ def load_train_DF(nn, patients):
     with multiprocessing.Pool(processes=5) as pool:  # auto closing workers
         frames = pool.starmap(read_single_DF, list(zip(listOfFolders, [patients] * len(listOfFolders),
                                                        [suffix] * len(listOfFolders), [get_m()] * len(listOfFolders),
-                                                       [get_n()] * len(listOfFolders), [get_labels()] * len(listOfFolders),
+                                                       [get_n()]*len(listOfFolders), [get_labels()]*len(listOfFolders),
                                                        [is_verbose()] * len(listOfFolders), [nn.model_info["use_hickle"]] * len(listOfFolders))))
 
     if is_ISLES2018(): train_df = train_df.append(frames[1:], sort=False, ignore_index=True)
@@ -40,7 +40,7 @@ def load_train_DF(nn, patients):
 def read_single_DF(filename_train, patients, suffix, thisM, thisN, thisLABELS, thisVerbose, use_hickle):
     # don't load the dataframe if patient_id NOT in the list of patients
     tmp_df = pd.DataFrame(columns=get_DF_columns())
-    if not general_utils.isFilenameInListOfPatient(filename_train, patients, suffix): return tmp_df
+    if not general_utils.is_filename_in_patientlist(filename_train, patients, suffix): return tmp_df
     s = time.time()
     tmp_df = read_pickle_or_hickle(filename_train, use_hickle)
 
@@ -50,7 +50,7 @@ def read_single_DF(filename_train, patients, suffix, thisM, thisN, thisLABELS, t
     three = tmp_df.label.values == thisLABELS[-1]
     tmp_df = tmp_df[(one & two) | three]
 
-    if thisVerbose: print("{0} - {2} - {1}".format(filename_train, round(time.time() - s, 3), tmp_df.shape))
+    # if thisVerbose: print("{0} - {2} - {1}".format(filename_train, round(time.time() - s, 3), tmp_df.shape))
     return tmp_df
 
 
@@ -268,7 +268,7 @@ def get_labels_from_idx(train_df, dataset, modelname, flag):
 ################################################################################
 # Generate a summary of the dataset
 def generate_ds_summary(train_df, listOfPatientsToTrainVal=None):
-    N_BACKGROUND, N_BRAIN, N_PENUMBRA, N_CORE, N_TOT = get_number_of_elem(train_df)
+    N_BACKGROUND, N_BRAIN, N_PENUMBRA, N_CORE, N_TOT, back_perc = get_number_of_elem(train_df)
 
     general_utils.print_sep('+', 100)
     print("DATASET SUMMARY: \n")
@@ -276,6 +276,7 @@ def generate_ds_summary(train_df, listOfPatientsToTrainVal=None):
     if get_n_classes() >3: print("\t N. Brain: {0}".format(N_BRAIN))
     if get_n_classes() >2: print("\t N. Penumbra: {0}".format(N_PENUMBRA))
     print("\t N. Core: {0}".format(N_CORE))
+    print("\t Rest/Background (%): {}".format(back_perc))
     print("\t Tot: {0}".format(N_TOT))
 
     if listOfPatientsToTrainVal is not None: print("\t Patients: {0}".format(listOfPatientsToTrainVal))
@@ -285,14 +286,18 @@ def generate_ds_summary(train_df, listOfPatientsToTrainVal=None):
 ################################################################################
 # Return the number of element per class of the dataset
 def get_number_of_elem(train_df):
-    N_BRAIN, N_PENUMBRA = 0, 0
+    N_BRAIN, N_PENUMBRA, back_perc = 0, 0, 0
     back_v, brain_v, penumbra_v, core_v = get_labels()[0], "brain", "penumbra", get_labels()[-1]
 
     N_BACKGROUND = len([x for x in train_df.label if x == back_v])
     N_CORE = len([x for x in train_df.label if x == core_v])
     N_BRAIN = len([x for x in train_df.label if x == brain_v])
-    if get_n_classes()==3: N_BACKGROUND+=N_BRAIN
-    if get_n_classes() >2: N_PENUMBRA = len([x for x in train_df.label if x == penumbra_v])
+    if get_n_classes()<=3: N_BACKGROUND+=N_BRAIN
+    if get_n_classes()>2: N_PENUMBRA = len([x for x in train_df.label if x == penumbra_v])
     N_TOT = train_df.shape[0]
 
-    return N_BACKGROUND, N_BRAIN, N_PENUMBRA, N_CORE, N_TOT
+    if get_n_classes()==2: back_perc = N_CORE/N_BACKGROUND
+    elif get_n_classes()==3: back_perc = (N_CORE+N_PENUMBRA)/N_BACKGROUND
+    else: back_perc = (N_CORE+N_PENUMBRA+N_BRAIN)/N_BACKGROUND
+    back_perc*=100
+    return N_BACKGROUND, N_BRAIN, N_PENUMBRA, N_CORE, N_TOT, round(back_perc,3)

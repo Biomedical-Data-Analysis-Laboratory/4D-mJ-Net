@@ -170,7 +170,7 @@ def fillDatasetOverTime(relativePath, patientIndex, timeFolder, infor_file):
                 numReplication = 6 if DATA_AUGMENTATION else 1
                 numCore += numReplication
 
-            if TILE_DIVISION == 1 and DATA_AUGMENTATION: numReplication = 6
+            # if TILE_DIVISION == 1 and DATA_AUGMENTATION: numReplication = 6
         else:
             if classToSet == LABELS[1]: numBrain += 1
             elif classToSet == LABELS[2]: numPenumbra += 1

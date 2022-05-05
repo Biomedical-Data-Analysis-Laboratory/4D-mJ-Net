@@ -12,44 +12,47 @@ class DisplayCallback(callbacks.Callback):
     def __init__(self, ds_seq,text_fold_path):
         self.ds_seq = ds_seq
         self.text_fold_path = text_fold_path
-        self.patient = "01_031"
+        self.patients = ["01_031","02_036"]
+        self.slice_idx = "03"
 
     def on_epoch_end(self, epoch, logs=None):
-        f = "/bhome/lucat/DATASET/SUS2020/COMBINED_Najm_v21-0.5/"+DATASET_PREFIX+self.patient+general_utils.get_suffix()+".pkl"
-        df = dataset_utils.read_pickle_or_hickle(f,flagHickle=False)
-        slice_idx = "03"
-        x,y = 0,0
-        s = time.time()
-        X, coords = [], []
-        img = np.empty((get_img_height(),get_img_height()))
+        for p in self.patients:
+            dir_path = self.text_fold_path+p+os.path.sep
+            general_utils.create_dir(dir_path)
+            f = "/bhome/lucat/DATASET/SUS2020/COMBINED_Najm_v21-0.5/"+DATASET_PREFIX+p+general_utils.get_suffix()+".pkl"
+            df = dataset_utils.read_pickle_or_hickle(f,flagHickle=False)
+            x,y = 0,0
+            s = time.time()
+            X, coords = None, []
+            img = np.empty((get_img_height(),get_img_height()))
 
-        while True:
-            coords.append((x,y))
-            # if we reach the end of the image, break the while loop.
-            if x>=get_img_width()-get_m() and y>=get_img_height()-get_n(): break
-            if get_m()==get_img_width() and get_n()==get_img_height(): break  # check for M == WIDTH & N == HEIGHT
-            if y<(get_img_height()-get_n()): y+=get_n()  # going to the next slicingWindow
-            else:
-                if x<get_img_width():
-                    y = 0
-                    x += get_m()
+            while True:
+                coords.append((x,y))
+                # if we reach the end of the image, break the while loop.
+                if x>=get_img_width()-get_m() and y>=get_img_height()-get_n(): break
+                if get_m()==get_img_width() and get_n()==get_img_height(): break  # check for M == WIDTH & N == HEIGHT
+                if y<(get_img_height()-get_n()): y+=get_n()  # going to the next slicingWindow
+                else:
+                    if x<get_img_width():
+                        y = 0
+                        x += get_m()
 
-        for i, coord in enumerate(coords):
-            row = df[df.x_y == coord]
-            row = row[row.sliceIndex == slice_idx]
-            row = row[row.data_aug_idx == 0]
-            assert len(row) == 1, "The length of the row to analyze should be 1."
-            X = model_utils.get_correct_X_for_input_model(ds_seq=self.ds_seq, current_folder=row["pixels"].iloc[0],
-                                                          row=row, batch_idx=i, batch_len=len(coords), X=X)
-        tmp_img_arr = self.model.predict(X)
-        general_utils.pickle_save(tmp_img_arr, "/bhome/lucat/tmp_img_arr.pkl")
-        for i,tmp_img in enumerate(tmp_img_arr):
-            x,y = coords[i]
-            if is_TO_CATEG(): img[x:x+get_m(),y:y+get_n()] = K.eval((K.argmax(tmp_img) * 255) / (get_n_classes() - 1))
-            else: img[x:x+get_m(),y:y+get_n()] = tmp_img*255
+            for i, coord in enumerate(coords):
+                row = df[df.x_y == coord]
+                row = row[row.sliceIndex == self.slice_idx]
+                row = row[row.data_aug_idx == 0]
+                assert len(row) == 1, "The length of the row to analyze should be 1."
+                X = model_utils.get_correct_X_for_input_model(ds_seq=self.ds_seq, current_folder=row["pixels"].iloc[0],
+                                                              row=row, batch_idx=i, batch_len=len(coords), X=X)
+            tmp_img_arr = self.model.predict(X)
+            general_utils.pickle_save(tmp_img_arr, "/bhome/lucat/tmp_img_arr.pkl")
+            for i,tmp_img in enumerate(tmp_img_arr):
+                x,y = coords[i]
+                if is_TO_CATEG(): img[x:x+get_m(),y:y+get_n()] = (np.argmax(tmp_img,axis=-1) * 255) / (get_n_classes() - 1)
+                else: img[x:x+get_m(),y:y+get_n()] = tmp_img*255
 
-        cv2.imwrite(self.text_fold_path+self.patient+"_"+slice_idx+"_"+str(epoch+1)+".png", img)
-        print('\nSample Prediction ({0}s) after epoch {1}\n'.format(round(time.time()-s, 3), epoch + 1))
+            cv2.imwrite(dir_path+self.slice_idx+"_"+str(epoch+1)+".png", img)
+            print('\nSample Prediction ({0}s) after epoch {1}\n'.format(round(time.time()-s, 3), epoch + 1))
 
 
 ################################################################################

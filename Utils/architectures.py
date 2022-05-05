@@ -40,7 +40,13 @@ def TCNet(params, multi_input):
 ################################################################################
 # Temporal Convolutional Network (TCN)
 def TCNet_single_encoder(params, multi_input):
-    return arch_TCN.TCNet(params,single_enc=True)
+    return arch_TCN.TCNet(params, single_enc=True)
+
+
+################################################################################
+# Temporal Convolutional Network (TCN)
+def TCNet_single_encoder_timedistr(params, multi_input):
+    return arch_TCN.TCNet(params,single_enc=True,timedistr=True)
 
 
 ################################################################################
@@ -94,6 +100,12 @@ def mJNet_plusplus(params, multi_input, batch=True, drop=True):
 # mJ-Net model version 4D
 def mJNet_4D(params, multi_input, batch=True, drop=True, leaky=True, attentiongate=True):
     return arch_mJNet.mJNet_4D(params, batch=batch, drop=drop, leaky=leaky, attentiongate=attentiongate)
+
+
+################################################################################
+# mJ-Net model version 4D
+def mJNet_4D_plusplus(params, multi_input, batch=True, drop=True, leaky=True, attentiongate=True):
+    return arch_mJNet.mJNet_4D(params, batch=batch, drop=drop, leaky=leaky, attentiongate=attentiongate, plusplus=True)
 
 
 ################################################################################

@@ -1,11 +1,10 @@
 # DO NOT import dataset_utils here!
-import functools
 import warnings
-
+import wandb
 from Model.constants import *
 from Utils import metrics, losses
 
-import argparse, os, json, pickle
+import argparse, os, json, pickle, glob
 import numpy as np
 import tensorflow as tf
 import tensorflow.keras.backend as K
@@ -37,6 +36,8 @@ def get_commandline_args():
     parser.add_argument("--timelast", help="Set the time dimension in the last channel of the input model", action="store_true")
     parser.add_argument("--prefix", help="Set the prefix different from the default", type=str)
     parser.add_argument("--limcols", help="Set the columns without additional info", action="store_true")
+    parser.add_argument("--noflat", help="Flag to set the output of the loss NOT flat", action="store_false")
+    parser.add_argument("--sweep", help="Flag to set the sweep for WandB", action="store_true")
     parser.add_argument("gpu", help="Give the id of gpu (or a list of the gpus) to use")
     parser.add_argument("sname", help="Select the setting filename")
     args = parser.parse_args()
@@ -53,6 +54,7 @@ def get_commandline_args():
     set_timelast(args.timelast)
     set_prefix(args.prefix)
     set_limited_columns(args.limcols)
+    set_to_flat(args.noflat)
 
     return args
 
@@ -60,17 +62,14 @@ def get_commandline_args():
 ################################################################################
 # get the setting file
 def get_setting_file(filename):
-    # the path of the setting file start from the main.py
-    # (= current working directory)
+    # the path of the setting file start from the main.py (= current working directory)
     with open(os.path.join(os.getcwd(), filename)) as f: setting = json.load(f)
 
     if is_verbose():
         print_sep("+", 150)
-        print_sep("+", 150)
         print("""Load \n 
             \t Setting file: {0} \n 
             \t Experiment: {1}""".format(filename,setting["EXPERIMENT"]))
-        print_sep("+", 150)
         print_sep("+", 150)
 
     return setting
@@ -82,12 +81,26 @@ def setup_env(args, setting):
     # important: set up the root path for later uses
     set_rootpath(setting["root_path"])
 
+    config = {
+        "epochs": setting["models"][0]["epochs"],
+        "batch_size": setting["models"][0]["batch_size"],
+        "lr": setting["models"][0]["optimizer"]["lr"],
+        "weight_b": 0.1 if get_n_classes() == 2 else 1,
+        "weight_p": 1,
+        "weight_c": 1 if get_n_classes() == 2 else 10
+    }
+
+    prj = "mJNet-project" if "PROJECT" not in setting.keys() else setting["PROJECT"]
+
+    if prj=="DWI-core": config["weight_c"] = 100
+    wandb.init(project=prj, entity="lucatomasetti", config=config)
+
     if "NUMBER_OF_IMAGE_PER_SECTION" in setting["init"].keys(): setImagePerSection(setting["init"]["NUMBER_OF_IMAGE_PER_SECTION"])
     else: setImagePerSection(30)
     set_3D_flag(True) if "3D" in setting["init"].keys() and setting["init"]["3D"] else set_3D_flag(False)
     if "ONE_TIME_POINT" in setting["init"].keys() and setting["init"]["ONE_TIME_POINT"]: set_onetimepoint(get_str_from_idx(setting["init"]["ONE_TIME_POINT"]))
 
-    experimentFolder = "EXP" + convert_expnum_to_str(setting["EXPERIMENT"]) + os.path.sep
+    experimentFolder = convert_expnum_to_str(setting["EXPERIMENT"], setting["root_path"], args.sweep, to_create=True)
     N_GPU = setup_env_GPUs(args, setting)
 
     for key, rel_path in setting["relative_paths"].items():
@@ -95,10 +108,11 @@ def setup_env(args, setting):
             prefix = key.upper()+os.path.sep
             create_dir(prefix)
             create_dir(prefix + experimentFolder)
-            for sub_path in setting["relative_paths"][key].values():
-                create_dir(prefix + experimentFolder + sub_path)
+            for sub_path in setting["relative_paths"][key].values(): create_dir(prefix + experimentFolder + sub_path)
         else:
             if rel_path!="": create_dir(rel_path)
+    home = os.path.join(os.getcwd(),"SAVE")+os.path.sep
+    with open(os.path.join(home,experimentFolder,"setting.json"), 'w', encoding='utf8') as json_file: json.dump(setting,json_file,ensure_ascii=False)
 
     return N_GPU
 
@@ -141,20 +155,26 @@ def get_slice_window(img, startX, startY, constants, train, is_gt=False, remove_
     # check if there are any NaN elements
     if np.isnan(slice_wind).any():
         where = list(map(list, np.argwhere(np.isnan(slice_wind))))
-        for w in where: slice_wind[w] = constants["PIXELVALUES"][0]
+        for w in where: slice_wind[w] = 0
 
     if is_gt:
         if constants["N_CLASSES"]==2:  # binary classes
-            slice_wind = np.where(slice_wind > constants["PIXELVALUES"][0], constants["PIXELVALUES"][-1], constants["PIXELVALUES"][0])
+            slice_wind = np.where(slice_wind > constants["PIXELVALUES"][0], constants["PIXELVALUES"][-1], 0)
         else:
-            howmuch = (256 / len(constants["PIXELVALUES"]))
+            max_pixval = max(constants["PIXELVALUES"])
             for pxval in constants["PIXELVALUES"]:
-                slice_wind = np.where(np.logical_and(slice_wind >= np.rint(pxval-howmuch), slice_wind <= np.rint(pxval+howmuch)), pxval, slice_wind)
+                if pxval==0:
+                    howmuch = 6 if len(constants["PIXELVALUES"])==4 else 2
+                    slice_wind = np.where(np.logical_and(slice_wind>=0, slice_wind<max_pixval/howmuch), pxval, slice_wind)
+                elif pxval==85: slice_wind = np.where(np.logical_and(slice_wind>=max_pixval/6, slice_wind<max_pixval/2), pxval, slice_wind)
+                elif pxval==170: slice_wind = np.where(np.logical_and(slice_wind>=max_pixval/2, slice_wind<200), pxval, slice_wind)
+                elif pxval==255: slice_wind = np.where(slice_wind>=200, pxval, slice_wind)
+
     # Remove the colorbar! starting coordinate: (129,435)
     if remove_colorbar and not is_ISLES2018():
         if M==constants["IMAGE_WIDTH"] and N==constants["IMAGE_HEIGHT"]:slice_wind[:, colorbar_coord[1]:] = 0
         # if the tile is smaller than the entire image
-        elif startY+N>=colorbar_coord[1]:slice_wind[:, colorbar_coord[1] - startY:] = 0
+        elif startY+N>=colorbar_coord[1]: slice_wind[:, colorbar_coord[1] - startY:] = 0
 
     slice_wind = np.cast["float32"](slice_wind)  # cast the window into a float
 
@@ -186,10 +206,15 @@ def get_loss(modelInfo):
     hyperparameters = modelInfo[name] if name in modelInfo.keys() else {}
     if name=="focal_tversky_loss": set_Focal_Tversky(hyperparameters)
 
+    weights = [wandb.config["weight_b"], wandb.config["weight_c"]] if get_n_classes()==2 else [wandb.config["weight_b"], wandb.config["weight_p"], wandb.config["weight_c"]]
+    #weights  = [0.1,10] if get_n_classes()==2 else [1,10,50]  # [0.02,0.78,0.2]
+
     general_losses = {
-        "binary_crossentropy": tf.keras.losses.BinaryCrossentropy(from_logits=True),
-        "sparse_categorical_crossentropy": tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
-        "mean_squared_error": tf.keras.losses.MeanSquaredError()
+        "binary_crossentropy": tf.keras.losses.BinaryCrossentropy(from_logits=True,reduction=tf.keras.losses.Reduction.SUM_OVER_BATCH_SIZE),
+        "sparse_categorical_crossentropy": tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True,reduction=tf.keras.losses.Reduction.SUM_OVER_BATCH_SIZE),
+        "mean_squared_error": tf.keras.losses.MeanSquaredError(reduction=tf.keras.losses.Reduction.SUM_OVER_BATCH_SIZE),
+        "categorical_crossentropy": tf.keras.losses.CategoricalCrossentropy(reduction=tf.keras.losses.Reduction.SUM_OVER_BATCH_SIZE),
+        "weighted_categorical_crossentropy": losses.weighted_categorical_crossentropy(weights)
     }
     loss = {}
 
@@ -206,7 +231,6 @@ def get_loss(modelInfo):
 def get_metrics(listStats):
     general_metrics = [
         "binary_crossentropy",
-        "categorical_crossentropy",
         "sparse_categorical_crossentropy",
         "mean_squared_error",
         "accuracy"
@@ -235,14 +259,13 @@ def is_filename_in_patientlist(filename, patients, suffix):
 
 ################################################################################
 # Get the correct class weights for the metrics
-def get_class_weights(classtype):
-    four_cat = [[1,1,0,0]] if classtype == "rest" else [[0, 0, 1, 0]] if classtype == "penumbra" else [[0, 0, 0, 1]]
-    three_cat = [[1,0,0]] if classtype == "rest" else [[0, 1, 0]] if classtype == "penumbra" else [[0, 0, 1]]
-    two_cat = [[1,0]] if classtype == "rest" else [[0, 1]]
+def get_class_weights(is_loss=False):
+    # four_cat = [[1,1,0,0]] if classtype == "rest" else [[0, 0, 1, 0]] if classtype == "penumbra" else [[0, 0, 0, 1]]
+    # three_cat = [[1,0,0]] if classtype == "rest" else [[0, 1, 0]] if classtype == "penumbra" else [[0, 0, 1]]
+    # two_cat = [[1,0]] if classtype == "rest" else [[0, 1]]
 
-    class_weights = tf.constant(four_cat, dtype=K.floatx())
-    if get_n_classes() == 3: class_weights = tf.constant(three_cat, dtype=K.floatx())
-    elif get_n_classes() == 2: class_weights = tf.constant(two_cat, dtype=K.floatx())
+    if is_loss: class_weights = tf.constant(1, dtype=K.floatx()) if not is_TO_CATEG() else get_class_weights()
+    else: class_weights = tf.constant([[1]*get_n_classes()], dtype=K.floatx())
     return class_weights
 
 
@@ -271,6 +294,12 @@ def get_suffix():
 
 
 ################################################################################
+# return the suffix for the model and the patient dataset
+def get_suffix_512():
+    return "_128_" + str(get_img_width()) + "x" + str(get_img_height()) + is_3D() + get_onetimepoint()
+
+
+################################################################################
 # get the full directory path, given a relative path
 def get_dir_path(path):
     return get_rootpath() + path
@@ -286,16 +315,23 @@ def create_dir(dir_path):
 
 ################################################################################
 # print a separation for verbose purpose
-def print_sep(what, howmuch):
-    print(what*howmuch)
+def print_sep(what, howmuch): print(what*howmuch)
 
 
 ################################################################################
 # Convert the experiment number to a string of 3 letters
-def convert_expnum_to_str(expnum):
+def convert_expnum_to_str(expnum, root_path, sweep, to_create=True):
     exp = str(expnum)
     while len(exp.split(".")[0])<3: exp = "0"+exp
-    return exp
+
+    if sweep:  # we are doing a sweep with wandb
+        exp += ".sweep"
+        toadd = 1 if to_create else 0
+        n_save_folds = len(glob.glob(root_path+"SAVE"+os.path.sep+"EXP"+exp+"*"))+toadd
+        n_save_folds = get_str_from_idx(n_save_folds)
+        exp += ("."+n_save_folds)
+
+    return "EXP"+exp+os.path.sep
 
 
 ################################################################################
@@ -382,4 +418,3 @@ def get_model_memory_usage(model, batch_size, first=True):
     total_memory = number_size * (batch_size * shapes_mem_count + trainable_count + non_trainable_count)
     gbytes = np.round(total_memory / (1024.0 ** 3), 3) + internal_model_mem_count
     return gbytes
-

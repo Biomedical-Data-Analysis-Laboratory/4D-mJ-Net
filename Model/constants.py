@@ -44,7 +44,7 @@ def set_debug(d):
 
 ################################################################################
 def is_to_flat():
-    return True  # Todo change here
+    return TO_FLAT
 
 
 def set_to_flat(f):
@@ -283,11 +283,3 @@ def set_class_weights(weights):
     if weights is not None:
         sorted_keys = sorted(HOT_ONE_WEIGHTS.keys())
         for i,w in enumerate(weights): HOT_ONE_WEIGHTS[sorted_keys[i]] = w
-
-
-
-
-
-
-
-

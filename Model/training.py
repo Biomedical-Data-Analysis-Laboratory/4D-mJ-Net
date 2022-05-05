@@ -1,5 +1,5 @@
 import warnings
-
+from wandb.keras import WandbCallback
 import matplotlib
 
 from Model.constants import *
@@ -58,7 +58,7 @@ def get_optimizer(opt_info):
 # Return the callbacks defined in the setting
 def get_callbacks(info, root_path, filename, text_fold_path, dataset, nn_id, ds_seq, add_for_finetuning):
     # add by default the TerminateOnNaN callback and the predict img after each epoch
-    cbs = [callback.TerminateOnNaN(), callback.DisplayCallback(ds_seq,text_fold_path)]
+    cbs = [callback.TerminateOnNaN(), callback.DisplayCallback(ds_seq,text_fold_path), WandbCallback()]
 
     for key in info.keys():
         # save the weights
@@ -113,7 +113,7 @@ def fit_model(model, dataset, batch_size, epochs, callbacklist, sample_weights, 
 ################################################################################
 # Function that call a fit_generator to load the training dataset on the fly
 def fit_generator(model, train_sequence, val_sequence, steps_per_epoch, validation_steps, epochs, callbacklist,
-                  initial_epoch, use_multiprocessing, class_weight):
+                  initial_epoch, use_multiprocessing):
     multiplier = 5
     # steps_per_epoch is given by the len(train_sequence)*steps_per_epoch_ratio rounded to the nearest integer
     training = model.fit(

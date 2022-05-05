@@ -5,6 +5,7 @@ import numpy as np
 import multiprocessing
 from tensorflow.keras import models
 import warnings
+import tqdm
 
 import tensorflow as tf
 import tensorflow.keras.backend as K
@@ -39,12 +40,13 @@ def get_check_img_processed(nn, p_id, idx):
 # Predict the model based on the input
 def predict_from_model(nn, x_input, mcd=False):
     if mcd:  # MONTE CARLO DROPOUT
-        n_samples = 1
+        n_samples = 100
         preds = np.zeros([get_m(),get_n(), get_n_classes()]) if is_TO_CATEG() else np.zeros([get_m(),get_n()])
-        for _ in range(n_samples): preds += nn.model(x_input, training=True)  # add the various predictions
+        for n in tqdm.tqdm(range(n_samples)): preds += nn.model.predict(x=x_input, use_multiprocessing=nn.mp_in_nn)[0]
+        #for n in range(n_samples): preds += K.eval(nn.model(x_input, training=True))[0] # add the various predictions
         preds /= n_samples  # divide them to get the mean prediction
-        return K.eval(preds[0])
-    else: return nn.model.predict(x=x_input, use_multiprocessing=nn.mp_in_nn)[0]
+        return [preds]
+    else: return nn.model.predict(x=x_input, use_multiprocessing=nn.mp_in_nn)
 
 
 ################################################################################
@@ -66,9 +68,6 @@ def save_intermediate_layers(model, x, idx, intermediate_act_path):
                 for c in range(0, intermediate_pred.shape[4]):
                     plt.subplot(xydim, xydim, c+1), plt.imshow(intermediate_pred[0, img_index, :, :, c], cmap='gray'), plt.axis('off')
                 plt.savefig(intermediate_act_path + idx + os.path.sep + layer.name + os.path.sep + str(img_index) + ".png")
-                # plt.show()
-                    # cv2.imwrite(intermediate_activation_path + layer.name + os.path.sep + str(img_index) + "_" + str(c) + ".png",
-                    #             intermediate_pred[0, img_index, :, :, c])
 
 
 ################################################################################
@@ -103,15 +102,15 @@ def predict_and_save_img(nn, p_id):
     # for all the slice folders in patientFolder
     for subfolder in glob.glob(patient_folder+"*"+os.path.sep):
         # Predict the images
+        # s = time.time()
         if get_USE_PM(): predict_img_from_PMS(nn, subfolder, p_id, subpatient_fold, patient_fold_heatmap, patient_fold_GT, patient_folder_tmp, filename_test)
         else: predict_img(nn, subfolder, p_id, patient_folder, subpatient_fold, patient_fold_heatmap, patient_fold_GT, patient_folder_tmp, filename_test)
+        # print("Time: {0}s".format(round(time.time() - s, 3)))
 
 
 ################################################################################
 def predict_img(nn, subfolder, p_id, patient_folder, rel_patient_folder, rel_patient_fold_heatmap,  rel_patient_fold_GT,
                 rel_patient_folder_tmp, filename_test):
-    # TODO: add the possibility to infer the entire image
-
     """
     Generate a SINGLE image for the patient and save it.
 
@@ -128,13 +127,14 @@ def predict_img(nn, subfolder, p_id, patient_folder, rel_patient_folder, rel_pat
     """
     img_pred = np.zeros(shape=(get_img_width(), get_img_height()))
     categ_img = np.zeros(shape=(get_img_width(), get_img_height(), get_n_classes()))
-    start_x, start_y = 0, 0
+    x, y = 0, 0
+    X, coords = [], []
     idx = general_utils.get_str_from_idx(subfolder.replace(patient_folder, '').replace(os.path.sep, ""))  # image index
     # remove the old logs.
     logs_name = nn.save_img_folder + rel_patient_folder + idx + "_logs.txt"
     if os.path.isfile(logs_name): os.remove(logs_name)
 
-    if is_verbose(): print("[INFO] - Analyzing Patient {0}, image {1}.".format(p_id, idx))
+    # if is_verbose(): print("[INFO] - Analyzing Patient {0}, image {1}.".format(p_id, idx))
     check_img_proc = get_check_img_processed(nn, str(p_id), idx)
     binary_mask = check_img_proc != get_pixel_values()[0]
 
@@ -151,23 +151,26 @@ def predict_img(nn, subfolder, p_id, patient_folder, rel_patient_folder, rel_pat
         img_pred = generate_time_img_and_consensus(nn, test_df, rel_patient_folder_tmp, idx)
     else:  # usual behaviour
         while True:
-            row = test_df[test_df.x_y == (start_x, start_y)]
+            coords.append((x, y))
+            # if we reach the end of the image, break the while loop.
+            if x >= get_img_width() - get_m() and y >= get_img_height() - get_n(): break
+            if get_m() == get_img_width() and get_n() == get_img_height(): break  # check for M == WIDTH & N == HEIGHT
+            if y < get_img_height() - get_n(): y += get_n()  # going to the next slicing window
+            else:
+                if x < get_img_width():
+                    y = 0
+                    x += get_m()
+
+        for i, coord in enumerate(coords):
+            row = test_df[test_df.x_y == coord]
             row = row[row.sliceIndex == idx]
             row = row[row.data_aug_idx == 0]
             # Control that the analyzed row is == 1
             assert len(row) == 1, "The length of the row to analyze should be 1."
-            X = model_utils.get_correct_X_for_input_model(nn.test_sequence, subfolder, row, batch_idx=0, batch_len=1)
+            X = model_utils.get_correct_X_for_input_model(ds_seq=nn.test_sequence, current_folder=subfolder, row=row,
+                                                          batch_idx=i, batch_len=len(coords), X=X)
 
-            img_pred, categ_img = generate_2D_img(nn, X, (start_x, start_y), img_pred, categ_img, binary_mask, idx)
-
-            # if we reach the end of the image, break the while loop.
-            if start_x>=get_img_width()-get_m() and start_y>=get_img_height()-get_n(): break
-
-            if start_y < get_img_height() - get_n(): start_y += get_n()  # going to the next slicing window
-            else:
-                if start_x < get_img_width():
-                    start_y = 0
-                    start_x += get_m()
+        img_pred, categ_img = generate_2D_img(nn, X, coords, img_pred, categ_img, binary_mask, idx)
 
     if nn.model_info["save_images"]:  # save the image
         save_img(nn, rel_patient_folder, idx, img_pred, categ_img, rel_patient_fold_heatmap, rel_patient_fold_GT, rel_patient_folder_tmp, check_img_proc)
@@ -269,14 +272,14 @@ def save_img(nn, rel_patient_folder, idx, img_pred, categ_img, rel_patient_fold_
 
 ################################################################################
 # Helpful function that return the 2D image from the pixel and the starting coordinates
-def generate_2D_img(nn, pixels, starting_XY, img_pred, categ_img, binary_mask, idx):
+def generate_2D_img(nn, pixels, coords, img_pred, categ_img, binary_mask, idx):
     """
     Generate a 2D image from the test_df
 
     Input parameters:
     - nn                    : NeuralNetwork class
     - pixels                : pixel in a numpy array
-    - starting_XY           : (x,y) coordinates
+    - coords                : (x,y) coordinates
     - img_pred              : the predicted image
     - categ_img             : the categorical image predicted
     - binary_mask           : the binary mask containing the skull
@@ -285,28 +288,28 @@ def generate_2D_img(nn, pixels, starting_XY, img_pred, categ_img, binary_mask, i
     - img_pred              : the predicted image
     - categ_img             : the categorical image predicted
     """
-    x, y = starting_XY
     # swp_orig contain only the prediction for the last step
-    swp_orig = predict_from_model(nn, pixels, mcd=nn.model_info["MONTE_CARLO_DROPOUT"])
-    if nn.model_info["save_images"] and is_TO_CATEG(): categ_img[x:x+get_m(),y:y+get_n()] = swp_orig
+    swp_orig_arr = predict_from_model(nn, pixels, mcd=nn.model_info["MONTE_CARLO_DROPOUT"])
+    for i,swp_orig in enumerate(swp_orig_arr):
+        x, y = coords[i]
+        if nn.model_info["save_images"] and is_TO_CATEG(): categ_img[x:x+get_m(),y:y+get_n()] = swp_orig
+        # convert the categorical into a single array for removing some uncertain predictions
+        if is_TO_CATEG(): slice_window_pred = (np.argmax(swp_orig,axis=-1) * 255) / (get_n_classes() - 1)
+        else: slice_window_pred = swp_orig * 255
+        # save the predicted images
+        if nn.model_info["save_images"]:
+            if not has_limited_columns() and get_n_classes() >2:
+                # Remove the parts already classified by the model
+                binary_mask = np.array(binary_mask, dtype=np.float)
+                # force all the predictions to be inside the binary mask defined by the GT
+                slice_window_pred *= binary_mask[x:x + get_m(), y:y + get_n()]
 
-    # convert the categorical into a single array for removing some uncertain predictions
-    if is_TO_CATEG(): slice_window_pred = K.eval((K.argmax(swp_orig) * 255) / (get_n_classes() - 1))
-    else: slice_window_pred = swp_orig * 255
-    # save the predicted images
-    if nn.model_info["save_images"]:
-        if not has_limited_columns() and get_n_classes() >2:
-            # Remove the parts already classified by the model
-            binary_mask = np.array(binary_mask, dtype=np.float)
-            # force all the predictions to be inside the binary mask defined by the GT
-            slice_window_pred *= binary_mask[x:x + get_m(), y:y + get_n()]
-
-            overlapping_pred = np.array(slice_window_pred > 0, dtype=np.float)
-            overlapping_pred *= 85.
-            binary_mask *= 85.  # multiply the binary mask for the brain pixel value
-            # add the brain to the prediction window
-            slice_window_pred += (binary_mask[x:x + get_m(), y:y + get_n()] - overlapping_pred)
-        img_pred[x:x + get_m(), y:y + get_n()] = slice_window_pred
+                overlapping_pred = np.array(slice_window_pred > 0, dtype=np.float)
+                overlapping_pred *= 85.
+                binary_mask *= 85.  # multiply the binary mask for the brain pixel value
+                # add the brain to the prediction window
+                slice_window_pred += (binary_mask[x:x + get_m(), y:y + get_n()] - overlapping_pred)
+            img_pred[x:x + get_m(), y:y + get_n()] = slice_window_pred
 
     if nn.model_info["save_activation_filter"]:
         if idx == "03" or idx == "04": save_intermediate_layers(nn.model, pixels, idx, intermediate_act_path=nn.intermediate_activation_folder)
@@ -340,7 +343,7 @@ def generate_time_img_and_consensus(nn, test_df, rel_patient_folder_tmp, idx):
                                                                                                                                    get_img_height()), dtype=np.uint8)
         if is_3D() == "": test_row.pixels = test_row.pixels.reshape(1, test_row.pixels.shape[0], test_row.pixels.shape[1], test_row.pixels.shape[2], 1)
         else: test_row.pixels = test_row.pixels.reshape(1, test_row.pixels.shape[0], test_row.pixels.shape[1], test_row.pixels.shape[2])
-        array_time_idx_img[str(test_row.timeIndex)], categ_img = generate_2D_img(nn, test_row.pixels, test_row.x_y,
+        array_time_idx_img[str(test_row.timeIndex)], categ_img = generate_2D_img(nn, test_row.pixels, [test_row.x_y],
                                                                                  array_time_idx_img[str(test_row.timeIndex)],
                                                                                  categ_img, check_img_processed, idx)
 
@@ -418,7 +421,7 @@ def generate_img_from_PMS(nn, test_df, idx):
         if "gender" in nn.multi_input.keys() and nn.multi_input["gender"] == 1: X.append(np.array([int(row_to_analyze["gender"].iloc[0])]))
 
         # slicingWindowPredicted contain only the prediction for the last step
-        img_pred, categ_img = generate_2D_img(nn, X, (start_x, start_y), img_pred, categ_img, binary_mask, idx)
+        img_pred, categ_img = generate_2D_img(nn, X, [(start_x, start_y)], img_pred, categ_img, binary_mask, idx)
 
         # if we reach the end of the image, break the while loop.
         if start_x>=get_img_width()-get_m() and start_y>=get_img_height()-get_n(): break

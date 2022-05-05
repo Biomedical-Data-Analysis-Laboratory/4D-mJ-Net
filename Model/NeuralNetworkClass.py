@@ -19,7 +19,7 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 
 class NeuralNetwork(object):
     """docstring for NeuralNetwork."""
-    def __init__(self, model_info, setting):
+    def __init__(self, model_info, setting, sweep):
         super(NeuralNetwork, self).__init__()
 
         # Used to override the path for the saved model in order to test patients with a specific model
@@ -74,8 +74,8 @@ class NeuralNetwork(object):
         self.ds_folder = setting["dataset_path"]
         self.labeled_img_folder = setting["relative_paths"]["labeled_images"] if "labeled_images" in setting["relative_paths"].keys() else ""
         self.patients_folder = setting["relative_paths"]["patients"]
-        self.experimentID = "EXP" + general_utils.convert_expnum_to_str(setting["EXPERIMENT"])
-        self.experiment_folder = "SAVE/" + self.experimentID + "/"
+        self.experimentID = general_utils.convert_expnum_to_str(setting["EXPERIMENT"], setting["root_path"], sweep, to_create=False)
+        self.experiment_folder = "SAVE/" + self.experimentID
         self.saved_model_folder = self.experiment_folder + setting["relative_paths"]["save"]["model"]
         self.save_partial_model_folder = self.experiment_folder + setting["relative_paths"]["save"]["partial_model"]
         self.save_img_folder = self.experiment_folder + setting["relative_paths"]["save"]["images"]
@@ -256,11 +256,9 @@ class NeuralNetwork(object):
 
         if self.summary_flag==0:
             for rankdir in ["TB"]:  # "LR"
-                plot_model(
-                    self.model,
-                    to_file=general_utils.get_dir_path(self.saved_model_folder)+self.get_nn_id()+"_"+rankdir+".png",
-                    show_shapes=True,
-                    rankdir=rankdir)
+                filename = general_utils.get_dir_path(self.saved_model_folder)+self.get_nn_id()+"_"+rankdir+".png"
+                if os.path.isfile(filename): continue
+                plot_model(self.model, to_file=filename, show_shapes=True, rankdir=rankdir)
             self.summary_flag+=1
 
         memUsage = general_utils.get_model_memory_usage(self.model, self.batch_size)
@@ -355,7 +353,6 @@ class NeuralNetwork(object):
             steps_per_epoch=math.ceil((self.train_sequence.__len__()*self.steps_per_epoch_ratio)),
             validation_steps=math.ceil((self.val_sequence.__len__()*self.validation_steps_ratio)),
             epochs=self.epochs,
-            class_weight=get_class_weights() if (get_m() != get_img_width() and get_n() != get_img_height()) else None,
             callbacklist=self.callbacks,
             initial_epoch=self.initial_epoch,
             use_multiprocessing=self.mp_in_nn
@@ -431,7 +428,7 @@ class NeuralNetwork(object):
     # Get the sample weight from the dataset
     def get_sample_weights(self, flagDataset):
         sample_weights = None
-        self.N_BACKGROUND, self.N_BRAIN, self.N_PENUMBRA, self.N_CORE, self.N_TOT, _ = dataset_utils.get_number_of_elem(self.train_df)
+        self.N_BACKGROUND, self.N_BRAIN, self.N_PENUMBRA, self.N_CORE, self.N_TOT, back_perc = dataset_utils.get_number_of_elem(self.train_df)
 
         assert get_n_classes() in [2,3,4], "Wrong number of classes!"
 
@@ -442,13 +439,15 @@ class NeuralNetwork(object):
         else:
             if get_n_classes()==4:
                 if self.use_sequence:
+                    weights = {
+                        0: self.N_TOT/(get_n_classes()*self.N_BACKGROUND) if self.N_BACKGROUND>0 else 0,
+                        1: self.N_TOT/(get_n_classes()*self.N_BRAIN) if self.N_BRAIN > 0 else 0,
+                        2: self.N_TOT/(get_n_classes()*self.N_PENUMBRA) if self.N_PENUMBRA > 0 else 0,
+                        3: self.N_TOT/(get_n_classes()*self.N_CORE) if self.N_CORE > 0 else 0,
+                    }
                     # see: "ISBI 2019 C-NMC Challenge: Classification in Cancer Cell Imaging" section 4.1 pag 68
-                    sample_weights = self.train_df.label.map({
-                        get_labels()[0]: self.N_TOT/(get_n_classes()*self.N_BACKGROUND) if self.N_BACKGROUND>0 else 0,
-                        get_labels()[1]: self.N_TOT / (get_n_classes() * self.N_BRAIN) if self.N_BRAIN > 0 else 0,
-                        get_labels()[2]: self.N_TOT / (get_n_classes() * self.N_PENUMBRA) if self.N_PENUMBRA > 0 else 0,
-                        get_labels()[3]: self.N_TOT / (get_n_classes() * self.N_CORE) if self.N_CORE > 0 else 0,
-                    })
+                    sample_weights = self.train_df.label.map({get_labels()[0]: weights[0],get_labels()[1]: weights[1],get_labels()[2]: weights[2],get_labels()[3]: weights[3]})
+                    set_class_weights(weights)
                 else:
                     f = lambda x: np.sum(np.where(np.array(x) == get_pixel_values()[2], get_class_weights()["3"],
                                                   np.where(np.array(x) == get_pixel_values()[3], get_class_weights()["2"],
@@ -456,14 +455,19 @@ class NeuralNetwork(object):
 
                     sample_weights = self.train_df.ground_truth.map(f)
             elif get_n_classes()==3:
+                weights = {
+                    0: self.N_TOT/(get_n_classes()*self.N_BACKGROUND) if self.N_BACKGROUND>0 else 0,
+                    1: self.N_TOT/(get_n_classes()*self.N_PENUMBRA) if self.N_PENUMBRA>0 else 0,
+                    2: self.N_TOT/(get_n_classes()*self.N_CORE) if self.N_CORE>0 else 0,
+                }
                 if self.use_sequence:
                     # see: "ISBI 2019 C-NMC Challenge: Classification in Cancer Cell Imaging" section 4.1 pag 68
                     sample_weights = self.train_df.label.map({
-                        get_labels()[0]: self.N_TOT/(get_n_classes()*self.N_BACKGROUND) if self.N_BACKGROUND>0 else 0,
+                        get_labels()[0]: weights[0],
                         "brain": self.N_TOT/(get_n_classes()*self.N_BACKGROUND) if self.N_BACKGROUND>0 else 0,
-                        get_labels()[1]: self.N_TOT/(get_n_classes()*self.N_PENUMBRA) if self.N_PENUMBRA>0 else 0,
-                        get_labels()[2]: self.N_TOT/(get_n_classes()*self.N_CORE) if self.N_CORE>0 else 0,
-                    })
+                        get_labels()[1]: weights[1],
+                        get_labels()[2]: weights[2]})
+                    set_class_weights(weights)
                 else:
                     # function that map each pixel==150 with 150, pixel==76 with 20 and the rest with 0.1 and sum them
                     f = lambda x: np.sum(np.where(np.array(x)==150,150,np.where(np.array(x)==76,20,0.1)))
@@ -471,13 +475,9 @@ class NeuralNetwork(object):
                     sample_weights = self.train_df.ground_truth.map(f)
                     sample_weights = sample_weights/(get_m() * get_n())
             else:  # we are in a binary class problem
-                # sample_weights = self.train_df.label.map({
-                #     get_labels()[0]: self.N_TOT / (get_n_classes() * self.N_BACKGROUND) if self.N_BACKGROUND > 0 else 0,
-                #     "brain": self.N_TOT / (get_n_classes() * self.N_BACKGROUND) if self.N_BACKGROUND > 0 else 0,
-                #     "penumbra": self.N_TOT / (get_n_classes() * self.N_CORE) if self.N_CORE > 0 else 0,
-                #     get_labels()[1]: self.N_TOT / (get_n_classes() * self.N_CORE) if self.N_CORE > 0 else 0,
-                # })
-                sample_weights = self.train_df.label.map({get_labels()[0]: 1,"brain": 1,"penumbra": 1,get_labels()[1]: 1,})
+                weights = {0:1, 1:round(100/back_perc,3)}
+                sample_weights = self.train_df.label.map({get_labels()[0]: weights[0],"brain": 1,"penumbra": 1,get_labels()[1]: weights[1]})
+                set_class_weights(weights)
 
         self.train_df = self.train_df.assign(weights=sample_weights)  # add a new column "weights" in the dataframe
         return np.array(sample_weights.values[self.dataset[flagDataset]["indices"]])

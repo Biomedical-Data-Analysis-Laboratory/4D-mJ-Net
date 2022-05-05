@@ -32,11 +32,15 @@ def main():
     n_gpu = general_utils.setup_env(args, setting)
 
     # initialize model(s)
-    for info in setting["models"]: networks.append(NeuralNetwork(info, setting))
+    for info in setting["models"]: networks.append(NeuralNetwork(info, setting, args.sweep))
 
     for nn in networks:
         patientlist_train_val = setting["PATIENTS_TO_TRAINVAL"]
         patientlist_test = list() if "PATIENTS_TO_TEST" not in setting.keys() else setting["PATIENTS_TO_TEST"]
+
+        patientlist_test = [d[len(DATASET_PREFIX):-(len(general_utils.get_suffix())+4)] for d in os.listdir(nn.ds_folder)
+                            if d[len(DATASET_PREFIX):-(len(general_utils.get_suffix())+4)] in patientlist_test]
+
         patientlist_exclude = list() if "PATIENTS_TO_EXCLUDE" not in setting.keys() else setting["PATIENTS_TO_EXCLUDE"]
 
         # flag that states: run the train on all the patients in the "patient" folder
@@ -93,12 +97,13 @@ def main():
                 nn.load_saved_model()
             else: nn.init_and_start_training(n_gpu, args.jump)
 
-            # TRAIN SET: only for ISLES2018 dataset
-            if is_ISLES2018():
-                nn.predict_and_save_img([general_utils.get_str_from_idx(x) for x in patientlist_train_val if x < 1000], nn.is_model_saved())
-            else: nn.predict_and_save_img(val_list, nn.is_model_saved())  # VALIDATION SET: predict the images for decision on the model
-            # PERFORM TESTING: predict and save the images
-            nn.predict_and_save_img(patientlist_test, nn.is_model_saved())
+            # Predict and save imgs only if we are not doing a sweep
+            if not args.sweep:
+                if is_ISLES2018():  # TRAIN SET: only for ISLES2018 dataset
+                    nn.predict_and_save_img([general_utils.get_str_from_idx(x) for x in patientlist_train_val if x < 1000], nn.is_model_saved())
+                else: nn.predict_and_save_img(val_list, nn.is_model_saved())  # VALIDATION SET: predict the images for decision on the model
+                # PERFORM TESTING: predict and save the images
+                # nn.predict_and_save_img(patientlist_test, nn.is_model_saved())
 
     general_utils.stopPIDToWatchdog()
 
@@ -132,5 +137,6 @@ if __name__ == '__main__':
       --timelast            Set the time dimension in the last channel of the input model          
       --prefix              Set the prefix different from the default
       --limcols             Set the columns without additional info 
+      --sweep               Flag to set the sweep for WandB 
     """
     main()

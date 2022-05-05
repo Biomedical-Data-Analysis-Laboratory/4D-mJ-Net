@@ -4,6 +4,7 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 from Utils import metrics
 from Model.constants import *
 import tensorflow.keras.backend as K
+from tensorflow.keras import losses
 
 
 ################################################################################
@@ -50,6 +51,15 @@ def weighted_categorical_cross_entropy_loss(y_true, y_pred):
     return metrics.weighted_categorical_cross_entropy(y_true, y_pred)
 
 
+def weighted_categorical_crossentropy(weights):
+    # weights = [0.9,0.05,0.04,0.01]
+    def wcce(y_true, y_pred):
+        Kweights = K.constant(weights)
+        y_true = K.cast(y_true, y_pred.dtype)
+        return losses.categorical_crossentropy(y_true, y_pred) * K.sum(y_true * Kweights, axis=-1)
+    return wcce
+
+
 ################################################################################
 #  Focal loss: https://openaccess.thecvf.com/content_ICCV_2017/papers/Lin_Focal_Loss_for_ICCV_2017_paper.pdf
 def focal_loss(y_true, y_pred):
@@ -80,8 +90,7 @@ def pixelwise_crossentropy_plus_squared_dice_coeff(y_true, y_pred):
 ################################################################################
 # Variant of the UNet++ loss
 def pixelwise_crossentropy_plus_focal_tversky_loss(y_true, y_pred):
-    cce = metrics.categorical_crossentropy(y_true, y_pred)
-    ft_params = get_Focal_Tversky()
-    tv = metrics.tversky_coef(y_true, y_pred, is_loss=True)
-    ftl = K.pow((1 - tv), (1 / ft_params["gamma"]))
-    return -((cce + ftl) / K.cast(K.prod(K.shape(y_true)[:-1]), K.floatx()))
+    tc = metrics.tversky_coef_hybrid(y_true, y_pred, is_loss=True)
+    tc = tc/K.cast(K.prod(K.shape(y_true)[:-1]), K.floatx())
+    return K.pow(1-tc, (1 / get_Focal_Tversky()["gamma"]))
+

@@ -137,7 +137,8 @@ def get_PMs_list(multi_input, params, activ_func, l1_l2_reg, kernel_init, kernel
 def get_init_params_2D(params,leaky):
     out_params = {
         "size_two": (2,2),
-        "kernel_size": (3,3),
+        "kernel_size_3": (3,3),
+        "kernel_size_2": (2,2),
         "l1_l2_reg": None if "regularizer" not in params.keys() else get_regularizer(params["regularizer"]),
         "activ_func": None if leaky else 'relu',
         "input_shape": (get_m(), get_n(), 1),
@@ -177,6 +178,7 @@ def get_init_params_3D(params,leaky):
 # Function to get the input X depending on the correct model
 def get_correct_X_for_input_model(ds_seq, current_folder, row, batch_idx, batch_len, X=None, train=False):
     # TODO: add the possibility to infer the entire image
+    T = ds_seq.constants["NUMBER_OF_IMAGE_PER_SECTION"] if "TCNet" not in ds_seq.name else ds_seq.constants["NUMBER_OF_IMAGE_PER_SECTION"]+2
     pms = dict()
     # Extract the information: coordinates, data_aug_idx, ...
     coord = row["x_y"] if train else row["x_y"].iloc[0]
@@ -186,32 +188,24 @@ def get_correct_X_for_input_model(ds_seq, current_folder, row, batch_idx, batch_
     folders = [current_folder]
     # Ger the right folders and add them in the list
     if (ds_seq.is4DModel or ds_seq.is3dot5DModel) and ds_seq.n_slices > 1: folders = get_prev_next_folder(current_folder, slice_idx)
-    # Get the shape of the input X
-    # if not train:
-    #     x_shape = (ds_seq.constants["M"], ds_seq.constants["N"], ds_seq.constants["NUMBER_OF_IMAGE_PER_SECTION"]) \
-    #         if ds_seq.constants["TIME_LAST"] else (ds_seq.constants["NUMBER_OF_IMAGE_PER_SECTION"], ds_seq.constants["M"], ds_seq.constants["N"])
-    #     X = np.empty(shape=(1,)+x_shape+(1,))
     # Important flag. Check if the input X should be an array or not
     isXarray = True if len(folders) > 1 or (ds_seq.x_label == ds_seq.constants["LIST_PMS"] or (ds_seq.x_label == "pixels" and (ds_seq.is4DModel or ds_seq.is3dot5DModel))) else False
     isXarray = False if "TCNet" in ds_seq.name else isXarray  # set it to False if we're dealing with TCN
     if batch_idx == 0:  # create a list of empty spots: [None,None,...]
         if isXarray: X = [None] * len(folders)
-        if "TCNet" in ds_seq.name: X = [None] * ds_seq.constants["NUMBER_OF_IMAGE_PER_SECTION"]
+        if "TCNet" in ds_seq.name: X = [None] * T # ds_seq.constants["NUMBER_OF_IMAGE_PER_SECTION"]  # keep it like that
 
     for z, folder in enumerate(folders):  # main loop for number of folders involved (Z dim)
-        x_shape = (batch_len, ds_seq.constants["M"], ds_seq.constants["N"], ds_seq.constants["NUMBER_OF_IMAGE_PER_SECTION"], 1) \
-            if ds_seq.constants["TIME_LAST"] else (batch_len, ds_seq.constants["NUMBER_OF_IMAGE_PER_SECTION"], ds_seq.constants["M"], ds_seq.constants["N"], 1)
+        x_shape = (batch_len, ds_seq.constants["M"], ds_seq.constants["N"], T, 1) \
+            if ds_seq.constants["TIME_LAST"] else (batch_len, T, ds_seq.constants["M"], ds_seq.constants["N"], 1)
         tmp_X = np.empty(x_shape)
         if isXarray and batch_idx>0: tmp_X = X[z]
 
-        if platform.system()=="Windows":
-            folder = folder.replace(folder[:folder.rfind("/",0,len(folder)-4)], ds_seq.patients_folder)
+        if platform.system()=="Windows": folder = folder.replace(folder[:folder.rfind("/",0,len(folder)-4)], ds_seq.patients_folder)
 
-        if ds_seq.constants["isISLES"]:
-            X, tmp_X = get_ISLES_input(ds_seq,folder,coord,X,tmp_X,isXarray,batch_idx, train=train)
+        if ds_seq.constants["isISLES"]: X, tmp_X = get_ISLES_input(ds_seq,folder,coord,X,tmp_X,isXarray,batch_idx, train=train)
         else:
-            if "TCNet" in ds_seq.name:
-                X = get_TCN_input(ds_seq, batch_idx, z, X, coord, train, data_aug_idx, batch_len, folder, folders)
+            if "TCNet" in ds_seq.name: X = get_TCN_input(ds_seq, batch_idx, z, X, coord, train, data_aug_idx, batch_len, folder, folders, T)
             else:
                 for time_idx, filename in enumerate(np.sort(glob.glob(folder + "*.*"))):
                     totimg = cv2.imread(filename, cv2.IMREAD_GRAYSCALE)
@@ -224,14 +218,21 @@ def get_correct_X_for_input_model(ds_seq, current_folder, row, batch_idx, batch_
                         slc_w = np.expand_dims(slc_w, axis=-1)
                         if ds_seq.constants["TIME_LAST"]:
                             if isXarray: tmp_X[batch_idx, :, :, time_idx, :] = slc_w  # 3.5D / 4D
-                            else: X[batch_idx, :, :, time_idx, :] = slc_w  # mJNet input (2.5D)
+                            else:
+                                if batch_idx==0 and time_idx==0: X = np.empty((batch_len, ds_seq.constants["M"], ds_seq.constants["N"], T, 1))
+                                X[batch_idx, :, :, time_idx, :] = slc_w  # mJNet input (2.5D)
                         else:
                             if isXarray: tmp_X[batch_idx, time_idx, :, :, :] = slc_w  # 3.5D / 4D
-                            else: X[batch_idx, time_idx, :, :, :] = slc_w  # mJNet input (2.5D)
-                    else:  # here is for the old pre-processing patients (Master 2019)
+                            else:
+                                if batch_idx==0 and time_idx==0: X = np.empty((batch_len, T, ds_seq.constants["M"], ds_seq.constants["N"], 1))
+                                X[batch_idx, time_idx, :, :] = slc_w  # mJNet input (2.5D)
+                    else:  # here is for the old pre-processing patients Master 2019
                         if filename != "01.png":
                             if ds_seq.constants["TIME_LAST"]: X[:, :, time_idx] = slc_w
                             else: X[time_idx, :, :] = slc_w
+        if "TCNet" not in ds_seq.name:  # IMPORTANT Normalize the volume image before training!!
+            if isXarray: tmp_X[batch_idx,...] = (tmp_X[batch_idx,...] - tmp_X[batch_idx,...].mean()) / (tmp_X[batch_idx,...].std() + 1e-5)
+            else: X[batch_idx,...] = (X[batch_idx,...] - X[batch_idx,...].mean() / (X[batch_idx,...].std() + 1e-5))
 
         if isXarray: X[z] = tmp_X
         # Check if we are going to add/use the PMs or the additional input (NIHSS, age, gender)
@@ -270,20 +271,21 @@ def get_correct_X_for_input_model(ds_seq, current_folder, row, batch_idx, batch_
                 gender_row = row["gender"] if train else row["gender"].iloc[0]
                 X.append(np.array([int(gender_row)]))
 
-    if "TCNet" in ds_seq.name: assert len(X)==ds_seq.constants["NUMBER_OF_IMAGE_PER_SECTION"], "Input does not contain the right amount of TIMEPOINTS"
+    if "TCNet" in ds_seq.name: assert len(X)==T, f"Input does not contain the right amount of TIMEPOINTS: {len(X)}"
     if isXarray: assert len(X)==len(folders), "Input does not contain the right amount of FOLDERS"
     return X
 
 
 ################################################################################
 # Get the right input if we're using a TCN model
-def get_TCN_input(ds_seq, batch_idx, z, X, coord, train, data_aug_idx, batch_len, folder, folders):
+def get_TCN_input(ds_seq, batch_idx, z, X, coord, train, data_aug_idx, batch_len, folder, folders, T):
     # TODO: add the possibility to infer the entire image
     # initialize single_X if batch_idx==0, otherwise single_X = X[time_idx]
     single_X = np.empty((batch_len, ds_seq.constants["M"], ds_seq.constants["N"], 1))
-    if ds_seq.is3dot5DModel and batch_idx==0 and z==0:
-        single_X = np.empty((batch_len, len(folders), ds_seq.constants["M"], ds_seq.constants["N"], 1))
-    for time_idx, filename in enumerate(np.sort(glob.glob(folder + "*.*"))):
+    if ds_seq.is3dot5DModel and batch_idx==0 and z==0: single_X = np.empty((batch_len, len(folders), ds_seq.constants["M"], ds_seq.constants["N"], 1))
+
+    for t, filename in enumerate(np.sort(glob.glob(folder + "*.*"))):
+        time_idx = t+1
         if batch_idx > 0 or z > 0: single_X = X[time_idx]
         totimg = cv2.imread(filename, cv2.IMREAD_GRAYSCALE)
         assert totimg is not None, "The image {} is None".format(filename)
@@ -291,9 +293,26 @@ def get_TCN_input(ds_seq, batch_idx, z, X, coord, train, data_aug_idx, batch_len
         slc_w = general_utils.get_slice_window(totimg, coord[0], coord[1], ds_seq.constants, train=train)
         if train: slc_w = general_utils.perform_DA_on_img(slc_w, data_aug_idx)
         slc_w = np.expand_dims(slc_w, axis=-1)
+        # Normalize the volume image before training!!
+        slc_w = (slc_w - slc_w.mean()) / (slc_w.std() + 1e-5)
+
         if ds_seq.is3dot5DModel: single_X[batch_idx, z, :, :, :] = slc_w
         else: single_X[batch_idx, :, :, :] = slc_w
         X[time_idx] = single_X
+
+    # Copy the first and last timepoints for reaching 32 timepoints
+    X[0] = X[1]
+    X[T-1] = X[T-2]
+
+    # # Perform interpolation!
+    # arr_zoom = [T/ds_seq.constants["NUMBER_OF_IMAGE_PER_SECTION"],1,1,1,1,1] if ds_seq.is3dot5DModel else [T/ds_seq.constants["NUMBER_OF_IMAGE_PER_SECTION"],1,1,1,1]
+    # X_interp = ndimage.zoom(X, arr_zoom, output=np.float32)
+    #
+    # # Normalize the time-volume
+    # X_interp[:,batch_idx, ...] = (X_interp[:,batch_idx, ...] - X_interp[:,batch_idx, ...].mean() / (X_interp[:,batch_idx, ...].std() + 1e-5))
+    #
+    # X = [x for x in X_interp]  # recreate a list
+
     return X
 
 
@@ -386,7 +405,7 @@ def up_layers(inp, block, channels, kernel_size, strides_size, activ_func, l1_l2
     else: transposeConv = Conv3DTranspose
 
     conv = double_conv(inp, channels, kernel_size, activ_func, l1_l2_reg, kernel_init, kernel_constraint,
-                       bias_constraint, leaky, is2D=is2D)
+                       bias_constraint, leaky=leaky, is2D=is2D, batch=batch)
     transp = transposeConv(channels[2], kernel_size=kernel_size, strides=strides_size, padding='same',
                            activation=activ_func, kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init,
                            kernel_constraint=kernel_constraint, bias_constraint=bias_constraint)(conv)
@@ -434,17 +453,10 @@ def add_more_info(multi_input, inputs, append_layers=None, pre_input=None, pre_l
 
 ################################################################################
 # Function containing a block for the convolutional part
-def block_conv3D(inp, channels, kernel_size, activ_func, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint,
-                 leaky, batch, pool_size):
-    conv_1 = convolution_layer(inp, channel=channels[0], kernel_size=kernel_size, activation=activ_func,
-                               kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init, padding='same',
-                               kernel_constraint=kernel_constraint, bias_constraint=bias_constraint, leaky=leaky)
-    if batch: conv_1 = layers.BatchNormalization()(conv_1)
-
-    conv_1 = convolution_layer(conv_1, channel=channels[1], kernel_size=kernel_size, activation=activ_func,
-                               kernel_regularizer=l1_l2_reg, kernel_initializer=kernel_init, padding='same',
-                               kernel_constraint=kernel_constraint, bias_constraint=bias_constraint, leaky=leaky)
-    if batch: conv_1 = layers.BatchNormalization()(conv_1)
+def block_conv(inp, channels, kernel_size, activ_func, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint,
+               leaky, batch, pool_size, is2D=False):
+    conv_1 = double_conv(inp, channels, kernel_size, activ_func, l1_l2_reg, kernel_init, kernel_constraint,
+                         bias_constraint, leaky=leaky, is2D=is2D, batch=batch)
 
     return layers.MaxPooling3D(pool_size)(conv_1)
 
@@ -606,7 +618,7 @@ def block_conv4D(inp, channels, kernel_size, activ_func, l1_l2_reg, kernel_init,
         if batch: conv = layers.BatchNormalization()(conv)
         inp = conv
 
-    conv_3 = layers_4D.Conv4D(inp, channels[-1], kernel_size=kernel_size, strides=stride_size, activation=activ_func,
+    conv_3 = layers_4D.Conv4D(inp, channels[-1], kernel_size=kernel_size, activation=activ_func, strides=stride_size,
                               kernel_initializer=kernel_init, kernel_regularizer=l1_l2_reg, reduce_dim=reduce_dim,
                               kernel_constraint=kernel_constraint, bias_constraint=bias_constraint)
     if leaky: conv_3 = layers.LeakyReLU(alpha=0.33)(conv_3)
@@ -666,10 +678,10 @@ def reduce_time_and_space_dim(inputs, variables, params, channels, leaky, batch,
         block_z_1 = layers.Reshape(out_shape)(inputs[-1])
         if drop: block_z_1 = Dropout(params["dropout"]["long.1"])(block_z_1)
         block_z = layers.Concatenate(-1)([block_z, block_z_1])
-    up = block_conv3D(block_z, [K.int_shape(inp)[-1], K.int_shape(inp)[-1]], (variables["n_slices"], 3, 3),
-                      variables["activ_func"], variables["l1_l2_reg"], variables["kernel_init"],
-                      variables["kernel_constraint"], variables["bias_constraint"], leaky, batch,
-                      (variables["n_slices"], 1, 1))
+    up = block_conv(block_z, [K.int_shape(inp)[-1], K.int_shape(inp)[-1]], (variables["n_slices"], 3, 3),
+                    variables["activ_func"], variables["l1_l2_reg"], variables["kernel_init"],
+                    variables["kernel_constraint"], variables["bias_constraint"], leaky, batch,
+                    (variables["n_slices"], 1, 1))
     if last_block:  # if we are in the last block, we don't need to transpose
         blocks.append(up)
         general_utils.print_int_shape(up)

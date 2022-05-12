@@ -72,10 +72,11 @@ class ds_sequence(Sequence):
         X = np.empty((len(current_batch), self.constants["NUMBER_OF_IMAGE_PER_SECTION"], self.constants["M"], self.constants["N"], 1))
         if self.constants["TIME_LAST"]: X = np.empty((len(current_batch), self.constants["M"], self.constants["N"], self.constants["NUMBER_OF_IMAGE_PER_SECTION"], 1))
         Y = []
-        weights = np.empty((len(current_batch),)) if self.constants["M"]==self.constants["IMAGE_WIDTH"] \
-                                                     and self.constants["N"]==self.constants["IMAGE_HEIGHT"] \
-            else np.array(current_batch.weights)
-
+        # set the weights to nothing if the input is 512x512, else follow the sample_weights from the NN class
+        # weights = np.empty((len(current_batch),)) if self.constants["M"]==self.constants["IMAGE_WIDTH"] \
+        #                                              and self.constants["N"]==self.constants["IMAGE_HEIGHT"] \
+        #     else np.array(current_batch.weights)
+        weights = np.array(current_batch.weights)
         if self.constants["USE_PM"]: X = np.empty((len(current_batch), self.constants["M"], self.constants["N"]))
 
         # reset the index for the data augmentation
@@ -83,11 +84,7 @@ class ds_sequence(Sequence):
 
         # path to the folder containing the getNUMBER_OF_IMAGE_PER_SECTION() time point images
         X, Y, weights = self.get_XY(X, Y, weights, current_batch)
-
-        # print(weights)
-        # Return the sample_weights if M==WIDTH && N==HEIGHT
-        if self.constants["M"]==self.constants["IMAGE_WIDTH"] and self.constants["N"]==self.constants["IMAGE_HEIGHT"]: return X, np.array(Y), np.array(weights)
-        else: return X, np.array(Y)  # , np.array(weights)
+        return X, np.array(Y), weights
 
     ################################################################################
     # return the X set and the relative weights based on the pixels column
@@ -115,20 +112,34 @@ class ds_sequence(Sequence):
         img = general_utils.get_slice_window(img, coord[0], coord[1], self.constants, train=self.train, is_gt=True)
 
         # remove the brain from the image ==> it becomes background
-        if self.constants["N_CLASSES"]<=3: img[img == 85] = self.constants["PIXELVALUES"][0]
+        if self.constants["N_CLASSES"]<=3: img[img == 85] = 0
         # remove the penumbra ==> it becomes core
         if self.constants["N_CLASSES"]==2: img[img == 170] = self.constants["PIXELVALUES"][1]
 
+        weights = self._get_weights(weights, index, row, img) if self.loss!="weighted_categorical_crossentropy" else None
+
+        # convert the label in [0, 1] values, for to_categ the division happens inside dataset_utils.getSingleLabelFromIndexCateg
+        if not self.constants["TO_CATEG"]: img = np.divide(img, 255)
+        # Perform data augmentation on the ground truth
+        img = general_utils.perform_DA_on_img(img, int(aug_idx))
+        if self.constants["TO_CATEG"] and not self.loss == "sparse_categorical_crossentropy":  # Convert the image to categorical if needed
+            img = dataset_utils.get_single_label_from_idx_categ(img, self.constants["N_CLASSES"])
+
+        Y.append(img)
+
+        return Y, weights
+
+    def _get_weights(self, weights, index, row, img):
         # Override the weights based on the pixel values (ONLY IF X==WIDTH && Y==HEIGHT)
-        if self.constants["M"]==self.constants["IMAGE_WIDTH"] and self.constants["N"]==self.constants["IMAGE_HEIGHT"]:
-            if self.constants["N_CLASSES"]>2:
+        if self.constants["M"] == self.constants["IMAGE_WIDTH"] and self.constants["N"] == self.constants["IMAGE_HEIGHT"]:
+            if self.constants["N_CLASSES"] > 2:
                 core_idx, penumbra_idx = 3, 2
                 if self.constants["N_CLASSES"] == 3: core_idx, penumbra_idx = 2, 1
                 core_value, core_weight = self.constants["PIXELVALUES"][core_idx], self.constants["weights"][core_idx]
                 penumbra_value, penumbra_weight = self.constants["PIXELVALUES"][penumbra_idx], self.constants["weights"][penumbra_idx]
 
                 # focus on the SVO core only during training (only for SUS2020 dataset)!
-                if self.SVO_focus and row["severity"]=="02":
+                if self.SVO_focus and row["severity"] == "02":
                     core_weight *= 6
                     penumbra_weight *= 6
 
@@ -137,21 +148,4 @@ class ds_sequence(Sequence):
                                                          np.where(np.array(x) == penumbra_value, penumbra_weight,
                                                                   self.constants["weights"][0])))
                 weights[index] = sumpixweight(img) / (self.constants["M"] * self.constants["N"])
-            elif self.constants["N_CLASSES"] == 2:
-                core_value, core_weight = self.constants["PIXELVALUES"][1], self.constants["weights"][1]
-                sumpixweight = lambda x: np.sum(np.where(np.array(x) == core_value, core_weight,
-                                                         self.constants["weights"][0]))
-                weights[index] = sumpixweight(img) / (self.constants["M"] * self.constants["N"])
-
-        # convert the label in [0, 1] values,
-        # for to_categ the division happens inside dataset_utils.getSingleLabelFromIndexCateg
-        if not self.constants["TO_CATEG"]: img = np.divide(img, 255)
-        # Perform data augmentation on the ground truth
-        img = general_utils.perform_DA_on_img(img, int(aug_idx))
-        if self.constants["TO_CATEG"] and not self.loss == "sparse_categorical_crossentropy":
-            # Convert the image to categorical if needed
-            img = dataset_utils.get_single_label_from_idx_categ(img, self.constants["N_CLASSES"])
-
-        Y.append(img)
-
-        return Y, weights
+        return np.array(weights)

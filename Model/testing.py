@@ -386,7 +386,7 @@ def generate_img_from_PMS(nn, test_df, idx):
     start_x, start_y = 0, 0
     constants ={"M": get_m(), "N": get_m(), "NUMBER_OF_IMAGE_PER_SECTION": getNUMBER_OF_IMAGE_PER_SECTION(),
                 "TIME_LAST": is_timelast(), "N_CLASSES": get_n_classes(), "PIXELVALUES": get_pixel_values(),
-                "weights": get_class_weights(), "TO_CATEG": is_TO_CATEG(), "isISLES": is_ISLES2018(), "USE_PM":get_USE_PM(),
+                "weights": get_class_weights_const()[0], "TO_CATEG": is_TO_CATEG(), "isISLES": is_ISLES2018(), "USE_PM":get_USE_PM(),
                 "LIST_PMS":get_list_PMS(), "IMAGE_HEIGHT":get_img_height(), "IMAGE_WIDTH": get_img_width()}
 
     while True:
@@ -473,7 +473,7 @@ def evaluate_model(nn, p_id, is_already_saved, i):
             labeled_img_folder=nn.labeled_img_folder,
             constants={"M": get_m(), "N": get_m(), "NUMBER_OF_IMAGE_PER_SECTION": getNUMBER_OF_IMAGE_PER_SECTION(),
                        "TIME_LAST": is_timelast(), "N_CLASSES": get_n_classes(), "PIXELVALUES": get_pixel_values(),
-                       "weights": get_class_weights(), "TO_CATEG": is_TO_CATEG(), "isISLES": is_ISLES2018(),
+                       "weights": get_class_weights_const()[0], "TO_CATEG": is_TO_CATEG(), "isISLES": is_ISLES2018(),
                        "USE_PM": get_USE_PM(), "LIST_PMS": get_list_PMS(),
                        "IMAGE_HEIGHT": get_img_height(), "IMAGE_WIDTH": get_img_width()},
             name=nn.name,

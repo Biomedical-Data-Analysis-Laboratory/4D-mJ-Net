@@ -311,7 +311,7 @@ class NeuralNetwork(object):
             labeled_img_folder=self.labeled_img_folder,
             constants={"M": get_m(), "N": get_m(), "NUMBER_OF_IMAGE_PER_SECTION": getNUMBER_OF_IMAGE_PER_SECTION(),
                        "TIME_LAST": is_timelast(), "N_CLASSES": get_n_classes(), "PIXELVALUES": get_pixel_values(),
-                       "weights": get_class_weights(), "TO_CATEG": is_TO_CATEG(), "isISLES": is_ISLES2018(),
+                       "weights": get_class_weights_const()[0], "TO_CATEG": is_TO_CATEG(), "isISLES": is_ISLES2018(),
                        "USE_PM": get_USE_PM(), "LIST_PMS": get_list_PMS(), "IMAGE_HEIGHT": get_img_height(),
                        "IMAGE_WIDTH": get_img_width()},
             name=self.name,
@@ -336,7 +336,7 @@ class NeuralNetwork(object):
             labeled_img_folder=self.labeled_img_folder,
             constants={"M": get_m(), "N": get_m(), "NUMBER_OF_IMAGE_PER_SECTION": getNUMBER_OF_IMAGE_PER_SECTION(),
                        "TIME_LAST": is_timelast(), "N_CLASSES": get_n_classes(), "PIXELVALUES": get_pixel_values(),
-                       "weights": get_class_weights(), "TO_CATEG": is_TO_CATEG(), "isISLES": is_ISLES2018(),
+                       "weights": get_class_weights_const()[0], "TO_CATEG": is_TO_CATEG(), "isISLES": is_ISLES2018(),
                        "USE_PM": get_USE_PM(), "LIST_PMS": get_list_PMS(), "IMAGE_HEIGHT": get_img_height(),
                        "IMAGE_WIDTH": get_img_width()},
             name=self.name,
@@ -449,9 +449,9 @@ class NeuralNetwork(object):
                     sample_weights = self.train_df.label.map({get_labels()[0]: weights[0],get_labels()[1]: weights[1],get_labels()[2]: weights[2],get_labels()[3]: weights[3]})
                     set_class_weights(weights)
                 else:
-                    f = lambda x: np.sum(np.where(np.array(x) == get_pixel_values()[2], get_class_weights()["3"],
-                                                  np.where(np.array(x) == get_pixel_values()[3], get_class_weights()["2"],
-                                                           get_class_weights()["0"])))
+                    f = lambda x: np.sum(np.where(np.array(x) == get_pixel_values()[2], get_class_weights_const()["3"],
+                                                  np.where(np.array(x) == get_pixel_values()[3], get_class_weights_const()["2"],
+                                                           get_class_weights_const()["0"])))
 
                     sample_weights = self.train_df.ground_truth.map(f)
             elif get_n_classes()==3:

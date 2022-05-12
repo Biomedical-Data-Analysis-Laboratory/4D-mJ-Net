@@ -80,11 +80,11 @@ def get_setting_file(filename):
 def setup_env(args, setting):
     # important: set up the root path for later uses
     set_rootpath(setting["root_path"])
-
+    lr = "lr" if setting["models"][0]["optimizer"]["name"] == "Adam" else "learning_rate"
     config = {
         "epochs": setting["models"][0]["epochs"],
         "batch_size": setting["models"][0]["batch_size"],
-        "lr": setting["models"][0]["optimizer"]["lr"],
+        "lr": setting["models"][0]["optimizer"][lr],
         "weight_b": 0.1 if get_n_classes() == 2 else 1,
         "weight_p": 1,
         "weight_c": 1 if get_n_classes() == 2 else 10
@@ -264,7 +264,7 @@ def get_class_weights(is_loss=False):
     # three_cat = [[1,0,0]] if classtype == "rest" else [[0, 1, 0]] if classtype == "penumbra" else [[0, 0, 1]]
     # two_cat = [[1,0]] if classtype == "rest" else [[0, 1]]
 
-    if is_loss: class_weights = tf.constant(1, dtype=K.floatx()) if not is_TO_CATEG() else get_class_weights()
+    if is_loss: class_weights = tf.constant(1, dtype=K.floatx()) if not is_TO_CATEG() else tf.constant(get_class_weights_const(), dtype=K.floatx())
     else: class_weights = tf.constant([[1]*get_n_classes()], dtype=K.floatx())
     return class_weights
 

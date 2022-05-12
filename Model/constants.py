@@ -1,7 +1,7 @@
 import socket
 import os
 
-global M,N,SLICING_PIXELS,verbose,USE_PM,DEBUG,ORIGINAL_SHAPE,TIME_LAST,isISLES,root_path,IMAGE_WIDTH,IMAGE_HEIGH,\
+global M,N,SLICING_PIXELS,verbose,USE_PM,DEBUG,ORIGINAL_SHAPE,TIME_LAST,isISLES,root_path,IMAGE_WIDTH,IMAGE_HEIGHT,\
     NUMBER_OF_IMAGE_PER_SECTION,N_CLASSES,LABELS,PIXELVALUES,HOT_ONE_WEIGHTS,TO_CATEG,ALPHA,GAMMA,focal_tversky_loss,\
     PREFIX_IMAGES,DATASET_PREFIX,SUFFIX_IMG,colorbar_coord,suffix_partial_weights,threeD_flag,ONE_TIME_POINT,list_PMS,\
     DF_columns,limited_columns,ENABLE_WATCHDOG,PID_WATCHDOG_PICKLE_PATH,PID_WATCHDOG_FINISHED_PICKLE_PATH, TO_FLAT
@@ -274,8 +274,11 @@ def set_Focal_Tversky(hyperparameters):
 
 
 ################################################################################
-def get_class_weights():
-    return HOT_ONE_WEIGHTS
+def get_class_weights_const():
+    sorted_keys = sorted(HOT_ONE_WEIGHTS.keys())
+    out = []
+    for k in sorted_keys: out.append(HOT_ONE_WEIGHTS[k])
+    return [out]
 
 
 def set_class_weights(weights):

@@ -99,6 +99,10 @@ def mJNet_plusplus(params, multi_input, batch=True, drop=True):
 ################################################################################
 # mJ-Net model version 4D
 def mJNet_4D(params, multi_input, batch=True, drop=True, leaky=True, attentiongate=True):
+    return arch_mJNet.mJNet_4D(params, batch=batch, drop=drop, leaky=leaky, attentiongate=False)
+
+
+def mJNet_4D_attention(params, multi_input, batch=True, drop=True, leaky=True, attentiongate=True):
     return arch_mJNet.mJNet_4D(params, batch=batch, drop=drop, leaky=leaky, attentiongate=attentiongate)
 
 

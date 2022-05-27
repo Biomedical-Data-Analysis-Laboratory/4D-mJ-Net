@@ -562,9 +562,14 @@ def mJNet_4D(params, batch=True, drop=False, MCD=True, leaky=True, attentiongate
             loop -= 1
     else:
         while K.int_shape(input_conv_layer)[2] < get_m() and K.int_shape(input_conv_layer)[3] < get_n():
-            up_x = model_utils.up_layers(input_conv_layer, [conv_list.pop()], [int(16 / limchan) * loop, int(16 / limchan) * loop, int(16 / limchan) * loop],
-                                         kernel_size, size_two, activ_func, l1_l2_reg, kernel_init, kernel_constraint,
-                                         bias_constraint, params, leaky=leaky, batch=batch)
+            if attentiongate:
+                up_x = model_utils.upSamplingPlusAttention(input_conv_layer, conv_list.pop(), [int(16 / limchan) * loop, int(16 / limchan) * loop, int(16 / limchan) * loop],
+                                                           kernel_size, size_two, activ_func, l1_l2_reg, kernel_init, kernel_constraint,
+                                                           bias_constraint, leaky=leaky)
+            else:
+                up_x = model_utils.up_layers(input_conv_layer, [conv_list.pop()], [int(16 / limchan) * loop, int(16 / limchan) * loop, int(16 / limchan) * loop],
+                                             kernel_size, size_two, activ_func, l1_l2_reg, kernel_init, kernel_constraint,
+                                             bias_constraint, params, leaky=leaky, batch=batch)
             general_utils.print_int_shape(up_x)
             input_conv_layer = up_x
             loop-=1

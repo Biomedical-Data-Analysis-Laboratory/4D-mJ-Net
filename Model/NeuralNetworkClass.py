@@ -19,7 +19,7 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 
 class NeuralNetwork(object):
     """docstring for NeuralNetwork."""
-    def __init__(self, model_info, setting, sweep):
+    def __init__(self, model_info, setting, sweep, array):
         super(NeuralNetwork, self).__init__()
 
         # Used to override the path for the saved model in order to test patients with a specific model
@@ -105,6 +105,7 @@ class NeuralNetwork(object):
         self.train_sequence, self.val_sequence = None, None
         self.mp = False
         self.mp_in_nn = False
+        self.array = array
 
         # change the prefix if SUS2020_v2 is in the dataset name
         if "SUS2020" in self.ds_folder: set_prefix("CTP_")
@@ -192,7 +193,7 @@ class NeuralNetwork(object):
     def load_model_from_partial_weights(self):
         if self.partial_weights_path!= "":
             self.model.load_weights(self.partial_weights_path)
-            self.initial_epoch = general_utils.get_epoch_from_partial_weights_path(self.partial_weights_path)
+            self.initial_epoch = general_utils.get_epoch_from_intermediate_save(self.save_text_folder) #general_utils.get_epoch_from_partial_weights_path(self.partial_weights_path)
 
             if is_verbose():
                 general_utils.print_sep("+", 100)
@@ -253,6 +254,7 @@ class NeuralNetwork(object):
 
         # Based on the number of GPUs available, call the function called self.name in architectures.py
         self.model = getattr(architectures, self.name)(params=self.params, multi_input=self.multi_input)
+        self.save_model_to_json()
 
         if self.summary_flag==0:
             for rankdir in ["TB"]:  # "LR"
@@ -281,7 +283,7 @@ class NeuralNetwork(object):
         self.train = training.fit_model(model=self.model, dataset=self.dataset, batch_size=self.batch_size,
                                         epochs=self.epochs, callbacklist=self.callbacks,
                                         sample_weights=self.sample_weights, initial_epoch=self.initial_epoch,
-                                        use_multiprocessing=self.mp_in_nn)
+                                        use_multiprocessing=self.mp_in_nn, array=self.array)
 
         # plot the loss and accuracy of the training
         training.plot_loss_and_accuracy(self)
@@ -355,7 +357,8 @@ class NeuralNetwork(object):
             epochs=self.epochs,
             callbacklist=self.callbacks,
             initial_epoch=self.initial_epoch,
-            use_multiprocessing=self.mp_in_nn
+            use_multiprocessing=self.mp_in_nn,
+            array=self.array
         )
 
     ################################################################################
@@ -396,8 +399,7 @@ class NeuralNetwork(object):
                 if is_verbose(): print("Fine-tuning setting: {} layers trainable".format(layer_indexes[len(layer_indexes) // 2:]))
                 if self.are_partial_weights_saved():
                     if not self.params["concatenate_input"]: self.model.load_weights(self.partial_weights_path)
-                    self.initial_epoch = general_utils.get_epoch_from_partial_weights_path(
-                        self.partial_weights_path) + previousEarlyStoppingPatience
+                    self.initial_epoch = general_utils.get_epoch_from_partial_weights_path(self.partial_weights_path) + previousEarlyStoppingPatience
                 # Compile the model again
                 self.compile_model()
                 # Get the sample weights
@@ -417,8 +419,7 @@ class NeuralNetwork(object):
                 if is_verbose(): print("Fine-tuning setting: {} layers trainable".format(layer_indexes))
                 if self.are_partial_weights_saved():
                     if not self.params["concatenate_input"]: self.model.load_weights(self.partial_weights_path)
-                    self.initial_epoch = general_utils.get_epoch_from_partial_weights_path(
-                        self.partial_weights_path) + previousEarlyStoppingPatience
+                    self.initial_epoch = general_utils.get_epoch_from_partial_weights_path(self.partial_weights_path) + previousEarlyStoppingPatience
                 self.compile_model()  # Compile the model again
                 self.sample_weights = self.get_sample_weights("train")  # Get the sample weights
                 self.set_callbacks("_full")  # Set the callbacks
@@ -493,17 +494,24 @@ class NeuralNetwork(object):
     ################################################################################
     # Save the trained model and its relative weights
     def save_model_and_weights(self):
-        saved_modelname = self.get_saved_model()
+        self.save_model_to_json()
         saved_weightname = self.get_saved_weights()
+        flag_model_saved = self.experiment_folder+"MODEL_SAVED.txt"
 
-        # serialize model to JSON
-        model_json = self.model.to_json()
-        with open(saved_modelname, "w") as json_file: json_file.write(model_json)
         self.model.save_weights(saved_weightname)  # serialize weights to HDF5
-
+        with open(flag_model_saved,"w") as f: pass
         if is_verbose():
             general_utils.print_sep("-", 50)
             print("[INFO - Saving] - Saved model and weights to disk!")
+
+    ################################################################################
+    # Save the trained model
+    def save_model_to_json(self):
+        saved_modelname = self.get_saved_model()
+        # serialize model to JSON
+        model_json = self.model.to_json()
+        with open(saved_modelname, "w") as json_file: json_file.write(model_json)
+
 
     ################################################################################
     # Call the function located in testing for predicting and saved the images

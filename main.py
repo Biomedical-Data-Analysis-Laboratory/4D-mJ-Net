@@ -32,7 +32,7 @@ def main():
     n_gpu = general_utils.setup_env(args, setting)
 
     # initialize model(s)
-    for info in setting["models"]: networks.append(NeuralNetwork(info, setting, args.sweep))
+    for info in setting["models"]: networks.append(NeuralNetwork(info, setting, args.sweep, args.array))
 
     for nn in networks:
         patientlist_train_val = setting["PATIENTS_TO_TRAINVAL"]
@@ -91,19 +91,17 @@ def main():
             val_list = nn.split_ds(train_df, patientlist_train_val, patientlist_test)
 
             # Check if the model was already trained and saved
-            if nn.is_model_saved():
-                # SET THE CALLBACKS & LOAD MODEL
-                # nn.set_callbacks()
-                nn.load_saved_model()
+            if nn.is_model_saved(): nn.load_saved_model()  # LOAD MODEL
             else: nn.init_and_start_training(n_gpu, args.jump)
 
-            # Predict and save imgs only if we are not doing a sweep
+            # Predict and save images only if we are not doing a sweep
             if not args.sweep:
                 if is_ISLES2018():  # TRAIN SET: only for ISLES2018 dataset
                     nn.predict_and_save_img([general_utils.get_str_from_idx(x) for x in patientlist_train_val if x < 1000], nn.is_model_saved())
-                else: nn.predict_and_save_img(val_list, nn.is_model_saved())  # VALIDATION SET: predict the images for decision on the model
-                # PERFORM TESTING: predict and save the images
-                # nn.predict_and_save_img(patientlist_test, nn.is_model_saved())
+                else:
+                    # Select the validatation or test list of patients for predictions
+                    pred_pat_list = patientlist_test if args.test else val_list
+                    nn.predict_and_save_img(pred_pat_list, nn.is_model_saved())
 
     general_utils.stopPIDToWatchdog()
 
@@ -125,18 +123,20 @@ if __name__ == '__main__':
       -d, --debug           DEBUG mode
       -o, --original        Set the shape of the testing dataset to be compatible with the original shape 
       -pm, --pm             Set the flag to train the parametric maps as input 
-      -t TILE, --tile TILE  Set the tile pixels dimension (MxM) (default = 16)
+      -t TILE, --tile TILE  Set the tile pixels dimension (MxM) (default = 512)
       -dim DIMENSION, --dimension DIMENSION
                             Set the dimension of the input images (width X height) (default = 512)
       -c {2,3,4}, --classes {2,3,4}
-                            Set the # of classes involved (default = 4)
+                            Set the # of classes involved (default = 3)
       --isles2018           Flag to use the ISLES2018 dataset
       -w, --weights         Set the weights for the categorical losses
       -e, --exp             Set the number of the experiment
       -j, --jump            Jump the training and go directly on the gradual fine-tuning function
+      --test                Flag for predicting the test patients 
       --timelast            Set the time dimension in the last channel of the input model          
       --prefix              Set the prefix different from the default
       --limcols             Set the columns without additional info 
       --sweep               Flag to set the sweep for WandB 
+      --array               Flag for setting the sbatch array modality*
     """
     main()

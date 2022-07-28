@@ -29,15 +29,17 @@ def get_commandline_args():
     parser.add_argument("-pm", "--pm", help="Use parametric maps", action="store_true")
     parser.add_argument("-t", "--tile", help="Set the tile pixels dimension (MxM)", type=int)
     parser.add_argument("-dim", "--dimension", help="Set the dimension of the input images (widthXheight)", type=int)
-    parser.add_argument("-c", "--classes", help="Set the # of classes involved (default = 4)", default=4, type=int, choices=[2,3,4])
+    parser.add_argument("-c", "--classes", help="Set the # of classes involved (default = 3)", default=3, type=int, choices=[2,3,4])
     parser.add_argument("-w", "--weights", help="Set the weights for the categorical losses", type=float, nargs='+')
     parser.add_argument("-e", "--exp", help="Set the number of the experiment", type=float)
     parser.add_argument("-j", "--jump", help="Jump the training and go directly on the gradual fine-tuning function", action="store_true")
+    parser.add_argument("--test", help="Flag for predicting the test patients", action="store_true")
     parser.add_argument("--timelast", help="Set the time dimension in the last channel of the input model", action="store_true")
     parser.add_argument("--prefix", help="Set the prefix different from the default", type=str)
     parser.add_argument("--limcols", help="Set the columns without additional info", action="store_true")
     parser.add_argument("--noflat", help="Flag to set the output of the loss NOT flat", action="store_false")
     parser.add_argument("--sweep", help="Flag to set the sweep for WandB", action="store_true")
+    parser.add_argument("--array", help="Flag for setting the sbatch array modality*", action="store_true")
     parser.add_argument("gpu", help="Give the id of gpu (or a list of the gpus) to use")
     parser.add_argument("sname", help="Select the setting filename")
     args = parser.parse_args()
@@ -90,8 +92,8 @@ def setup_env(args, setting):
         "weight_c": 1 if get_n_classes() == 2 else 10
     }
 
+    # Variables for wandb
     prj = "mJNet-project" if "PROJECT" not in setting.keys() else setting["PROJECT"]
-
     if prj=="DWI-core": config["weight_c"] = 100
     wandb.init(project=prj, entity="lucatomasetti", config=config)
 
@@ -118,12 +120,13 @@ def setup_env(args, setting):
 
 
 ################################################################################
-# setup the environment for the GPUs
+# Setup the environment for the GPUs
 def setup_env_GPUs(args, setting):
     GPU = args.gpu
     N_GPU = len(GPU.split(","))
 
-    os.environ["CUDA_VISIBLE_DEVICES"] = GPU
+    # set the CUDA visible devices only if we are not in the array configuration (i.e. gorina7/8)
+    if not args.array: os.environ["CUDA_VISIBLE_DEVICES"] = GPU
     os.environ["TF_CPP_MIN_LOG_LEVEL"] = setting["init"]["TF_CPP_MIN_LOG_LEVEL"]
 
     K.set_floatx('float32')
@@ -138,9 +141,7 @@ def setup_env_GPUs(args, setting):
     # tf.config.experimental_run_functions_eagerly(True)
     # session = tf.compat.v1.Session(config=config)
 
-    if is_verbose():
-        print_sep("-", 50)
-        print("Use {0} GPU(s): {1}".format(N_GPU, GPU))
+    if is_verbose(): print("Use {0} GPU(s): {1}  ---  array setting: {2}".format(N_GPU, GPU, args.array))
 
     return N_GPU
 
@@ -197,6 +198,10 @@ def perform_DA_on_img(img, data_aug_idx):
 # Get the epoch number from the partial weight filename
 def get_epoch_from_partial_weights_path(partialWeightsPath):
     return int(partialWeightsPath[partialWeightsPath.index(suffix_partial_weights)+len(suffix_partial_weights):partialWeightsPath.index(".h5")])
+
+
+def get_epoch_from_intermediate_save(save_text_path):
+    return len(glob.glob(save_text_path+"01_001/*"))
 
 
 ################################################################################

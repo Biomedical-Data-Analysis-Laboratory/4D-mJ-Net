@@ -36,7 +36,6 @@ def convertDatasets():
 
         # df.pixels = df.pixels.map(fu)
 
-
         for row in df.itertuples():
             pixels = row.pixels
             new_pixels = np.empty((M,N,1))

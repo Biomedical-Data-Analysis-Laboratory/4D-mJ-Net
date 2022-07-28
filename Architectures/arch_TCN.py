@@ -9,21 +9,21 @@ from tensorflow.keras.layers import Dropout, Concatenate, Conv2D, Conv3D, TimeDi
 ################################################################################
 # model with Temporal Convolutional Network (TCN) 2.5D with single/multi encoders
 def TCNet(params, batch=True, drop=True, leaky=True, MCD=True, single_enc=False, timedistr=False):
-    T = getNUMBER_OF_IMAGE_PER_SECTION()+2
-    vars = model_utils.get_init_params_2D(params,leaky)
-    size_two = vars["size_two"]
-    kernel_size_3 = vars["kernel_size_3"]
-    kernel_size_2 = vars["kernel_size_2"]
+    T = getNUMBER_OF_IMAGE_PER_SECTION()#+2
+    vars_2D = model_utils.get_init_params_2D(params, leaky)
+    size_two = vars_2D["size_two"]
+    kernel_size_3 = vars_2D["kernel_size_3"]
+    kernel_size_2 = vars_2D["kernel_size_2"]
     kernel_skip = (3,3,3)
     pool_skip = (1,1,T) if is_timelast() else (T,1,1)
-    activ_func = vars["activ_func"]
-    l1_l2_reg = vars["l1_l2_reg"]
+    activ_func = vars_2D["activ_func"]
+    l1_l2_reg = vars_2D["l1_l2_reg"]
     input_shape = (get_m(),get_n(),1)
-    kernel_init = vars["kernel_init"]
-    kernel_constraint = vars["kernel_constraint"]
-    bias_constraint = vars["bias_constraint"]
-    limchan = 2
-    min_size = 8
+    kernel_init = vars_2D["kernel_init"]
+    kernel_constraint = vars_2D["kernel_constraint"]
+    bias_constraint = vars_2D["bias_constraint"]
+    limchan = 1
+    min_size = 4
     last_i = -1
 
     inputs, inputs_touse, latent_space, skip_conn = [], [], [], {}
@@ -41,7 +41,7 @@ def TCNet(params, batch=True, drop=True, leaky=True, MCD=True, single_enc=False,
 
     dict_layers = {}
     for inp in inputs_touse:
-        i,idx,conv_level = 4,0,1
+        i,idx,conv_level = 2,0,1
         if not single_enc: dict_layers = {}
         while (get_m()/conv_level)>min_size and (get_n()/conv_level)>min_size:
             key = str(int(get_m()/conv_level))
@@ -88,7 +88,7 @@ def TCNet(params, batch=True, drop=True, leaky=True, MCD=True, single_enc=False,
     conc_latent = Concatenate(1)(latent_space) if not timedistr else latent_space[0]
     general_utils.print_int_shape(conc_latent)
     # With return_sequences=False, the output shape is: (batch_size, nb_filters)
-    tcn_layer = TCN(nb_filters=min_size*min_size,
+    tcn_layer = TCN(nb_filters=64,
                     kernel_size=2,
                     dilations=(1,2,4,8,16),
                     padding='causal',
@@ -97,41 +97,40 @@ def TCNet(params, batch=True, drop=True, leaky=True, MCD=True, single_enc=False,
                     mcd=MCD)(conc_latent)
     general_utils.print_int_shape(tcn_layer)
 
-    conv_up_dim = min_size
+    conv_up_dim = 8
     inp = layers.Reshape((conv_up_dim,conv_up_dim,1))(tcn_layer)
 
     i = last_i
-    while conv_up_dim<get_m() and conv_up_dim<get_n():
-        key = str(conv_up_dim * 2)
+    while K.int_shape(inp)[-3]<get_m() and K.int_shape(inp)[-2]<get_n():
+        key = str(K.int_shape(inp)[-3] * 2)
         where = -1 if is_timelast() else 1
         if not timedistr:
             # Concatenate layers for the skip connections if we are not using the timedistr
             block = Concatenate(where)(skip_conn[key])
             general_utils.print_int_shape(block)
-            block = model_utils.convolution_layer(block, int(2 ** i / limchan), kernel_skip, activ_func, l1_l2_reg, kernel_init, 'same', kernel_constraint, bias_constraint, leaky=leaky)
+            block = model_utils.convolution_layer(block, int(2**i/limchan), kernel_skip, activ_func, l1_l2_reg,
+                                                  kernel_init, 'same', kernel_constraint, bias_constraint, leaky=leaky)
             general_utils.print_int_shape(block)
             if batch: block = layers.BatchNormalization()(block)
         else: block = skip_conn[key][0]
 
         # Reduce the third dimension (time)
-        ## block = layers.AveragePooling3D(pool_skip)(block)
-        for x,k in enumerate(params["stride"].keys()):
-            if x>0:
-                block = model_utils.convolution_layer(block,int(2 ** i / limchan),kernel_skip,activ_func,l1_l2_reg,
-                                                      kernel_init,"same",kernel_constraint,bias_constraint,leaky=leaky,is2D=False)
-                block = model_utils.convolution_layer(block,int(2 ** i / limchan),kernel_skip,activ_func,l1_l2_reg,
-                                                      kernel_init,"same",kernel_constraint,bias_constraint,leaky=leaky,is2D=False)
-            block = model_utils.convolution_layer(block,int(2 ** i / limchan),kernel_skip,activ_func,l1_l2_reg, kernel_init,
-                                                  "same",kernel_constraint,bias_constraint,strides=(params["stride"][k],1,1),leaky=leaky,is2D=False)
+        block = layers.AveragePooling3D(pool_skip)(block)
+        # for x,k in enumerate(params["stride"].keys()):
+        #     if x>0:
+        #         block = model_utils.convolution_layer(block,int(2 ** i / limchan),kernel_skip,activ_func,l1_l2_reg,
+        #                                               kernel_init,"same",kernel_constraint,bias_constraint,leaky=leaky,is2D=False)
+        #         block = model_utils.convolution_layer(block,int(2 ** i / limchan),kernel_skip,activ_func,l1_l2_reg,
+        #                                               kernel_init,"same",kernel_constraint,bias_constraint,leaky=leaky,is2D=False)
+        #     block = model_utils.convolution_layer(block,int(2 ** i / limchan),kernel_skip,activ_func,l1_l2_reg, kernel_init,
+        #                                           "same",kernel_constraint,bias_constraint,strides=(params["stride"][k],1,1),leaky=leaky,is2D=False)
         general_utils.print_int_shape(block)
-        block = layers.Reshape((conv_up_dim*2, conv_up_dim*2, int(2 ** i / limchan)))(block)
+        block = layers.Reshape((K.int_shape(inp)[-3]*2, K.int_shape(inp)[-2]*2, int(2 ** i / limchan)))(block)
         general_utils.print_int_shape(block)
-        up = model_utils.up_layers(inp, [block],
-                                   [int(2 ** i / limchan), int(2 ** i / limchan), int(2 ** i / limchan)], kernel_size_2,
+        up = model_utils.up_layers(inp, [block], [int(2**i/limchan),int(2**i/limchan),int(2**i/limchan)], kernel_size_2,
                                    size_two, activ_func, l1_l2_reg, kernel_init, kernel_constraint, bias_constraint,
                                    params, leaky=leaky, is2D=True, batch=batch)
         i-=1
-        conv_up_dim*=2
         inp = up
         general_utils.print_int_shape(up)
 
@@ -252,7 +251,7 @@ def TCNet_3dot5D(params, batch=True, drop=True, leaky=True, MCD=True, single_enc
     # With return_sequences=False, the output shape is: (batch_size, nb_filters)
     tcn_layer = TCN(nb_filters=64,
                     kernel_size=2,
-                    dilations=(1, 2, 4, 8, 16),
+                    dilations=(1,2,4,8,16),
                     padding='causal',
                     return_sequences=False,
                     dropout_rate=params["dropout"]["tcn"],

@@ -441,7 +441,7 @@ def mJNet_4D(params, batch=True, drop=False, MCD=True, leaky=True, attentiongate
 
     assert reduce_dim in [1, 2], "reduce_dim can only be 1 or 2"
 
-    limchan = 2  # 2
+    limchan = 2
     # kernel_shape = (3, 3, n_slices, 3) if is_timelast() else (n_slices, 3, 3, 3)
     kernel_shape = (3, 3, n_slices, getNUMBER_OF_IMAGE_PER_SECTION()) if is_timelast() else (n_slices, getNUMBER_OF_IMAGE_PER_SECTION(), 3, 3)
     min_size = 8 if get_m() < get_img_width() else 32

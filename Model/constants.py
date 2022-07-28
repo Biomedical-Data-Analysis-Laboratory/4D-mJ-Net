@@ -72,8 +72,8 @@ def set_tile_dim(t):
         N = int(t)
         SLICING_PIXELS = int(M/4)
     else:
-        M = 16
-        N = 16
+        M = 512
+        N = 512
         SLICING_PIXELS = int(M/4)
 
 

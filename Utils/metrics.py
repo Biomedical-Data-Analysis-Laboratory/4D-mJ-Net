@@ -10,7 +10,7 @@ import tensorflow.keras.backend as K
 
 ################################################################################
 # Function that calculates the SOFT DICE coefficient. Important when calculates the different of two images
-def _squared_dice_coef(y_true, y_pred, class_weights, is_loss, class_axis=None):
+def _squared_dice_coef(y_true, y_pred, class_weights, is_loss, smooth=100, class_axis=None):
     """
     Compute weighted squared Dice loss.
 
@@ -18,11 +18,18 @@ def _squared_dice_coef(y_true, y_pred, class_weights, is_loss, class_axis=None):
          =  2*sum(|A*B|)/(sum(A^2)+sum(B^2))
     ref: https://arxiv.org/pdf/1606.04797v1.pdf
     """
+    if not is_loss: smooth = K.epsilon()
     y_true, y_pred, axis_to_reduce = process_input(y_true, y_pred, class_weights, class_axis, is_loss)
-
-    numerator = 2. * K.sum(y_true * y_pred, axis=axis_to_reduce)
-    denominator = K.sum(K.square(y_true) + K.square(y_pred), axis=axis_to_reduce)
-    out = numerator / (denominator+K.epsilon())
+    out = 0
+    if is_loss:
+        for a in axis_to_reduce:
+            numerator = 2. * K.sum(K.abs(y_true[:,a,...] * y_pred[:,a,...]))
+            denominator = K.sum(K.square(y_true[:,a,...]))+ K.sum(K.square(y_pred[:,a,...]))
+            out += ((numerator+smooth) / (denominator+smooth))
+    else:
+        numerator = 2. * K.sum(K.abs(y_true * y_pred), axis=axis_to_reduce)
+        denominator = K.sum(K.square(y_true),axis=axis_to_reduce) + K.sum(K.square(y_pred),axis=axis_to_reduce)
+        out = (numerator+smooth) / (denominator+smooth)
     return out
 
 
@@ -51,17 +58,20 @@ def sdc_c(y_true, y_pred, is_loss=False):
 # Calculate the real value for the Dice coefficient,
 # but it returns lower values than the other dice_coef + lower specificity and precision
 # == to F1 score for boolean values
-def _dice_coef(y_true, y_pred, class_weights, is_loss, class_axis=None):
+def _dice_coef(y_true, y_pred, class_weights, is_loss, smooth=100, class_axis=None):
     """ Compute weighted Dice loss. """
-    # if is_loss:
-    #     general_utils.pickle_save(K.eval(y_true), "/bhome/lucat/y_true.pkl")
-    #     general_utils.pickle_save(K.eval(y_pred), "/bhome/lucat/y_pred.pkl")
-
+    if not is_loss: smooth=K.epsilon()
     y_true,y_pred,axis_to_reduce = process_input(y_true, y_pred, class_weights, class_axis, is_loss)
-
-    numerator = 2. * K.sum(y_true * y_pred, axis=axis_to_reduce)
-    denominator = K.sum(y_true + y_pred, axis=axis_to_reduce)
-    out = numerator / (denominator+K.epsilon())
+    out = 0
+    if is_loss:
+        for a in axis_to_reduce:
+            numerator = 2. * K.sum(K.abs(y_true[:,a,...] * y_pred[:,a,...]))
+            denominator = K.sum(y_true[:,a,...] + y_pred[:,a,...])
+            out += ((numerator+smooth) / (denominator+smooth))
+    else:
+        numerator = 2. * K.sum(K.abs(y_true * y_pred), axis=axis_to_reduce)
+        denominator = K.sum(y_true + y_pred,  axis=axis_to_reduce)
+        out = (numerator + smooth) / (denominator + smooth)
     return out
 
 
@@ -117,7 +127,7 @@ def _tversky_coef(y_true, y_pred, class_weights, is_loss, class_axis=None):
     denominator = (y_true * y_pred) + alpha * (y_true * (1 - y_pred)) + beta * ((1 - y_true) * y_pred)
     denominator = K.sum(denominator, axis=axis_to_reduce)
 
-    out = numerator / (denominator + K.epsilon())
+    out = (numerator+ K.epsilon()) / (denominator + K.epsilon())
     return out
 
 
@@ -251,7 +261,7 @@ def prec_c(y_true, y_pred):
     return _precision(y_true, y_pred, class_weights, class_axis=get_n_classes()-1)
 
 
-def _precision(y_true, y_pred, class_weights, class_axis, thres=0.5):
+def _precision(y_true, y_pred, class_weights, class_axis):
     y_true, y_pred, axis_to_reduce = process_input(y_true, y_pred, class_weights, class_axis)
 
     numerator = K.sum(y_true * y_pred, axis=axis_to_reduce)
@@ -272,7 +282,7 @@ def rec_c(y_true, y_pred):
     return _recall(y_true, y_pred, class_weights, class_axis=get_n_classes()-1)
 
 
-def _recall(y_true, y_pred, class_weights, class_axis, thres=0.5):
+def _recall(y_true, y_pred, class_weights, class_axis):
     y_true, y_pred, axis_to_reduce = process_input(y_true, y_pred, class_weights, class_axis)
 
     numerator = K.sum(y_true * y_pred, axis=axis_to_reduce)
@@ -320,16 +330,13 @@ def _iou(y_true, y_pred, label: int):
     return K.switch(K.equal(union, 0), 0.0, intersection / union)
 
 
-def iou_p(y_true, y_pred):
-    return _iou(y_true,y_pred,1)
+def iou_p(y_true, y_pred): return _iou(y_true,y_pred,1)
 
 
-def iou_c(y_true, y_pred):
-    return _iou(y_true,y_pred,get_n_classes()-1)
+def iou_c(y_true, y_pred): return _iou(y_true,y_pred,get_n_classes()-1)
 
 
-def iou_rest(y_true, y_pred):
-    return _iou(y_true,y_pred,0)
+def iou_rest(y_true, y_pred): return _iou(y_true,y_pred,0)
 
 
 ################################################################################

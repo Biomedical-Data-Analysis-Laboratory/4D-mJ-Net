@@ -34,7 +34,8 @@ def tversky_loss(y_true, y_pred):
 def focal_tversky_loss(y_true, y_pred):
     ft_params = get_Focal_Tversky()
     tv = metrics.tversky_coef(y_true, y_pred, is_loss=True)
-    return K.pow((1 - tv), (1/ft_params["gamma"]))
+    # return K.pow((1-tv), (1/ft_params["gamma"]))
+    return (1-tv)**(1/ft_params["gamma"])
 
 
 ################################################################################

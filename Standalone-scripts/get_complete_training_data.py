@@ -26,7 +26,7 @@ def initializeLabels(patientIndex):
 
 ################################################################################
 def getLabelledAreas(patientIndex, timeIndex):
-    return cv2.imread(LABELED_IMAGES_FOLDER_LOCATION+IMAGE_PREFIX+patientIndex+"/"+timeIndex+IMAGE_SUFFIX, cv2.IMREAD_GRAYSCALE)
+    return cv2.imread(LABELED_IMAGES_FOLDER_LOCATION+IMAGE_PREFIX+patientIndex+"/"+timeIndex+GT_SUFFIX, cv2.IMREAD_GRAYSCALE)
 
 
 ################################################################################
@@ -170,7 +170,7 @@ def fillDatasetOverTime(relativePath, patientIndex, timeFolder, infor_file):
                 numReplication = 6 if DATA_AUGMENTATION else 1
                 numCore += numReplication
 
-            if TILE_DIVISION == 1 and DATA_AUGMENTATION: numReplication = 6
+            # if TILE_DIVISION == 1 and DATA_AUGMENTATION: numReplication = 6
         else:
             if classToSet == LABELS[1]: numBrain += 1
             elif classToSet == LABELS[2]: numPenumbra += 1
@@ -214,7 +214,7 @@ def fillDatasetOverTime(relativePath, patientIndex, timeFolder, infor_file):
 
                 # if we are processing for the sequence dataset, save the path for the ground truth
                 if SEQUENCE_DATASET:
-                    otherInforList[data_aug_idx][str(startingX)][str(startingY)]["ground_truth"] = LABELED_IMAGES_FOLDER_LOCATION+IMAGE_PREFIX+patientIndex+"/"+sliceIndex+IMAGE_SUFFIX
+                    otherInforList[data_aug_idx][str(startingX)][str(startingY)]["ground_truth"] = LABELED_IMAGES_FOLDER_LOCATION+IMAGE_PREFIX+patientIndex+"/"+sliceIndex+GT_SUFFIX
                     if HASDAYFOLDER: otherInforList[data_aug_idx][str(startingX)][str(startingY)]["mask"] = MASKS_IMAGES_FOLDER_LOCATION + IMAGE_PREFIX + patientIndex + "/" + sliceIndex + IMAGE_SUFFIX
                     otherInforList[data_aug_idx][str(startingX)][str(startingY)]["pixels"] = timeFolder
 
@@ -278,16 +278,16 @@ def fillDatasetOverTime(relativePath, patientIndex, timeFolder, infor_file):
                 if SEQUENCE_DATASET:
                     pixels_zoom = otherInforList[d][x][y]["pixels"]
                     if HASDAYFOLDER:
-                        cbf = otherInforList[d][x][y]["CBF"]
-                        cbv = otherInforList[d][x][y]["CBV"]
-                        ttp = otherInforList[d][x][y]["TTP"]
-                        tmax = otherInforList[d][x][y]["TMAX"]
-                        mip = otherInforList[d][x][y]["MIP"]
+                        cbf = otherInforList[d][x][y]["CBF"] if "CBF" in otherInforList[d][x][y].keys() else ""
+                        cbv = otherInforList[d][x][y]["CBV"] if "CBV" in otherInforList[d][x][y].keys() else ""
+                        ttp = otherInforList[d][x][y]["TTP"] if "TTP" in otherInforList[d][x][y].keys() else ""
+                        tmax = otherInforList[d][x][y]["TMAX"] if "TMAX" in otherInforList[d][x][y].keys() else ""
+                        mip = otherInforList[d][x][y]["MIP"] if "MIP" in otherInforList[d][x][y].keys() else ""
                     else:
-                        cbf = otherInforList[d][x][y]["CBF"]
-                        cbv = otherInforList[d][x][y]["CBV"]
-                        mtt = otherInforList[d][x][y]["MTT"]
-                        tmax = otherInforList[d][x][y]["TMAX"]
+                        cbf = otherInforList[d][x][y]["CBF"] if "CBF" in otherInforList[d][x][y].keys() else ""
+                        cbv = otherInforList[d][x][y]["CBV"] if "CBV" in otherInforList[d][x][y].keys() else ""
+                        mtt = otherInforList[d][x][y]["MTT"] if "MTT" in otherInforList[d][x][y].keys() else ""
+                        tmax = otherInforList[d][x][y]["TMAX"] if "TMAX" in otherInforList[d][x][y].keys() else ""
 
                 else:
                     if ORIGINAL_SHAPE: totalVol = np.empty((1,M,N))
@@ -311,7 +311,7 @@ def fillDatasetOverTime(relativePath, patientIndex, timeFolder, infor_file):
                     if ORIGINAL_SHAPE: pixels_zoom = ndimage.zoom(totalVol,[zoom_val,1,1],output=np.uint8)
                     else: pixels_zoom = ndimage.zoom(totalVol,[1,1,zoom_val],output=np.uint8)
 
-                ## USE THIS TO CHECK THE VALIDITIY OF THE INTERPOLATION
+                # # USE THIS TO CHECK THE VALIDITIY OF THE INTERPOLATION
                 # print(pixels_zoom.shape)
                 # for z in range(0,pixels_zoom.shape[0]):
                 #     print(ROOT_PATH+"Test/img_{0}_{1}_{2}_{3}.png".format(d,x,y,z))
@@ -387,7 +387,7 @@ def runSingleDataframe(numFold, patientFolder, suffix_filename, infor_file, lpf)
 
         subfolders = np.sort(glob.glob(patientFolder+"*/"))
         print("[INFO] - Analyzing {0}/{1}; patient folder: {2}...".format(numFold+1, lpf, relativePath))
-        # if the manual annotation folder
+        # if the manual annotation folder exists
         if os.path.isdir(LABELED_IMAGES_FOLDER_LOCATION+IMAGE_PREFIX+patientIndex+"/"):
             for count, timeFolder in enumerate(subfolders):  # for each slicing time
                 initializeLabels(patientIndex)
@@ -419,7 +419,7 @@ def getSettingFile(filename):
 # Set the setting from the file
 def setSettings():
     global DATASET_NAME, ROOT_PATH, SCRIPT_PATH, SAVE_REGISTERED_FOLDER, LABELED_IMAGES_FOLDER_LOCATION, IMAGE_PREFIX
-    global IMAGE_SUFFIX, NUMBER_OF_IMAGE_PER_SECTION, IMAGE_WIDTH, IMAGE_HEIGHT
+    global IMAGE_SUFFIX, GT_SUFFIX, NUMBER_OF_IMAGE_PER_SECTION, IMAGE_WIDTH, IMAGE_HEIGHT
     global BINARY_CLASSIFICATION, LABELS, LABELS_THRESHOLDS, LABELS_REALVALUES, TILE_DIVISION, SEQUENCE_DATASET
     global SKIP_TILES, ORIGINAL_SHAPE, DATA_AUGMENTATION, ONE_TIME_POINT, COLUMNS, setting
     global NEW_GROUNDTRUTH_VALUES, M, N, SLICING_PIXELS, MASKS_IMAGES_FOLDER_LOCATION, PM_FOLDER
@@ -433,6 +433,7 @@ def setSettings():
     MASKS_IMAGES_FOLDER_LOCATION = setting["MASKS_IMAGES_FOLDER_LOCATION"]
     IMAGE_PREFIX = setting["IMAGE_PREFIX"]
     IMAGE_SUFFIX = setting["IMAGE_SUFFIX"]
+    GT_SUFFIX = setting["GT_SUFFIX"]
     NUMBER_OF_IMAGE_PER_SECTION = setting["NUMBER_OF_IMAGE_PER_SECTION"]
     IMAGE_WIDTH = setting["IMAGE_WIDTH"]
     IMAGE_HEIGHT = setting["IMAGE_HEIGHT"]
@@ -456,7 +457,7 @@ def setSettings():
 
     if not os.path.isdir(SCRIPT_PATH): os.mkdir(SCRIPT_PATH)
 
-    if NEW_GROUNDTRUTH_VALUES:
+    if NEW_GROUNDTRUTH_VALUES and not BINARY_CLASSIFICATION:
         LABELS_THRESHOLDS = [0, 70, 155, 230]  # [250, 0 , 30, 100]
         LABELS_REALVALUES = [0, 85, 170, 255]
 
@@ -466,7 +467,7 @@ def setSettings():
 ################################################################################
 if __name__ == '__main__':
     global DATASET_NAME, ROOT_PATH, SCRIPT_PATH, SAVE_REGISTERED_FOLDER, LABELED_IMAGES_FOLDER_LOCATION, IMAGE_PREFIX
-    global IMAGE_SUFFIX, NUMBER_OF_IMAGE_PER_SECTION, IMAGE_WIDTH, IMAGE_HEIGHT
+    global IMAGE_SUFFIX, GT_SUFFIX, NUMBER_OF_IMAGE_PER_SECTION, IMAGE_WIDTH, IMAGE_HEIGHT
     global BINARY_CLASSIFICATION, LABELS, LABELS_THRESHOLDS, LABELS_REALVALUES, TILE_DIVISION, SEQUENCE_DATASET
     global SKIP_TILES, ORIGINAL_SHAPE, DATA_AUGMENTATION, ONE_TIME_POINT, COLUMNS, PM_FOLDER
     global NEW_GROUNDTRUTH_VALUES, M, N, SLICING_PIXELS, MASKS_IMAGES_FOLDER_LOCATION, setting

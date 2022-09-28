@@ -9,7 +9,7 @@ SCRIPT_PATH = "/local/home/lucat/DATASET/"+DATASET_NAME
 IMAGE_WIDTH, IMAGE_HEIGHT = 512, 512
 TILE_DIVISION = 16
 VERBOSE = 1
-M, N = int(IMAGE_WIDTH/TILE_DIVISION), int(IMAGE_HEIGHT/TILE_DIVISION)
+M, N = int(IMAGE_HEIGHT/TILE_DIVISION), int(IMAGE_HEIGHT / TILE_DIVISION)
 SLICING_PIXELS = int(M/4) # USE ALWAYS M/4
 
 ################################################################################
@@ -35,7 +35,6 @@ def convertDatasets():
         print("here")
 
         # df.pixels = df.pixels.map(fu)
-
 
         for row in df.itertuples():
             pixels = row.pixels

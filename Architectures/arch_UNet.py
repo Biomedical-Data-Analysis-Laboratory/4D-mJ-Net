@@ -1,4 +1,4 @@
-from Model import constants
+from Model.constants import *
 from Utils import general_utils
 
 from keras import layers, models, regularizers, initializers
@@ -10,14 +10,14 @@ def Ronneberger_UNET(params):
     # Hu initializer = [0, sqrt(2/fan_in)]
     hu_init = initializers.he_normal(seed=None)
 
-    input_x = layers.Input(shape=(constants.getM(), constants.getN(), constants.NUMBER_OF_IMAGE_PER_SECTION, 1), sparse=False)
+    input_x = layers.Input(shape=(get_m(), get_n(), getNUMBER_OF_IMAGE_PER_SECTION(), 1), sparse=False)
     print(K.int_shape(input_x)) # (None, 30, 16, 16, 1)
-    conv_1 = layers.Conv3D(64, kernel_size=(constants.NUMBER_OF_IMAGE_PER_SECTION, 3, 3), activation='relu', padding='same', kernel_initializer=hu_init)(input_x)
+    conv_1 = layers.Conv3D(64, kernel_size=(getNUMBER_OF_IMAGE_PER_SECTION(), 3, 3), activation='relu', padding='same', kernel_initializer=hu_init)(input_x)
     print(K.int_shape(conv_1)) # (None, 30, 16, 16, 64)
-    conv_2 = layers.Conv3D(64, kernel_size=(constants.NUMBER_OF_IMAGE_PER_SECTION, 3, 3), activation='relu', padding='same', kernel_initializer=hu_init)(conv_1)
+    conv_2 = layers.Conv3D(64, kernel_size=(getNUMBER_OF_IMAGE_PER_SECTION(), 3, 3), activation='relu', padding='same', kernel_initializer=hu_init)(conv_1)
     print(K.int_shape(conv_2)) # (None, 30, 16, 16, 64)
 
-    pool_1 = layers.MaxPooling3D((constants.NUMBER_OF_IMAGE_PER_SECTION, 2, 2))(conv_2)
+    pool_1 = layers.MaxPooling3D((getNUMBER_OF_IMAGE_PER_SECTION(), 2, 2))(conv_2)
     print(K.int_shape(pool_1)) # (None, 1, 8, 8, 64)
     conv_3 = layers.Conv3D(128, kernel_size=(3,3,3), activation='relu', padding='same', kernel_initializer=hu_init)(pool_1)
     print(K.int_shape(conv_3)) # (None, 1, 8, 8, 128)
@@ -84,7 +84,7 @@ def Ronneberger_UNET(params):
     # up_4 = layers.Conv3DTranspose(64, kernel_size=(1,2,2), strides=(1,2,2), activation='relu', padding='same', kernel_initializer=hu_init)(conv_16)
     up_4 = layers.UpSampling3D(size=(1,2,2))(conv_16)
     print(K.int_shape(up_4)) # (None, 1, 16, 16, 128)
-    convpool_2 = layers.MaxPooling3D((constants.NUMBER_OF_IMAGE_PER_SECTION, 1, 1))(conv_2)
+    convpool_2 = layers.MaxPooling3D((getNUMBER_OF_IMAGE_PER_SECTION(), 1, 1))(conv_2)
     convpool_2 = layers.concatenate([convpool_2,convpool_2])
     conc_4 = layers.concatenate([up_4, convpool_2], axis=-1)
     print(K.int_shape(conc_4)) # (None, 1, 16, 16, 128)
@@ -98,7 +98,7 @@ def Ronneberger_UNET(params):
     conv_20 = layers.Conv3D(4, (1,1,1), activation="softmax", padding='same', kernel_initializer=hu_init)(conv_19)
     print(K.int_shape(conv_20)) # (None, 1, 16, 16, 4)
 
-    y = layers.Reshape((constants.getM(), constants.getN(), 4))(conv_20)
+    y = layers.Reshape((get_m(), get_n(), 4))(conv_20)
     print(K.int_shape(y))
     model = models.Model(inputs=input_x, outputs=y)
     return model

@@ -9,13 +9,13 @@ def convertStudyImages(patient):
     savePatientFolder = os.path.join(SAVE_PATH, patient_id)
     if not os.path.exists(savePatientFolder): os.makedirs(savePatientFolder)
 
-    CTP_study = np.zeros((512,512,len(glob.glob(patient + "*/")),30))
-    for i_s, s in enumerate(np.sort(glob.glob(patient + "*/"))):
+    CTP_study = np.zeros((512,512,len(glob.glob(patient + "*" + os.path.sep)),30))
+    for i_s, s in enumerate(np.sort(glob.glob(patient + "*" + os.path.sep))):
         for i_t, imagename in enumerate(np.sort(glob.glob(s + "*.tiff"))):
             img = cv2.imread(imagename)
             CTP_study[:,:,i_s,i_t] = img
 
-    niftiStudy = nb.Nifti1Image(CTP_study)
+    niftiStudy = nib.Nifti1Image(CTP_study)
     save_path = savePatientFolder+"study.nii.gz"
     nib.save(niftiStudy, save_path)
 

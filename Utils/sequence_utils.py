@@ -1,51 +1,53 @@
 import warnings
-warnings.simplefilter(action='ignore', category=FutureWarning)
 
-import math, cv2, glob, time, os
+import math, cv2, platform
 from typing import Set, Dict, Any
 
 import numpy as np
 import pandas as pd
-import tensorflow as tf
-from scipy import ndimage
 from tensorflow.keras.utils import Sequence
-from tensorflow.keras.preprocessing.image import load_img, img_to_array
 
-from Model import constants
+from Model.constants import *
 from Utils import general_utils, dataset_utils, model_utils
+
+warnings.simplefilter(action='ignore', category=FutureWarning)
 
 
 ################################################################################
 # https://faroit.com/keras-docs/2.1.3/models/sequential/#fit_generator
-class datasetSequence(Sequence):
-    def __init__(self, dataframe, indices, sample_weights, x_label, y_label, multiInput, batch_size, params,
-                 back_perc, is4DModel, inputImgFlag, supervised, patientsFolder, SVO_focus=False, flagtype="train", loss=None):
+class ds_sequence(Sequence):
+    def __init__(self, dataframe, indices, x_label, y_label, multi_input, batch_size, params, back_perc,
+                 is3dot5DModel, is4DModel, inputImgFlag, supervised, patients_folder, labeled_img_folder, constants,
+                 name, SVO_focus=False, flagtype="train", loss=None):
         self.indices = indices
         self.dataframe = dataframe.iloc[self.indices]
-
-        self.sample_weights = sample_weights
+        self.name = name
         self.x_label = x_label
         self.y_label = y_label
-        self.multiInput = multiInput
+        self.multi_input = multi_input
         self.batch_size = batch_size
         self.params = params
         self.back_perc = back_perc
-        self.flagtype = flagtype
+        self.flag_type = flagtype
         self.loss = loss
+        self.is3dot5DModel = is3dot5DModel
         self.is4DModel = is4DModel
         self.SVO_focus = SVO_focus
         self.inputImgFlag = inputImgFlag  # only works when the input are the PMs (concatenate)
         self.supervised = supervised
-        self.patientsFolder = patientsFolder
+        self.patients_folder = patients_folder
+        self.labeled_img_folder = labeled_img_folder
+        self.constants = constants
+        self.train = True if self.flag_type != "test" else False
 
-        if self.flagtype != "test":
+        if self.flag_type != "test":
             # get ALL the rows with label != from background
-            self.dataframenoback = self.dataframe.loc[self.dataframe.label != constants.LABELS[0]]
+            self.df_noback = self.dataframe.loc[self.dataframe.label != get_labels()[0]]
             # also, get a back_perc of rows with label == background
-            self.dataframeback = self.dataframe.loc[self.dataframe.label == constants.LABELS[0]]
-            if self.back_perc < 100: self.dataframeback = self.dataframeback[:int((len(self.dataframeback)/100)*self.back_perc)]
+            self.df_back = self.dataframe.loc[self.dataframe.label == get_labels()[0]]
+            if self.back_perc < 100: self.df_back = self.df_back[:int((len(self.df_back) / 100) * self.back_perc)]
             # combine the two dataframes
-            self.dataframe = pd.concat([self.dataframenoback, self.dataframeback], sort=False)
+            self.dataframe = pd.concat([self.df_noback, self.df_back], sort=False)
 
         self.index_pd_DA: Dict[str, Set[Any]] = {"0": set(),"1": set(),"2": set(),"3": set(),"4": set(),"5": set()}
         self.index_batch = None
@@ -53,7 +55,7 @@ class datasetSequence(Sequence):
         self.n_slices = 0 if "n_slices" not in self.params.keys() else self.params["n_slices"]
 
     def on_epoch_end(self):
-        self.dataframe = self.dataframe.sample(frac=1)  # shuffle the dataframe rows at the end of a epoch
+        self.dataframe = self.dataframe.sample(frac=1)  # shuffle the dataframe rows at the end of an epoch
 
     # Every Sequence must implement the __getitem__ and the __len__ methods
     def __len__(self):
@@ -67,88 +69,83 @@ class datasetSequence(Sequence):
         self.index_batch = current_batch.index
 
         # empty initialization
-        X = np.empty((len(current_batch), constants.getM(), constants.getN(), constants.NUMBER_OF_IMAGE_PER_SECTION, 1)) if constants.getTIMELAST() else np.empty((len(current_batch), constants.NUMBER_OF_IMAGE_PER_SECTION, constants.getM(), constants.getN(), 1))
-        Y = np.empty((len(current_batch), constants.getM(), constants.getN()))
-        weights = np.empty((len(current_batch),))
-
-        if constants.getUSE_PM(): X = np.empty((len(current_batch), constants.getM(), constants.getN()))
+        X = np.empty((len(current_batch), self.constants["NUMBER_OF_IMAGE_PER_SECTION"], self.constants["M"], self.constants["N"], 1))
+        if self.constants["TIME_LAST"]: X = np.empty((len(current_batch), self.constants["M"], self.constants["N"], self.constants["NUMBER_OF_IMAGE_PER_SECTION"], 1))
+        Y = []
+        # set the weights to nothing if the input is 512x512, else follow the sample_weights from the NN class
+        # weights = np.empty((len(current_batch),)) if self.constants["M"]==self.constants["IMAGE_WIDTH"] \
+        #                                              and self.constants["N"]==self.constants["IMAGE_HEIGHT"] \
+        #     else np.array(current_batch.weights)
+        weights = np.array(current_batch.weights)
+        if self.constants["USE_PM"]: X = np.empty((len(current_batch), self.constants["M"], self.constants["N"]))
 
         # reset the index for the data augmentation
         self.index_pd_DA: Dict[str, Set[Any]] = {"0": set(),"1": set(),"2": set(),"3": set(),"4": set(),"5": set()}
 
-        # path to the folder containing the NUMBER_OF_IMAGE_PER_SECTION time point images
-        X, weights = self.getX(X, current_batch, weights)
-        # path to the ground truth image
-        if self.y_label=="ground_truth": Y, weights = self.getY(current_batch, weights)
+        # path to the folder containing the getNUMBER_OF_IMAGE_PER_SECTION() time point images
+        X, Y, weights = self.get_XY(X, Y, weights, current_batch)
+        return X, np.array(Y), weights
 
-        # Check if any value is NaN
-        # if np.isnan(np.unique(Y)).any(): print("__getitem__", [gt for gt in current_batch.ground_truth])
+    ################################################################################
+    # return the X set and the relative weights based on the pixels column
+    def get_XY(self, X, Y, weights, current_batch):
+        for index, (row_index, row) in enumerate(current_batch.iterrows()):
+            # add the index into the correct set
+            self.index_pd_DA[str(row["data_aug_idx"])].add(row_index)
+            X = model_utils.get_correct_X_for_input_model(self, row[self.x_label], row, batch_idx=index,
+                                                          batch_len=len(current_batch), X=X, train=True)
+            if self.y_label=="ground_truth": Y, weights = self.get_Y(Y, row, index, weights)
 
         return X, Y, weights
 
     ################################################################################
-    # return the X set and the relative weights based on the pixels column
-    def getX(self, X, current_batch, weights):
-        for index, (_, row) in enumerate(current_batch.iterrows()):
-            current_folder = row[self.x_label]
-            # add the index into the correct set
-            self.index_pd_DA[str(row["data_aug_idx"])].add(index)
-            X = model_utils.getCorrectXForInputModel(self, current_folder, row, batchIndex=index, batch_length=len(current_batch), X=X, train=True)
-
-        return X, weights
-
-    ################################################################################
     # Return the Y set and the weights
-    def getY(self, current_batch, weights):
-        Y = []
-        for aug_idx in self.index_pd_DA.keys():
-            if len(self.index_pd_DA[aug_idx])==0: continue
-            for index in self.index_pd_DA[aug_idx]:
-                row_index = self.index_batch[index]
-                filename = current_batch.loc[row_index][self.y_label]
-                coord = current_batch.loc[row_index]["x_y"]  # coordinates of the slice window
-                if not isinstance(filename,str): print(filename)
-                img = cv2.imread(filename,cv2.IMREAD_GRAYSCALE)
+    def get_Y(self, Y, row, index, weights):
+        aug_idx = str(row["data_aug_idx"])  # index if there's augmentation
+        filename = row[self.y_label]
+        if platform.system()=="Windows": filename = filename.replace(filename[:filename.rfind("/",0,len(filename)-7)], self.labeled_img_folder)
+        if not isinstance(filename,str): print(filename)
 
-                img = general_utils.getSlicingWindow(img, coord[0], coord[1], isgt=True)
+        coord = row["x_y"]  # coordinates of the slice window
+        img = cv2.imread(filename,cv2.IMREAD_GRAYSCALE)
+        assert img is not None, "The image {} is None".format(filename)
+        img = general_utils.get_slice_window(img, coord[0], coord[1], self.constants, train=self.train, is_gt=True)
 
-                # remove the brain from the image ==> it becomes background
-                if constants.N_CLASSES<=3: img[img == 85] = constants.PIXELVALUES[0]
-                # remove the penumbra ==> it becomes core
-                if constants.N_CLASSES==2: img[img == 170] = constants.PIXELVALUES[1]
+        # remove the brain from the image ==> it becomes background
+        if self.constants["N_CLASSES"]<=3: img[img == 85] = 0
+        # remove the penumbra ==> it becomes core
+        if self.constants["N_CLASSES"]==2: img[img == 170] = self.constants["PIXELVALUES"][1]
 
-                # Override the weights based on the pixel values
-                if constants.N_CLASSES>2:
-                    core_idx, penumbra_idx = 3, 2
-                    if constants.N_CLASSES == 3: core_idx, penumbra_idx = 2, 1
-                    core_value, core_weight = constants.PIXELVALUES[core_idx], constants.HOT_ONE_WEIGHTS[0][core_idx]
-                    penumbra_value, penumbra_weight = constants.PIXELVALUES[penumbra_idx], constants.HOT_ONE_WEIGHTS[0][penumbra_idx]
+        weights = self._get_weights(weights, index, row, img) if self.loss!="weighted_categorical_crossentropy" else None
 
-                    # focus on the SVO core only during training (only for SUS2020 dataset)!
-                    if self.SVO_focus and current_batch.loc[row_index]["severity"]=="02":
-                        core_weight *= 6
-                        penumbra_weight *= 6
+        # convert the label in [0, 1] values, for to_categ the division happens inside dataset_utils.getSingleLabelFromIndexCateg
+        if not self.constants["TO_CATEG"]: img = np.divide(img, 255)
+        # Perform data augmentation on the ground truth
+        img = general_utils.perform_DA_on_img(img, int(aug_idx))
+        if self.constants["TO_CATEG"] and not self.loss == "sparse_categorical_crossentropy":  # Convert the image to categorical if needed
+            img = dataset_utils.get_single_label_from_idx_categ(img, self.constants["N_CLASSES"])
 
-                    # sum the pixel value for the image with the corresponding "weight" for class
-                    f = lambda x: np.sum(np.where(np.array(x) == core_value, core_weight,
-                                                  np.where(np.array(x) == penumbra_value, penumbra_weight, constants.HOT_ONE_WEIGHTS[0][0])))
-                    weights[index] = f(img) / (constants.getM() * constants.getN())
-                elif constants.N_CLASSES == 2:
-                    core_value, core_weight = constants.PIXELVALUES[1], constants.HOT_ONE_WEIGHTS[0][1]
-                    f = lambda x: np.sum(np.where(np.array(x) == core_value, core_weight, constants.HOT_ONE_WEIGHTS[0][0]))
-                    weights[index] = f(img) / (constants.getM() * constants.getN())
+        Y.append(img)
 
-                # convert the label in [0, 1] values,
-                # for to_categ the division happens inside dataset_utils.getSingleLabelFromIndexCateg
-                if not constants.getTO_CATEG(): img = np.divide(img,255)
+        return Y, weights
 
-                if aug_idx=="0": img = img if not constants.getTO_CATEG() or self.loss=="sparse_categorical_crossentropy" else dataset_utils.getSingleLabelFromIndexCateg(img)
-                elif aug_idx=="1": img = np.rot90(img) if not constants.getTO_CATEG() or self.loss=="sparse_categorical_crossentropy" else dataset_utils.getSingleLabelFromIndexCateg(np.rot90(img))
-                elif aug_idx=="2": img = np.rot90(img, 2) if not constants.getTO_CATEG() or self.loss=="sparse_categorical_crossentropy" else dataset_utils.getSingleLabelFromIndexCateg(np.rot90(img, 2))
-                elif aug_idx=="3": img = np.rot90(img, 3) if not constants.getTO_CATEG() or self.loss=="sparse_categorical_crossentropy" else dataset_utils.getSingleLabelFromIndexCateg(np.rot90(img, 3))
-                elif aug_idx=="4": img = np.flipud(img) if not constants.getTO_CATEG() or self.loss=="sparse_categorical_crossentropy" else dataset_utils.getSingleLabelFromIndexCateg(np.flipud(img))
-                elif aug_idx=="5": img = np.fliplr(img) if not constants.getTO_CATEG() or self.loss=="sparse_categorical_crossentropy" else dataset_utils.getSingleLabelFromIndexCateg(np.fliplr(img))
+    def _get_weights(self, weights, index, row, img):
+        # Override the weights based on the pixel values (ONLY IF X==WIDTH && Y==HEIGHT)
+        if self.constants["M"] == self.constants["IMAGE_WIDTH"] and self.constants["N"] == self.constants["IMAGE_HEIGHT"]:
+            if self.constants["N_CLASSES"] > 2:
+                core_idx, penumbra_idx = 3, 2
+                if self.constants["N_CLASSES"] == 3: core_idx, penumbra_idx = 2, 1
+                core_value, core_weight = self.constants["PIXELVALUES"][core_idx], self.constants["weights"][core_idx]
+                penumbra_value, penumbra_weight = self.constants["PIXELVALUES"][penumbra_idx], self.constants["weights"][penumbra_idx]
 
-                Y.append(img)
+                # focus on the SVO core only during training (only for SUS2020 dataset)!
+                if self.SVO_focus and row["severity"] == "02":
+                    core_weight *= 6
+                    penumbra_weight *= 6
 
-        return np.array(Y), weights
+                # sum the pixel value for the image with the corresponding "weight" for class
+                sumpixweight = lambda x: np.sum(np.where(np.array(x) == core_value, core_weight,
+                                                         np.where(np.array(x) == penumbra_value, penumbra_weight,
+                                                                  self.constants["weights"][0])))
+                weights[index] = sumpixweight(img) / (self.constants["M"] * self.constants["N"])
+        return np.array(weights)

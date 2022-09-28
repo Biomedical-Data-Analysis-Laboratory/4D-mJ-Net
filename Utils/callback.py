@@ -1,25 +1,69 @@
-from Model import constants
-from Utils import general_utils
+from Model.constants import *
+from Utils import general_utils, dataset_utils, model_utils
 
-import os, glob, json
+import os, glob, cv2, time
 import numpy as np
-import tensorflow as tf
 from tensorflow.keras import callbacks
 import tensorflow.keras.backend as K
-from sklearn.metrics import roc_auc_score
+
+
+################################################################################
+class DisplayCallback(callbacks.Callback):
+    def __init__(self, ds_seq,text_fold_path):
+        self.ds_seq = ds_seq
+        self.text_fold_path = text_fold_path
+        self.patients = ["01_031","02_036","01_058","01_001","01_004","01_052"]
+        self.slice_idx = "03"
+
+    def on_epoch_end(self, epoch, logs=None):
+        for p in self.patients:
+            dir_path = self.text_fold_path+p+os.path.sep
+            general_utils.create_dir(dir_path)
+            f = "/bhome/lucat/DATASET/SUS2020/COMBINED_Najm_v21-0.5/"+DATASET_PREFIX+p+general_utils.get_suffix()+".pkl"
+            df = dataset_utils.read_pickle_or_hickle(f,flagHickle=False)
+            x,y = 0,0
+            s = time.time()
+            X, coords = None, []
+            img = np.empty((get_img_height(),get_img_height()))
+
+            while True:
+                coords.append((x,y))
+                # if we reach the end of the image, break the while loop.
+                if x>=get_img_width()-get_m() and y>=get_img_height()-get_n(): break
+                if get_m()==get_img_width() and get_n()==get_img_height(): break  # check for M == WIDTH & N == HEIGHT
+                if y<(get_img_height()-get_n()): y+=get_n()  # going to the next slicingWindow
+                else:
+                    if x<get_img_width():
+                        y = 0
+                        x += get_m()
+
+            for i, coord in enumerate(coords):
+                row = df[df.x_y == coord]
+                row = row[row.sliceIndex == self.slice_idx]
+                row = row[row.data_aug_idx == 0]
+                assert len(row) == 1, "The length of the row to analyze should be 1."
+                X = model_utils.get_correct_X_for_input_model(ds_seq=self.ds_seq, current_folder=row["pixels"].iloc[0],
+                                                              row=row, batch_idx=i, batch_len=len(coords), X=X)
+            tmp_img_arr = self.model.predict(X)
+            general_utils.pickle_save(tmp_img_arr, "/bhome/lucat/tmp_img_arr.pkl")
+            for i,tmp_img in enumerate(tmp_img_arr):
+                x,y = coords[i]
+                if is_TO_CATEG(): img[x:x+get_m(),y:y+get_n()] = (np.argmax(tmp_img,axis=-1) * 255) / (get_n_classes() - 1)
+                else: img[x:x+get_m(),y:y+get_n()] = tmp_img*255
+
+            cv2.imwrite(dir_path+self.slice_idx+"_"+str(epoch+1)+".png", img)
 
 
 ################################################################################
 # Return information about the loss and accuracy
 class CollectBatchStats(callbacks.Callback):
-    def __init__(self, root_path, savedModelName, textFolderPath, acc="acc"):
+    def __init__(self, root_path, saved_mdl_name, txt_fold_path, acc="acc"):
         self.batch_losses = []
         self.batch_acc = []
         self.root_path = root_path
-        self.savedModelName = savedModelName
-        self.textFolderPath = textFolderPath
-        # self.folderOfSavedModel = self.savedModelName[:self.savedModelName.rfind("/")+1]
-        self.modelName = self.savedModelName[self.savedModelName.rfind("/"):]
+        self.saved_mdl_name = saved_mdl_name
+        self.txt_fold_path = txt_fold_path
+        self.model_name = self.saved_mdl_name[self.saved_mdl_name.rfind(os.path.sep):]
         self.acc = acc
 
     def on_batch_end(self, batch, logs=None):
@@ -33,72 +77,27 @@ class CollectBatchStats(callbacks.Callback):
         for k, v in logs.items():
             textToSave += ", {}: {}".format(k, round(v, 6))
         textToSave += '\n'
-        with open(self.textFolderPath+self.modelName+"_logs.txt", "a+") as loss_file:
+        with open(self.txt_fold_path + self.model_name + "_logs.txt", "a+") as loss_file:
             loss_file.write(textToSave)
 
-        tmpSavedModels = glob.glob(self.savedModelName + constants.suffix_partial_weights + "*.h5")
+        tmpSavedModels = glob.glob(self.saved_mdl_name + suffix_partial_weights + "*.h5")
         if len(tmpSavedModels) > 1:  # just to be sure and not delete everything
             for file in tmpSavedModels:
-                if self.savedModelName+ constants.suffix_partial_weights in file:
-                    tmpEpoch = general_utils.getEpochFromPartialWeightFilename(file)
+                if self.saved_mdl_name+ suffix_partial_weights in file:
+                    tmpEpoch = general_utils.get_epoch_from_partial_weights_path(file)
                     if tmpEpoch < epoch: os.remove(file)  # Remove the old saved weights
-
-
-################################################################################
-# Callback for the AUC_ROC
-# TODO: NOT working!! <-- use it just for testing
-class RocCallback(callbacks.Callback):
-    def __init__(self, training_data, validation_data, model, sample_weight, savedModelName, textFolderPath):
-        self.x = training_data[0]
-        self.y = training_data[1]
-        self.x_val = validation_data[0]
-        self.y_val = validation_data[1]
-        self.model = model
-        self.sample_weight = sample_weight
-
-        self.savedModelName = savedModelName
-        self.modelName = self.savedModelName[self.savedModelName.rfind("/"):]
-
-    def on_train_begin(self, logs={}):
-        return
-
-    def on_train_end(self, logs={}):
-        return
-
-    def on_epoch_begin(self, epoch, logs={}):
-        return
-
-    def on_epoch_end(self, epoch, logs={}):
-        # TODO: predict_proba does NOT exist!
-        y_pred_train = self.model.predict_proba(self.x)
-        roc_train = roc_auc_score(self.y, y_pred_train, sample_weight=self.sample_weight)
-        y_pred_val = self.model.predict_proba(self.x_val)
-        roc_val = roc_auc_score(self.y_val, y_pred_val, sample_weight=self.sample_weight)
-
-        print('\r roc-auc_train: %s - roc-auc_val: %s' % (str(round(roc_train,4)),str(round(roc_val,4))),end=100*' '+'\n')
-
-        with open(self.textFolderPath+self.modelName+"_aucroc.txt", "a+") as aucroc_file:
-            aucroc_file.write('\r roc-auc_train: %s - roc-auc_val: %s' % (str(round(roc_train,4)),str(round(roc_val,4))),end=100*' '+'\n')
-
-        return
-
-    def on_batch_begin(self, batch, logs={}):
-        return
-
-    def on_batch_end(self, batch, logs={}):
-        return
 
 
 ################################################################################
 # Save the best model every "period" number of epochs
 def modelCheckpoint(filename, monitor, mode, period):
     return callbacks.ModelCheckpoint(
-        filename + constants.suffix_partial_weights + "{epoch:02d}.h5",
-            monitor=monitor,
-            verbose=constants.getVerbose(),
-            save_best_only=True,
-            mode=mode,
-            period=period
+        filename + suffix_partial_weights + "{epoch:02d}.h5",
+        monitor=monitor,
+        verbose=is_verbose(),
+        save_best_only=True,
+        mode=mode,
+        period=period
     )
 
 
@@ -110,7 +109,7 @@ def earlyStopping(monitor, min_delta, patience):
             monitor=monitor,
             min_delta=min_delta,
             patience=patience,
-            verbose=constants.getVerbose(),
+            verbose=is_verbose(),
             mode="auto"
     )
 
@@ -122,7 +121,7 @@ def reduceLROnPlateau(monitor, factor, patience, min_delta, cooldown, min_lr):
             monitor=monitor,
             factor=factor,
             patience=patience,
-            verbose=constants.getVerbose(),
+            verbose=is_verbose(),
             mode='auto',
             min_delta=min_delta,
             cooldown=cooldown,
@@ -136,7 +135,7 @@ def LearningRateScheduler(decay_step, decay_rate):
     def lr_scheduler(epoch, lr):
         if epoch % decay_step == 0 and epoch: return lr * decay_rate
         return lr
-    return callbacks.LearningRateScheduler(lr_scheduler, verbose=constants.getVerbose())
+    return callbacks.LearningRateScheduler(lr_scheduler, verbose=is_verbose())
 
 
 ################################################################################
@@ -159,46 +158,4 @@ def TerminateOnNaN():
 ################################################################################
 # Callback that streams epoch results to a CSV file.
 def CSVLogger(textFolderPath, nn_id, filename, separator):
-    return callbacks.CSVLogger(textFolderPath+nn_id+general_utils.getSuffix()+filename, separator=separator, append=True)
-
-
-################################################################################
-#
-class SavePrediction(callbacks.Callback):
-    def __init__(self):
-        super().__init__()
-        self._get_pred = None
-        self.preds = dict()
-        self.n_pxl = 0
-
-    def _pred_callback(self, preds):
-        batch = K.eval((K.argmax(preds)*255)/(constants.N_CLASSES-1))
-        for val_idx in range(batch.shape[0]):
-            vals = dict(zip(*np.unique(batch[val_idx, :, :], return_counts=True)))
-            for key in vals.keys():
-                if key not in self.preds.keys(): self.preds[key] = 0
-                self.preds[key] += vals[key]
-                self.n_pxl += vals[key]
-
-    def set_model(self, model):
-        super().set_model(model)
-        if self._get_pred is None: self._get_pred = self.model.outputs[0]
-        # if self._get_inp is None: self._get_inp = self.model.inputs[0]
-        # if self._get_target is None: self._get_target = self.model._targets[0]
-
-    def on_test_begin(self, logs):
-        # pylint: disable=protected-access
-        self.model._make_test_function()
-        # pylint: enable=protected-access
-        if self._get_pred not in self.model.test_function.fetches:
-            self.model.test_function.fetches.append(self._get_pred)
-            self.model.test_function.fetch_callbacks[self._get_pred] = self._pred_callback
-
-    def on_test_end(self, logs):
-        if self._get_pred in self.model.test_function.fetches: self.model.test_function.fetches.remove(self._get_pred)
-        if self._get_pred in self.model.test_function.fetch_callbacks: self.model.test_function.fetch_callbacks.pop(self._get_pred)
-
-        print("\n {0} - {1}".format(self.preds, self.n_pxl/(constants.IMAGE_HEIGHT*constants.IMAGE_WIDTH)))
-        self.preds = dict()
-        self.n_pxl = 0
-
+    return callbacks.CSVLogger(textFolderPath + nn_id + general_utils.get_suffix() + filename, separator=separator, append=True)

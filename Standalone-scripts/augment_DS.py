@@ -89,9 +89,9 @@ def readAndMirrorImages():
 
         readAndMirrorGT(relativePatientPath)
 
-        readAndMirrorPM(relativePatientPath)
+        # readAndMirrorPM(relativePatientPath)
 
-        readAndMirror4DCTP(relativePatientPath,patientFolder)
+        # readAndMirror4DCTP(relativePatientPath,patientFolder)
 
         if MASK_NAME!="": readAndMirrorMask(relativePatientPath)
 
@@ -253,21 +253,20 @@ if __name__ == '__main__':
     readAndMirrorImages()
     end = time.time()
     print("Total time: {0}s".format(round(end-start, 3)))
-    print("Rotate the dataset to be vertically aligned.")
 
-    ROOT_PATH = ROOT_PATH.replace("MIRRORED", "ALIGNED")
-    if not os.path.isdir(ROOT_PATH): os.mkdir(ROOT_PATH)
-
-    ALIGNED_REGISTERED_FOLDER = ROOT_PATH + DS_NAME
-    ALIGNED_PM_FOLDER = ROOT_PATH + PM_NAME
-    ALIGNED_GT_FOLDER = ROOT_PATH + GT_NAME
-    if MASK_NAME != "": ALIGNED_MASK_FOLDER = ROOT_PATH + MASK_NAME
-
-    if not os.path.isdir(ALIGNED_REGISTERED_FOLDER): os.mkdir(ALIGNED_REGISTERED_FOLDER)
-    if not os.path.isdir(ALIGNED_PM_FOLDER): os.mkdir(ALIGNED_PM_FOLDER)
-    if not os.path.isdir(ALIGNED_GT_FOLDER): os.mkdir(ALIGNED_GT_FOLDER)
-    if MASK_NAME!="" and not os.path.isdir(ALIGNED_MASK_FOLDER): os.mkdir(ALIGNED_MASK_FOLDER)
-
-    verticalAlignment()
-    newend = time.time()
-    print("Total time: {0}s".format(round(newend-end,3)))
+    # print("Rotate the dataset to be vertically aligned.")
+    # ROOT_PATH = ROOT_PATH.replace("MIRRORED", "ALIGNED")
+    # if not os.path.isdir(ROOT_PATH): os.mkdir(ROOT_PATH)
+    #
+    # ALIGNED_REGISTERED_FOLDER = ROOT_PATH + DS_NAME
+    # ALIGNED_PM_FOLDER = ROOT_PATH + PM_NAME
+    # ALIGNED_GT_FOLDER = ROOT_PATH + GT_NAME
+    # if MASK_NAME != "": ALIGNED_MASK_FOLDER = ROOT_PATH + MASK_NAME
+    #
+    # if not os.path.isdir(ALIGNED_REGISTERED_FOLDER): os.mkdir(ALIGNED_REGISTERED_FOLDER)
+    # if not os.path.isdir(ALIGNED_PM_FOLDER): os.mkdir(ALIGNED_PM_FOLDER)
+    # if not os.path.isdir(ALIGNED_GT_FOLDER): os.mkdir(ALIGNED_GT_FOLDER)
+    # if MASK_NAME!="" and not os.path.isdir(ALIGNED_MASK_FOLDER): os.mkdir(ALIGNED_MASK_FOLDER)
+    #
+    # verticalAlignment()
+    # print("Total time: {0}s".format(round(time.time()-end,3)))

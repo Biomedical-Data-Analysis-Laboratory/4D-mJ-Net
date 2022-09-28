@@ -307,7 +307,7 @@ def mJNet_2D_with_VGG16(params, multiInput, batch=True, drop=True, leaky=True, a
 ################################################################################
 # mJ-Net model with 4D data (3D+time) as input
 def mJNet_3dot5D(params, multiInput, usePMs=True, batch=True, drop=False, leaky=True, attentiongate=True):
-    init_params = model_utils.get_init_params_3D(params=params,leaky=leaky)
+    init_params = model_utils.get_init_params_3D(params=params,leaky=leaky,T=getNUMBER_OF_IMAGE_PER_SECTION())
     size_two = init_params["size_two"]
     kernel_size = init_params["kernel_size"]
     l1_l2_reg = init_params["l1_l2_reg"]
@@ -319,39 +319,204 @@ def mJNet_3dot5D(params, multiInput, usePMs=True, batch=True, drop=False, leaky=
     bias_constraint = init_params["bias_constraint"]
 
     conv_out, block_6, block_5, block_4, block_3, inputs = [], [], [], [], [], []
-    for slc in range(1, n_slices + 1):
+    model_conv = {}
+    for slc in range(1, n_slices+1):
         input_x = layers.Input(shape=input_shape, sparse=False)
         inputs.append(input_x)
 
         kernel_shape = (3,3,getNUMBER_OF_IMAGE_PER_SECTION()) if is_timelast() else (getNUMBER_OF_IMAGE_PER_SECTION(), 3, 3)
         pool_size = (1,1,params["max_pool"][str(slc) + ".long.1"]) if is_timelast() else (params["max_pool"][str(slc) + ".long.1"], 1, 1)
-        out_1 = model_utils.block_conv(input_x, [8, 8], kernel_shape, activ_func, l1_l2_reg, kernel_init,
-                                       kernel_constraint, bias_constraint, leaky, batch, pool_size)
+
+        out_1 = None
+        for x in [1, 2]:  # 2 conv layers (and batch norm.) + max pooling
+            key_conv = "conv_1_"+str(x)
+            key_leaky = "leaky_1_"+str(x)
+            key_batch = "batch_1_"+str(x)
+            if key_conv not in model_conv.keys():
+                model_conv[key_conv] = layers.Conv3D(8, kernel_size=kernel_shape, activation=activ_func,
+                                                     kernel_regularizer=l1_l2_reg,strides=1, kernel_initializer=kernel_init,
+                                                     padding='same', kernel_constraint=kernel_constraint,
+                                                     bias_constraint=bias_constraint)
+            out_1 = model_conv[key_conv](input_x)
+
+            if leaky:
+                if key_leaky not in model_conv.keys(): model_conv[key_leaky] = layers.LeakyReLU(alpha=0.33)
+                out_1 = model_conv[key_leaky](out_1)
+            if batch:
+                if key_batch not in model_conv.keys(): model_conv[key_batch] = layers.BatchNormalization()
+                out_1 = model_conv[key_batch](out_1)
+        if "max_1" not in model_conv.keys(): model_conv["max_1"] = layers.MaxPooling3D(pool_size)
+        out_1 = model_conv["max_1"](out_1)
+
         new_z = int(getNUMBER_OF_IMAGE_PER_SECTION() / params["max_pool"][str(slc) + ".long.1"])
         kernel_shape = (3,3,new_z) if is_timelast() else (new_z, 3, 3)
         pool_size = (1,1,params["max_pool"][str(slc) + ".long.2"]) if is_timelast() else (params["max_pool"][str(slc) + ".long.2"], 1, 1)
-        out_2 = model_utils.block_conv(out_1, [16, 16], kernel_shape, activ_func, l1_l2_reg, kernel_init,
-                                       kernel_constraint, bias_constraint, leaky, batch, pool_size)
+
+        out_2 = None
+        for x in [1, 2]:  # 2 conv layers (and batch norm.) + max pooling
+            key_conv = "conv_2_"+str(x)
+            key_leaky = "leaky_2_"+str(x)
+            key_batch = "batch_2_"+str(x)
+            if key_conv not in model_conv.keys():
+                model_conv[key_conv] = layers.Conv3D(16, kernel_size=kernel_shape, activation=activ_func,
+                                                     kernel_regularizer=l1_l2_reg,strides=1, kernel_initializer=kernel_init,
+                                                     padding='same', kernel_constraint=kernel_constraint,
+                                                     bias_constraint=bias_constraint)
+            out_2 = model_conv[key_conv](out_1)
+
+            if leaky:
+                if key_leaky not in model_conv.keys(): model_conv[key_leaky] = layers.LeakyReLU(alpha=0.33)
+                out_2 = model_conv[key_leaky](out_2)
+            if batch:
+                if key_batch not in model_conv.keys(): model_conv[key_batch] = layers.BatchNormalization()
+                out_2 = model_conv[key_batch](out_2)
+        if "max_2" not in model_conv.keys(): model_conv["max_2"] = layers.MaxPooling3D(pool_size)
+        out_2 = model_conv["max_2"](out_2)
+
         new_z = int(getNUMBER_OF_IMAGE_PER_SECTION() / params["max_pool"][str(slc) + ".long.2"])
         kernel_shape = (3,3,new_z) if is_timelast() else (new_z, 3, 3)
         pool_size = (1,1,params["max_pool"][str(slc) + ".long.3"]) if is_timelast() else (params["max_pool"][str(slc) + ".long.3"], 1, 1)
-        out_3 = model_utils.block_conv(out_2, [32, 32], kernel_shape, activ_func, l1_l2_reg, kernel_init,
-                                       kernel_constraint, bias_constraint, leaky, batch, pool_size)
+
+        out_3 = None
+        for x in [1, 2]:  # 2 conv layers (and batch norm.) + max pooling
+            key_conv = "conv_3_"+str(x)
+            key_leaky = "leaky_3_"+str(x)
+            key_batch = "batch_3_"+str(x)
+            if key_conv not in model_conv.keys():
+                model_conv[key_conv] = layers.Conv3D(32, kernel_size=kernel_shape, activation=activ_func,
+                                                     kernel_regularizer=l1_l2_reg,strides=1, kernel_initializer=kernel_init,
+                                                     padding='same', kernel_constraint=kernel_constraint,
+                                                     bias_constraint=bias_constraint)
+            out_3 = model_conv[key_conv](out_2)
+
+            if leaky:
+                if key_leaky not in model_conv.keys(): model_conv[key_leaky] = layers.LeakyReLU(alpha=0.33)
+                out_3 = model_conv[key_leaky](out_3)
+            if batch:
+                if key_batch not in model_conv.keys(): model_conv[key_batch] = layers.BatchNormalization()
+                out_3 = model_conv[key_batch](out_3)
+        if "max_3" not in model_conv.keys(): model_conv["max_3"] = layers.MaxPooling3D(pool_size)
+        out_3 = model_conv["max_3"](out_3)
+
         if drop: out_3 = Dropout(params["dropout"][str(slc) + ".long.1"])(out_3)
         block_3.append(out_3)
-        out_4 = model_utils.block_conv(out_3, [8, 16], kernel_size, activ_func, l1_l2_reg, kernel_init,
-                                       kernel_constraint, bias_constraint, leaky, batch, size_two)
+
+        out_4 = None
+        for x in [1, 2]:  # 2 conv layers (and batch norm.) + max pooling
+            key_conv = "conv_4_"+str(x)
+            key_leaky = "leaky_4_"+str(x)
+            key_batch = "batch_4_"+str(x)
+            if key_conv not in model_conv.keys():
+                model_conv[key_conv] = layers.Conv3D(8*x, kernel_size=kernel_shape, activation=activ_func,
+                                                     kernel_regularizer=l1_l2_reg,strides=1, kernel_initializer=kernel_init,
+                                                     padding='same', kernel_constraint=kernel_constraint,
+                                                     bias_constraint=bias_constraint)
+            out_4 = model_conv[key_conv](out_3)
+
+            if leaky:
+                if key_leaky not in model_conv.keys(): model_conv[key_leaky] = layers.LeakyReLU(alpha=0.33)
+                out_4 = model_conv[key_leaky](out_4)
+            if batch:
+                if key_batch not in model_conv.keys(): model_conv[key_batch] = layers.BatchNormalization()
+                out_4 = model_conv[key_batch](out_4)
+        if "max_4" not in model_conv.keys(): model_conv["max_4"] = layers.MaxPooling3D(size_two)
+        out_4 = model_conv["max_4"](out_4)
         block_4.append(out_4)
-        out_5 = model_utils.block_conv(out_4, [16, 32], kernel_size, activ_func, l1_l2_reg, kernel_init,
-                                       kernel_constraint, bias_constraint, leaky, batch, size_two)
+
+        out_5 = None
+        for x in [1, 2]:  # 2 conv layers (and batch norm.) + max pooling
+            key_conv = "conv_5_"+str(x)
+            key_leaky = "leaky_5_"+str(x)
+            key_batch = "batch_5_"+str(x)
+            if key_conv not in model_conv.keys():
+                model_conv[key_conv] = layers.Conv3D(16*x, kernel_size=kernel_shape, activation=activ_func,
+                                                     kernel_regularizer=l1_l2_reg,strides=1, kernel_initializer=kernel_init,
+                                                     padding='same', kernel_constraint=kernel_constraint,
+                                                     bias_constraint=bias_constraint)
+            out_5 = model_conv[key_conv](out_4)
+
+            if leaky:
+                if key_leaky not in model_conv.keys(): model_conv[key_leaky] = layers.LeakyReLU(alpha=0.33)
+                out_5 = model_conv[key_leaky](out_5)
+            if batch:
+                if key_batch not in model_conv.keys(): model_conv[key_batch] = layers.BatchNormalization()
+                out_5 = model_conv[key_batch](out_5)
+        if "max_5" not in model_conv.keys(): model_conv["max_5"] = layers.MaxPooling3D(size_two)
+        out_5 = model_conv["max_5"](out_5)
         block_5.append(out_5)
-        out_6 = model_utils.block_conv(out_5, [32, 64], kernel_size, activ_func, l1_l2_reg, kernel_init,
-                                       kernel_constraint, bias_constraint, leaky, batch, size_two)
+
+        out_6 = None
+        for x in [1, 2]:  # 2 conv layers (and batch norm.) + max pooling
+            key_conv = "conv_6_"+str(x)
+            key_leaky = "leaky_6_"+str(x)
+            key_batch = "batch_6_"+str(x)
+            if key_conv not in model_conv.keys():
+                model_conv[key_conv] = layers.Conv3D(32*x, kernel_size=kernel_shape, activation=activ_func,
+                                                     kernel_regularizer=l1_l2_reg,strides=1, kernel_initializer=kernel_init,
+                                                     padding='same', kernel_constraint=kernel_constraint,
+                                                     bias_constraint=bias_constraint)
+            out_6 = model_conv[key_conv](out_5)
+
+            if leaky:
+                if key_leaky not in model_conv.keys(): model_conv[key_leaky] = layers.LeakyReLU(alpha=0.33)
+                out_6 = model_conv[key_leaky](out_6)
+            if batch:
+                if key_batch not in model_conv.keys(): model_conv[key_batch] = layers.BatchNormalization()
+                out_6 = model_conv[key_batch](out_6)
+        if "max_6" not in model_conv.keys(): model_conv["max_6"] = layers.MaxPooling3D(size_two)
+        out_6 = model_conv["max_6"](out_6)
         block_6.append(out_6)
-        out_7 = model_utils.block_conv(out_6, [64, 128], kernel_size, activ_func, l1_l2_reg, kernel_init,
-                                       kernel_constraint, bias_constraint, leaky, batch, size_two)
+
+        out_7 = None
+        for x in [1, 2]:  # 2 conv layers (and batch norm.) + max pooling
+            key_conv = "conv_7_"+str(x)
+            key_leaky = "leaky_7_"+str(x)
+            key_batch = "batch_7_"+str(x)
+            if key_conv not in model_conv.keys():
+                model_conv[key_conv] = layers.Conv3D(64*x, kernel_size=kernel_shape, activation=activ_func,
+                                                     kernel_regularizer=l1_l2_reg,strides=1, kernel_initializer=kernel_init,
+                                                     padding='same', kernel_constraint=kernel_constraint,
+                                                     bias_constraint=bias_constraint)
+            out_7 = model_conv[key_conv](out_6)
+
+            if leaky:
+                if key_leaky not in model_conv.keys(): model_conv[key_leaky] = layers.LeakyReLU(alpha=0.33)
+                out_7 = model_conv[key_leaky](out_7)
+            if batch:
+                if key_batch not in model_conv.keys(): model_conv[key_batch] = layers.BatchNormalization()
+                out_7 = model_conv[key_batch](out_7)
+        if "max_7" not in model_conv.keys(): model_conv["max_7"] = layers.MaxPooling3D(size_two)
+        out_7 = model_conv["max_7"](out_7)
         if drop: out_7 = Dropout(params["dropout"][str(slc) + ".1"])(out_7)
         conv_out.append(out_7)
+
+        # out_1 = model_utils.block_conv(input_x, [8, 8], kernel_shape, activ_func, l1_l2_reg, kernel_init,
+        #                                kernel_constraint, bias_constraint, leaky, batch, pool_size)
+        # new_z = int(getNUMBER_OF_IMAGE_PER_SECTION() / params["max_pool"][str(slc) + ".long.1"])
+        # kernel_shape = (3,3,new_z) if is_timelast() else (new_z, 3, 3)
+        # pool_size = (1,1,params["max_pool"][str(slc) + ".long.2"]) if is_timelast() else (params["max_pool"][str(slc) + ".long.2"], 1, 1)
+        # out_2 = model_utils.block_conv(out_1, [16, 16], kernel_shape, activ_func, l1_l2_reg, kernel_init,
+        #                                kernel_constraint, bias_constraint, leaky, batch, pool_size)
+        # new_z = int(getNUMBER_OF_IMAGE_PER_SECTION() / params["max_pool"][str(slc) + ".long.2"])
+        # kernel_shape = (3,3,new_z) if is_timelast() else (new_z, 3, 3)
+        # pool_size = (1,1,params["max_pool"][str(slc) + ".long.3"]) if is_timelast() else (params["max_pool"][str(slc) + ".long.3"], 1, 1)
+        # out_3 = model_utils.block_conv(out_2, [32, 32], kernel_shape, activ_func, l1_l2_reg, kernel_init,
+        #                                kernel_constraint, bias_constraint, leaky, batch, pool_size)
+        # if drop: out_3 = Dropout(params["dropout"][str(slc) + ".long.1"])(out_3)
+        # block_3.append(out_3)
+        # out_4 = model_utils.block_conv(out_3, [8, 16], kernel_size, activ_func, l1_l2_reg, kernel_init,
+        #                                kernel_constraint, bias_constraint, leaky, batch, size_two)
+        # block_4.append(out_4)
+        # out_5 = model_utils.block_conv(out_4, [16, 32], kernel_size, activ_func, l1_l2_reg, kernel_init,
+        #                                kernel_constraint, bias_constraint, leaky, batch, size_two)
+        # block_5.append(out_5)
+        # out_6 = model_utils.block_conv(out_5, [32, 64], kernel_size, activ_func, l1_l2_reg, kernel_init,
+        #                                kernel_constraint, bias_constraint, leaky, batch, size_two)
+        # block_6.append(out_6)
+        # out_7 = model_utils.block_conv(out_6, [64, 128], kernel_size, activ_func, l1_l2_reg, kernel_init,
+        #                                kernel_constraint, bias_constraint, leaky, batch, size_two)
+        # if drop: out_7 = Dropout(params["dropout"][str(slc) + ".1"])(out_7)
+        # conv_out.append(out_7)
 
     if usePMs:
         layersAfterTransferLearning = []
@@ -425,7 +590,7 @@ def mJNet_3dot5D(params, multiInput, usePMs=True, batch=True, drop=False, leaky=
 # mJ-Net model with 4D data (3D+time) as input
 def mJNet_4D(params, batch=True, drop=False, MCD=True, leaky=True, attentiongate=True, plusplus=False):
     assert "n_slices" in params.keys(), "Expecting # of slices > 0"
-    init_params = model_utils.get_init_params_3D(params=params, leaky=leaky)
+    init_params = model_utils.get_init_params_3D(params=params, leaky=leaky,T=getNUMBER_OF_IMAGE_PER_SECTION())
     size_two = init_params["size_two"]
     kernel_size = init_params["kernel_size"]
     l1_l2_reg = init_params["l1_l2_reg"]
@@ -597,7 +762,7 @@ def mJNet_4D(params, batch=True, drop=False, MCD=True, leaky=True, attentiongate
 def mJNet_4D_xy(params, batch=True, drop=False, leaky=True, attentiongate=True):
     assert "n_slices" in params.keys(), "Expecting # of slices > 0"
     # VARIABLES
-    variables = model_utils.get_init_params_3D(params,leaky)
+    variables = model_utils.get_init_params_3D(params,leaky,T=getNUMBER_OF_IMAGE_PER_SECTION())
 
     variables["kernel_shape"] = (3, 3, variables["n_slices"], 3) if is_timelast() else (3, variables["n_slices"], 3, 3)
     variables["limchan"] = 8

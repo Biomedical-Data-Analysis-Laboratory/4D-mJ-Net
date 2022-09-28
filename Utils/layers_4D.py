@@ -4,26 +4,10 @@ from tensorflow.keras.layers import Conv3D, Conv3DTranspose, Reshape, LeakyReLU
 
 ################################################################################
 # Conv4D function
-def Conv4D(
-        inp,
-        filters,
-        kernel_size,
-        strides=(1,1,1),
-        padding='same',
-        data_format='channels_last',
-        dilation_rate=(1,1,1,1),
-        activation=None,
-        use_bias=True,
-        kernel_initializer="glorot_uniform",
-        bias_initializer="zeros",
-        kernel_regularizer=None,
-        bias_regularizer=None,
-        activity_regularizer=None,
-        kernel_constraint=None,
-        bias_constraint=None,
-        trainable=True,
-        name=None,
-        reduce_dim=2):
+def Conv4D(inp, filters, kernel_size, strides=(1,1,1), padding='same', data_format='channels_last',
+           dilation_rate=(1,1,1,1), activation=None, use_bias=True, kernel_initializer="glorot_uniform",
+           bias_initializer="zeros", kernel_regularizer=None, bias_regularizer=None, activity_regularizer=None,
+           kernel_constraint=None, bias_constraint=None, trainable=True, name=None, reduce_dim=2):
     """
     Performs a 4D convolution of the (z,t,x,y) dimension of a tensor with shape: (b,c,z,t,x,y) with k filters.
     This operator realizes a 4D convolution by performing several 3D convolutions.
@@ -55,7 +39,6 @@ def Conv4D(
     reduce_o = z_o if out_axis==1 else t_o
     reduce_i = z_i if out_axis==1 else t_i
 
-    # print(tuple(inp.get_shape().as_list()), reduce_k, reduce_i, reduce_o)
 
     # output tensors for each 3D frame
     frame_results = [None] * reduce_o
@@ -66,7 +49,6 @@ def Conv4D(
             # add results to this output frame
             out_frame = j - (i - reduce_k // 2) - (reduce_i - reduce_o) // 2
             if out_frame < 0 or out_frame >= reduce_o: continue
-            # print(out_frame, j, i)
             # convolve input frame j with kernel frame i
             reshape_shape = (keep_i, x_i, y_i, c_i)
             if reduce_dim==2: inp_reduced = inp[:, j, :, :, :, :]  # reduce time using the z-dim
@@ -92,26 +74,10 @@ def Conv4D(
 
 ################################################################################
 # Conv4DTranspose function
-def Conv4DTranspose(
-        inp,
-        filters,
-        kernel_size,
-        strides=(1,1,1),
-        padding='same',
-        data_format='channels_last',
-        dilation_rate=(1,1,1,1),
-        activation=None,
-        use_bias=True,
-        kernel_initializer="glorot_uniform",
-        bias_initializer="zeros",
-        kernel_regularizer=None,
-        bias_regularizer=None,
-        activity_regularizer=None,
-        kernel_constraint=None,
-        bias_constraint=None,
-        trainable=True,
-        name=None,
-        reduce_dim=2):
+def Conv4DTranspose(inp, filters, kernel_size, strides=(1,1,1), padding='same', data_format='channels_last',
+                    dilation_rate=(1,1,1,1), activation=None, use_bias=True, kernel_initializer="glorot_uniform",
+                    bias_initializer="zeros", kernel_regularizer=None, bias_regularizer=None, activity_regularizer=None,
+                    kernel_constraint=None, bias_constraint=None, trainable=True, name=None, reduce_dim=2):
     """
     Performs a 4D transpose convolution of the (t,z,x,y) dimension of a tensor with shape: (b,c,t,z,x,y) with k filters.
     This operator realizes a 4D transpose convolution by performing several 3D transpose convolutions.

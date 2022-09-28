@@ -52,7 +52,6 @@ class DisplayCallback(callbacks.Callback):
                 else: img[x:x+get_m(),y:y+get_n()] = tmp_img*255
 
             cv2.imwrite(dir_path+self.slice_idx+"_"+str(epoch+1)+".png", img)
-            # print('\nSample Prediction ({0}s) after epoch {1}\n'.format(round(time.time()-s, 3), epoch + 1))
 
 
 ################################################################################

@@ -103,10 +103,9 @@ def predict_and_save_img(nn, p_id):
     # for all the slice folders in patientFolder
     for subfolder in glob.glob(patient_folder+"*"+os.path.sep):
         # Predict the images
-        # s = time.time()
         if get_USE_PM(): predict_img_from_PMS(nn, subfolder, p_id, subpatient_fold, patient_fold_heatmap, patient_fold_GT, patient_folder_tmp, filename_test)
         else: predict_img(nn, subfolder, p_id, patient_folder, subpatient_fold, patient_fold_heatmap, patient_fold_GT, patient_folder_tmp, filename_test)
-        # print("Time: {0}s".format(round(time.time() - s, 3)))
+
 
 
 ################################################################################

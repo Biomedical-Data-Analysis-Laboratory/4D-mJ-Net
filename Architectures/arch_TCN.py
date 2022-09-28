@@ -10,7 +10,7 @@ from tensorflow.keras.layers import Dropout, Concatenate, Conv2D, Conv3D, TimeDi
 # model with Temporal Convolutional Network (TCN) 2.5D with single/multi encoders
 def TCNet(params, batch=True, drop=True, leaky=True, MCD=True, single_enc=False, timedistr=False):
     T = getNUMBER_OF_IMAGE_PER_SECTION()#+2
-    vars_2D = model_utils.get_init_params_2D(params, leaky)
+    vars_2D = model_utils.get_init_params_2D(params, leaky, T)
     size_two = vars_2D["size_two"]
     kernel_size_3 = vars_2D["kernel_size_3"]
     kernel_size_2 = vars_2D["kernel_size_2"]
@@ -149,9 +149,10 @@ def TCNet(params, batch=True, drop=True, leaky=True, MCD=True, single_enc=False,
 ################################################################################
 # model with Temporal Convolutional Network (TCN) 3.5D with single/multi encoders
 def TCNet_3dot5D(params, batch=True, drop=True, leaky=True, MCD=True, single_enc=False):
-    vars_3D = model_utils.get_init_params_3D(params, leaky)
+    T = getNUMBER_OF_IMAGE_PER_SECTION()  # +2
+    vars_3D = model_utils.get_init_params_3D(params, leaky, T)
     vars_3D["kernel_size"] = (3,3,3)
-    vars_2D = model_utils.get_init_params_2D(params, leaky)
+    vars_2D = model_utils.get_init_params_2D(params, leaky, T)
     vars_3D["input_shape_3D"] = (vars_3D["n_slices"], get_m(), get_n(), 1)
     k_skip = (3,3,getNUMBER_OF_IMAGE_PER_SECTION()) if is_timelast() else (getNUMBER_OF_IMAGE_PER_SECTION(), 3, 3)
     pool_skip = (1,1,getNUMBER_OF_IMAGE_PER_SECTION()) if is_timelast() else (getNUMBER_OF_IMAGE_PER_SECTION(), 1, 1)
@@ -160,7 +161,7 @@ def TCNet_3dot5D(params, batch=True, drop=True, leaky=True, MCD=True, single_enc
     last_i = -1
 
     inputs, latent_space, skip_conn = [], [], {}
-    for _ in range(getNUMBER_OF_IMAGE_PER_SECTION()): inputs.append(layers.Input(shape=vars_3D["input_shape_3D"], sparse=False))
+    for _ in range(T): inputs.append(layers.Input(shape=vars_3D["input_shape_3D"], sparse=False))
 
     dict_layers = {}
     for inp in inputs:

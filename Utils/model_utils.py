@@ -134,7 +134,7 @@ def get_PMs_list(multi_input, params, activ_func, l1_l2_reg, kernel_init, kernel
 
 ################################################################################
 # Get the initial parameters for 2D models
-def get_init_params_2D(params,leaky):
+def get_init_params_2D(params,leaky,T):
     out_params = {
         "size_two": (2,2),
         "kernel_size_3": (3,3),
@@ -147,7 +147,7 @@ def get_init_params_2D(params,leaky):
         "kernel_constraint": None if "kernel_constraint" not in params.keys() else get_kernel_bias_constraint(params["kernel_constraint"]),
         "bias_constraint": None if "bias_constraint" not in params.keys() else get_kernel_bias_constraint(params["bias_constraint"]),
         "reduce_dim": params["reduce_dim"] if "reduce_dim" in params.keys() else 2,
-        "reshape_input_shape": (get_m(), get_n(), 1, getNUMBER_OF_IMAGE_PER_SECTION(), 1) if is_timelast() else (1, getNUMBER_OF_IMAGE_PER_SECTION(), get_m(), get_n(), 1),
+        "reshape_input_shape": (get_m(), get_n(), 1, T, 1) if is_timelast() else (1, T, get_m(), get_n(), 1),
         "z_axis": 3 if is_timelast() else 1
     }
     out_params["input_shape_3D"] = (get_m(), get_n(), out_params["n_slices"], 1) if is_timelast() else (out_params["n_slices"], get_m(), get_n(), 1),
@@ -156,19 +156,19 @@ def get_init_params_2D(params,leaky):
 
 ################################################################################
 # Get the initial parameters for 3D/4D models
-def get_init_params_3D(params,leaky):
+def get_init_params_3D(params,leaky,T):
     out_params = {
         "size_two": (2,2,1) if is_timelast() else (1,2,2),
         "kernel_size": (3,3,1) if is_timelast() else (1,3,3),
         "l1_l2_reg": None if "regularizer" not in params.keys() else get_regularizer(params["regularizer"]),
         "activ_func": None if leaky else 'relu',
-        "input_shape": (get_m(), get_n(), getNUMBER_OF_IMAGE_PER_SECTION(), 1) if is_timelast() else (getNUMBER_OF_IMAGE_PER_SECTION(), get_m(), get_n(), 1),
+        "input_shape": (get_m(), get_n(), T, 1) if is_timelast() else (T, get_m(), get_n(), 1),
         "n_slices": 0 if "n_slices" not in params.keys() else params["n_slices"],
         "kernel_init": "glorot_uniform" if "kernel_init" not in params.keys() else get_kernel_init(params["kernel_init"]),
         "kernel_constraint": None if "kernel_constraint" not in params.keys() else get_kernel_bias_constraint(params["kernel_constraint"]),
         "bias_constraint": None if "bias_constraint" not in params.keys() else get_kernel_bias_constraint(params["bias_constraint"]),
         "reduce_dim": params["reduce_dim"] if "reduce_dim" in params.keys() else 2,
-        "reshape_input_shape": (get_m(), get_n(), 1, getNUMBER_OF_IMAGE_PER_SECTION(), 1) if is_timelast() else (1, getNUMBER_OF_IMAGE_PER_SECTION(), get_m(), get_n(), 1),
+        "reshape_input_shape": (get_m(), get_n(), 1, T, 1) if is_timelast() else (1, T, get_m(), get_n(), 1),
         "z_axis": 3 if is_timelast() else 1
     }
     return out_params
@@ -178,7 +178,7 @@ def get_init_params_3D(params,leaky):
 # Function to get the input X depending on the correct model
 def get_correct_X_for_input_model(ds_seq, current_folder, row, batch_idx, batch_len, X=None, train=False):
     # TODO: add the possibility to infer the entire image
-    T = ds_seq.constants["NUMBER_OF_IMAGE_PER_SECTION"] if "TCNet" not in ds_seq.name else ds_seq.constants["NUMBER_OF_IMAGE_PER_SECTION"]#+2
+    T = ds_seq.constants["NUMBER_OF_IMAGE_PER_SECTION"] if "TCNet" not in ds_seq.name else ds_seq.constants["NUMBER_OF_IMAGE_PER_SECTION"]+2
     pms = dict()
     # Extract the information: coordinates, data_aug_idx, ...
     coord = row["x_y"] if train else row["x_y"].iloc[0]
@@ -187,13 +187,13 @@ def get_correct_X_for_input_model(ds_seq, current_folder, row, batch_idx, batch_
     # Set the folders list with the current one
     folders = [current_folder]
     # Ger the right folders and add them in the list
-    if (ds_seq.is4DModel or ds_seq.is3dot5DModel) and ds_seq.n_slices > 1: folders = get_prev_next_folder(current_folder, slice_idx)
+    if (ds_seq.is4DModel or ds_seq.is3dot5DModel) and ds_seq.n_slices > 1: folders = get_prev_next_folder(current_folder, slice_idx, ds_seq.n_slices)
     # Important flag. Check if the input X should be an array or not
     isXarray = True if len(folders) > 1 or (ds_seq.x_label == ds_seq.constants["LIST_PMS"] or (ds_seq.x_label == "pixels" and (ds_seq.is4DModel or ds_seq.is3dot5DModel))) else False
     isXarray = False if "TCNet" in ds_seq.name else isXarray  # set it to False if we're dealing with TCN
     if batch_idx == 0:  # create a list of empty spots: [None,None,...]
         if isXarray: X = [None] * len(folders)
-        if "TCNet" in ds_seq.name: X = [None] * T # ds_seq.constants["NUMBER_OF_IMAGE_PER_SECTION"]  # keep it like that
+        if "TCNet" in ds_seq.name: X = [None] * T
 
     for z, folder in enumerate(folders):  # main loop for number of folders involved (Z dim)
         x_shape = (batch_len, ds_seq.constants["M"], ds_seq.constants["N"], T, 1) \
@@ -291,7 +291,7 @@ def get_TCN_input(ds_seq, batch_idx, z, X, coord, train, data_aug_idx, batch_len
     if ds_seq.is3dot5DModel and batch_idx==0 and z==0: single_X = np.empty((batch_len, len(folders), ds_seq.constants["M"], ds_seq.constants["N"], 1))
 
     for t, filename in enumerate(np.sort(glob.glob(folder + "*.*"))):
-        time_idx = t #+1
+        time_idx = t+1
         if batch_idx > 0 or z > 0: single_X = X[time_idx]
         totimg = cv2.imread(filename, cv2.IMREAD_GRAYSCALE)
         assert totimg is not None, "The image {} is None".format(filename)
@@ -302,13 +302,13 @@ def get_TCN_input(ds_seq, batch_idx, z, X, coord, train, data_aug_idx, batch_len
         # Normalize the volume image before training!!
         slc_w = (slc_w - slc_w.mean()) / (slc_w.std() + 1e-5)
 
-        if ds_seq.is3dot5DModel: single_X[batch_idx, z, :, :, :] = slc_w
-        else: single_X[batch_idx, :, :, :] = slc_w
+        if ds_seq.is3dot5DModel: single_X[batch_idx, z, ...] = slc_w
+        else: single_X[batch_idx,...] = slc_w
         X[time_idx] = single_X
 
     # Copy the first and last timepoints for reaching 32 timepoints
-    # X[0] = X[1]
-    # X[T-1] = X[T-2]
+    X[0] = X[1]
+    X[T-1] = X[T-2]
 
     return X
 
@@ -352,7 +352,7 @@ def get_regularizer(reg_obj):
 # Return the correct kernel/bias constraint
 def get_kernel_init(flag):
     init = "glorot_uniform"  # Xavier uniform initializer.
-    if flag=="hu_init": init = initializers.VarianceScaling(scale=(9/5), mode='fan_in', distribution='normal', seed=None) # Hu initializer
+    if flag=="hu_init": init = initializers.VarianceScaling(scale=(9/5), mode='fan_in', distribution='normal', seed=None)  # Hu initializer
     return init
 
 
@@ -474,20 +474,31 @@ def upSamplingPlusAttention(inp, block, channels, kernel_size, strides_size, act
 
 ################################################################################
 # Get the previous and next folder, given a specific folder and the slice index
-def get_prev_next_folder(folder, slice_idx):
+def get_prev_next_folder(folder, slice_idx, n_slices):
+    assert n_slices%2 == 1, "The number of slices is even"
     folders = []
     maxSlice = len(glob.glob(folder[:-3]+"*"))
+    howmany = int((n_slices-1)/2)
+    listindex = list(range(1,howmany+1))
     if int(slice_idx)==1:
-        folders.extend([folder,folder])
-        folders.append(folder.replace("/"+slice_idx+"/","/"+general_utils.get_str_from_idx(int(slice_idx)+1)+"/"))
+        folders.extend([folder]*(n_slices-len(listindex)))
+        for x in listindex: folders.append(folder.replace("/"+slice_idx+"/","/"+general_utils.get_str_from_idx(int(slice_idx)+x)+"/"))
     elif int(slice_idx)==maxSlice:
-        folders.append(folder.replace("/"+slice_idx+"/","/"+general_utils.get_str_from_idx(int(slice_idx)-1)+"/"))
-        folders.extend([folder, folder])
+        for x in list(reversed(listindex)): folders.append(folder.replace("/"+slice_idx+"/","/"+general_utils.get_str_from_idx(int(slice_idx)-x)+"/"))
+        folders.extend([folder]*(n_slices-len(listindex)))
     else:
-        folders.append(folder.replace("/"+slice_idx+"/","/"+general_utils.get_str_from_idx(int(slice_idx)-1)+"/"))
+        for x in list(reversed(listindex)):
+            tmp_idx = int(slice_idx)-x
+            if tmp_idx<1: tmp_idx=1
+            folders.append(folder.replace("/"+slice_idx+"/","/"+general_utils.get_str_from_idx(tmp_idx)+"/"))
         folders.append(folder)
-        folders.append(folder.replace("/"+slice_idx+"/","/"+general_utils.get_str_from_idx(int(slice_idx)+1)+"/"))
+        for x in listindex:
+            tmp_idx = int(slice_idx)+x
+            if tmp_idx>maxSlice: tmp_idx=maxSlice
+            folders.append(folder.replace("/"+slice_idx+"/","/"+general_utils.get_str_from_idx(tmp_idx)+"/"))
 
+    print(folder, folders)
+    assert len(folders)==n_slices, "Number of folders from number of slices {0}!={1} for folder {2} and index {3}".format(len(folders), n_slices, folder, listindex)
     return folders
 
 

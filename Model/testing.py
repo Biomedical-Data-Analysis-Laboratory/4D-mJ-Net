@@ -28,6 +28,7 @@ def get_check_img_processed(nn, p_id, idx):
         for fname in [filename_1,filename_2,filename_3]:  # check if at least one path is correct
             if not os.path.exists(fname): continue
             filename = fname
+            break
         assert os.path.exists(filename), "[ERROR] - {0} does NOT exist".format(filename)
 
         check_img_proc = cv2.imread(filename, cv2.COLOR_BGR2RGB)
@@ -198,6 +199,7 @@ def predict_img_from_PMS(nn, subfolder, p_id, rel_patient_folder, rel_patient_fo
     # if the patient folder contains the correct number of subfolders
     # ATTENTION: careful here...
     n_fold = 7 if not is_ISLES2018() else 5
+    if "CTP_20_" in subfolder or "CTP_21_" in subfolder or "CTP_22_" in subfolder or "CTP_23_" in subfolder: n_fold-=2
 
     if len(glob.glob(subfolder+"*"+os.path.sep))>=n_fold:
         pmcheckfold = os.path.sep+"CBF"+os.path.sep

@@ -15,7 +15,7 @@ Using the entire 4D CTP data for AIS segmentation offers improved precision and 
 
 ### 2 - Link to paper
 
-TBA
+https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=10328592
 
 ### 3 - Dependecies:
 ```
